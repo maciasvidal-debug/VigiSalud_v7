@@ -70,6 +70,21 @@ export const PRODUCT_SCHEMAS: Record<string, ProductSchema> = {
       { key: 'model', label: 'Modelo / Referencia', type: 'text', required: false, colSpan: 4, section: 'TECHNICAL' },
       { key: 'serial', label: 'Serie / Lote', type: 'text', required: true, colSpan: 4, section: 'TECHNICAL' },
       { key: 'expirationDate', label: 'Vida Útil (Si aplica)', type: 'date', required: false, colSpan: 12, section: 'TECHNICAL' },
+      // REG-D006: Manual de uso obligatorio
+      { key: 'observations', label: '¿Manual de Uso presente?', type: 'select', required: true, options: ['SI', 'NO', 'NO_APLICA'], colSpan: 12, section: 'TECHNICAL' },
+      { key: 'quantity', label: 'Cantidad', type: 'number', required: true, colSpan: 12, section: 'LOGISTICS' },
+    ]
+  },
+
+  'SUPLEMENTO': {
+    subtypes: ['GENERAL'],
+    fields: [
+      { key: 'name', label: 'Nombre Suplemento', type: 'text', required: true, colSpan: 6, section: 'HEADER' },
+      { key: 'invimaReg', label: 'Registro Sanitario', type: 'text', required: true, colSpan: 6, section: 'HEADER' },
+      { key: 'lot', label: 'Lote', type: 'text', required: true, colSpan: 4, section: 'TECHNICAL' },
+      { key: 'expirationDate', label: 'Vencimiento', type: 'date', required: true, colSpan: 4, section: 'TECHNICAL' },
+      // REG-D008: Tabla Nutricional
+      { key: 'observations', label: '¿Tabla Nutricional presente?', type: 'select', required: true, options: ['SI', 'NO'], colSpan: 4, section: 'TECHNICAL' },
       { key: 'quantity', label: 'Cantidad', type: 'number', required: true, colSpan: 12, section: 'LOGISTICS' },
     ]
   },

@@ -1,4 +1,4 @@
-import type { Establishment, InspectionItem, CategoryType, InspectionBlock } from '../types';
+import type { Establishment, InspectionItem, CategoryType, InspectionBlock, ProductFinding, ValidationResult, RuleViolation } from '../types';
 
 // =============================================================================
 // 1. CONFIGURACIÓN TÁCTICA DE GOBERNANZA (PRIORIDAD DE BLOQUES)
@@ -226,7 +226,88 @@ const MASTER_CATALOG: MasterItem[] = [
 ];
 
 // =============================================================================
-// 3. EL MOTOR LÓGICO
+// 3. CATALOGO DE REGLAS DE PRODUCTO (Manual Técnico Sec 3 y 4)
+// =============================================================================
+
+interface InternalRule {
+  id: string;
+  description: string;
+  riskLevel: 'CRITICO' | 'ALTO' | 'MEDIO' | 'BAJO';
+  condition: (product: ProductFinding) => boolean;
+  action?: string;
+}
+
+const PRODUCT_RULES: InternalRule[] = [
+  // --- SECCION 3.1 VALIDACIONES LEGALES ---
+  {
+    id: 'REG-L001',
+    description: 'El producto debe contar con Registro Sanitario vigente o Notificación Sanitaria.',
+    riskLevel: 'CRITICO',
+    condition: (p) => !p.invimaReg || p.invimaReg.trim().length < 5
+  },
+  {
+    id: 'REG-L006',
+    description: 'Prohibición de comercialización sin RS o con RS vencido (Riesgo Crítico).',
+    riskLevel: 'CRITICO',
+    condition: (p) => p.riskFactor === 'SIN_REGISTRO'
+  },
+  {
+    id: 'REG-L020',
+    description: 'Decomiso inmediato por evidencia de falsificación o fraude.',
+    riskLevel: 'CRITICO',
+    condition: (p) => p.riskFactor === 'FRAUDULENTO' || p.riskFactor === 'ALTERADO'
+  },
+
+  // --- SECCION 3.3 VALIDACIONES CUANTITATIVAS ---
+  {
+    id: 'REG-Q001',
+    description: 'La cantidad inventariada debe ser mayor a cero.',
+    riskLevel: 'BAJO',
+    condition: (p) => p.quantity <= 0
+  },
+
+  // --- SECCION 3.4 VALIDACIONES TÉCNICAS ---
+  {
+    id: 'REG-T015',
+    description: 'Producto vencido. Se prohíbe su venta o dispensación.',
+    riskLevel: 'ALTO',
+    condition: (p) => {
+      // Si ya está marcado como vencido explícitamente
+      if (p.riskFactor === 'VENCIDO') return true;
+      // Validación dinámica de fecha
+      if (p.expirationDate) {
+        const expDate = new Date(p.expirationDate);
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        return expDate < today;
+      }
+      return false;
+    }
+  },
+  {
+    id: 'REG-T001',
+    description: 'Condiciones de almacenamiento inadecuadas / Ruptura de cadena de frío.',
+    riskLevel: 'ALTO',
+    condition: (p) => p.riskFactor === 'MAL_ALMACENAMIENTO' || (!!p.coldChainStatus && p.coldChainStatus.includes('INCUMPLE'))
+  },
+
+  // --- SECCION 3.2 VALIDACIONES DOCUMENTALES ---
+  {
+    id: 'REG-D006',
+    description: 'Los dispositivos médicos deben contar con manual de uso visible.',
+    riskLevel: 'MEDIO',
+    condition: (p) => p.type === 'DISPOSITIVO_MEDICO' && p.observations === 'NO'
+  },
+  {
+    id: 'REG-D008',
+    description: 'Suplementos dietarios requieren tabla nutricional obligatoria.',
+    riskLevel: 'MEDIO',
+    condition: (p) => p.type === 'SUPLEMENTO' && p.observations === 'NO'
+  }
+];
+
+// =============================================================================
+// 4. EL MOTOR LÓGICO
 // =============================================================================
 
 export const inspectionEngine = {
@@ -314,5 +395,31 @@ export const inspectionEngine = {
 
     // Evitar división por cero
     return totalWeight === 0 ? 100 : Math.round((earnedWeight / totalWeight) * 100);
+  },
+
+  /**
+   * Valida un producto contra el Motor de Reglas (Manual Técnico Sec 4).
+   * @param product Producto a validar
+   * @returns Resultado de validación con lista de violaciones
+   */
+  validateProduct: (product: ProductFinding): ValidationResult => {
+    const violations: RuleViolation[] = [];
+
+    for (const rule of PRODUCT_RULES) {
+      // Si la regla se cumple (condition returns true), es una violación
+      if (rule.condition(product)) {
+        violations.push({
+          id: rule.id,
+          description: rule.description,
+          riskLevel: rule.riskLevel,
+          action: rule.action
+        });
+      }
+    }
+
+    return {
+      isValid: violations.length === 0,
+      violations
+    };
   }
 };

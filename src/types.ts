@@ -30,6 +30,32 @@ export type SeizureType = 'NINGUNO' | 'DECOMISO' | 'CONGELAMIENTO' | 'DESNATURAL
 export type PhysicalState = 'BUENO' | 'DETERIORADO' | 'ALTERADO';
 export type ComplaintType = 'CALIDAD_PRODUCTO' | 'USO_RACIONAL' | 'LEGALIDAD_CONTRABANDO' | 'SERVICIO_TECNICO' | 'FARMACOVIGILANCIA' | 'OTRO';
 
+export type InspectionBlock =
+  | 'TALENTO_HUMANO'
+  | 'LEGAL'
+  | 'INFRAESTRUCTURA'
+  | 'DOTACION'
+  | 'PROCESOS'
+  | 'SANEAMIENTO'
+  | 'SANITARIO'
+  | 'LOCATIVO'
+  | 'PERSONAL'
+  | 'DOCUMENTAL'
+  | 'PRODUCTOS'
+  | 'SEGURIDAD';
+
+export interface RuleViolation {
+  id: string;
+  description: string;
+  riskLevel: 'CRITICO' | 'ALTO' | 'MEDIO' | 'BAJO';
+  action?: string;
+}
+
+export interface ValidationResult {
+  isValid: boolean;
+  violations: RuleViolation[];
+}
+
 // --- NUEVO: Estructuras para Motor Polimórfico (Manual Técnico Secc 6.1) ---
 export type PresentationMode = 'DISCRETE' | 'VOLUMETRIC' | 'MASS_BASED';
 
@@ -99,7 +125,8 @@ export interface ProductFinding {
   atcCode?: string;            // Clasificación
   cumIndexRef?: string;        // ALCOA+: Trazabilidad al registro maestro original
   isLocked?: boolean;          // Data Integrity: Evita edición manual si viene de CUM
-  
+  regRuleRef?: string;         // Referencia a la regla infringida (Motor de Reglas)
+
   lot?: string; 
   serial?: string; 
   model?: string; 
