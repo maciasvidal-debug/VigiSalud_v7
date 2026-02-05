@@ -30,7 +30,8 @@ import type {
     CustodyChain, 
     ProductSubtype, 
     SeizureLogistics, 
-    ExtendedCumRecord
+    ExtendedCumRecord,
+    ConceptType
 } from '../../types';
 
 // =============================================================================
@@ -122,7 +123,8 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
   const [inspectionItems, setInspectionItems] = useState<InspectionItem[]>([]);
   const [checklistResponses, setChecklistResponses] = useState<Record<string, any>>({});
   const [score, setScore] = useState<number>(100);
-  
+  const [concept, setConcept] = useState<ConceptType>('PENDIENTE');
+
   // --- ESTADOS DE INVENTARIO Y PRODUCTOS ---
   const [products, setProducts] = useState<LocalProductFinding[]>([]);
   const [containers, setContainers] = useState<EvidenceContainer[]>([]); 
@@ -522,7 +524,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
     if (!newProduct.name) { setFormError("El nombre del producto es obligatorio."); return; }
     
     // 2. VALIDACIÓN MOTOR DE REGLAS (NUEVO)
-    const validation = inspectionEngine.validateProduct({ ...newProduct, riskFactor: isConform ? 'NINGUNO' : newProduct.riskFactor });
+    const validation = inspectionEngine.validateProduct({ ...newProduct, riskFactor: isConform ? 'NINGUNO' : (newProduct.riskFactor || 'NINGUNO') } as ProductFinding);
     
     if (!validation.isValid) {
         const violationsText = validation.violations.map(v => `${v.id}: ${v.description}`).join(' | ');

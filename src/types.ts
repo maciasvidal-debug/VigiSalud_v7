@@ -191,7 +191,7 @@ export interface Establishment {
 export interface InspectionItem {
   id: string;
   text: string; 
-  block: string;
+  block: InspectionBlock;
   isKiller: boolean; 
   triggerCondition?: 'FAIL' | 'PASS'; 
   childItems?: InspectionItem[]; 

@@ -1,4 +1,4 @@
-import type { Establishment, InspectionItem, CategoryType, InspectionBlock, ProductFinding, ValidationResult, RuleViolation } from '../types';
+import type { Establishment, InspectionItem, CategoryType, InspectionBlock, ProductFinding, ValidationResult, RuleViolation, ConceptType } from '../types';
 
 // =============================================================================
 // 1. CONFIGURACIÓN TÁCTICA DE GOBERNANZA (PRIORIDAD DE BLOQUES)
@@ -421,5 +421,18 @@ export const inspectionEngine = {
       isValid: violations.length === 0,
       violations
     };
+  },
+
+  /**
+   * Determina el concepto técnico basado en el puntaje y hallazgos críticos.
+   */
+  getConcept: (score: number, hasCriticalFindings: boolean): ConceptType => {
+    if (hasCriticalFindings || score < 60) {
+      return 'DESFAVORABLE';
+    }
+    if (score < 100) {
+      return 'FAVORABLE_CON_REQUERIMIENTOS';
+    }
+    return 'FAVORABLE';
   }
 };
