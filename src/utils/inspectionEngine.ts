@@ -1,294 +1,322 @@
-import type { Establishment, InspectionItem, CategoryType, InspectionBlock } from '../types';
+import type { Establishment, InspectionItem, CategoryType, InspectionBlock, ConceptType, ProductFinding } from '../types';
+import { MANUAL_RULES, type ManualRule } from '../data/manualRules';
 
 // =============================================================================
 // 1. CONFIGURACIÓN TÁCTICA DE GOBERNANZA (PRIORIDAD DE BLOQUES)
 // =============================================================================
 
-// Define el "Camino Crítico" lógico de la visita para evitar reprocesos
-// Orden lógico según el flujo de procesos del establecimiento
+// Define el orden lógico del recorrido de inspección según Manual IVC
 const BLOCK_PRIORITY: Record<InspectionBlock, number> = {
-  // --- NUEVO ESTÁNDAR (IVC PRUEBAS) ---
-  'TALENTO_HUMANO': 1,   // Primero: ¿Quién atiende? (Idoneidad - Dec 780)
-  'LEGAL': 2,            // Segundo: ¿Existe legalmente? (Formalización)
-  'INFRAESTRUCTURA': 3,  // Tercero: Recorrido locativo (Condiciones Res 1403)
-  'DOTACION': 4,         // Cuarto: Equipos y Herramientas (Capacidad)
-  'PROCESOS': 5,         // Quinto: Operación (Recepción, Vencimientos)
-  'SANEAMIENTO': 6,      // Sexto: Limpieza y Plagas (Salubridad)
-  
-  // --- COMPATIBILIDAD LEGACY (DATOS ANTIGUOS) ---
-  'SANITARIO': 90,
-  'LOCATIVO': 91,
-  'PERSONAL': 92,
-  'DOCUMENTAL': 93,
-  'PRODUCTOS': 94,
-  'SEGURIDAD': 95
+  'LEGAL': 1,            // Documentación habilitante
+  'TALENTO_HUMANO': 2,   // Responsabilidad técnica
+  'INFRAESTRUCTURA': 3,  // Condiciones locativas
+  'DOTACION': 4,         // Equipos e instrumentos
+  'PROCESOS': 5,         // Operación (Recepción, Almacenamiento)
+  'SANEAMIENTO': 6,      // Limpieza y Plagas
+  'PRODUCTOS': 7,        // Muestreo selectivo (Inventario)
+  'SANITARIO': 90,       // Legacy
+  'LOCATIVO': 91,        // Legacy
+  'PERSONAL': 92,        // Legacy
+  'DOCUMENTAL': 93,      // Legacy
+  'SEGURIDAD': 99        // Cierre
 };
 
-// Definimos un tipo interno extendido para filtrar el catálogo
+// Interfaz interna para el catálogo maestro
 interface MasterItem extends InspectionItem {
-  scope: CategoryType[]; // Alcance: FORMAL, INFORMAL, AMBULANTE
-  tags: string[]; // Contexto: DROGUERIA, ALIMENTOS, REFRIGERACION, etc.
+  scope: CategoryType[]; // Alcance: FORMAL, INFORMAL, etc.
+  tags: string[]; // Etiquetas para filtrado contextual (Ej: TIENDA_NATURISTA, CADENA_FRIO)
 }
 
 // =============================================================================
-// 2. CATÁLOGO MAESTRO DE PREGUNTAS (Res. 1403/2007 - Dec. 780/2016)
+// 2. CATÁLOGO MAESTRO DE PREGUNTAS (ROBUSTO - RES. 1403/2007 & DEC. 780/2016)
 // =============================================================================
 
 const MASTER_CATALOG: MasterItem[] = [
-  
-  // --- BLOQUE 1: TALENTO HUMANO (Idoneidad) ---
-  {
-    id: 'TH_001',
-    block: 'TALENTO_HUMANO',
-    text: 'Dirección Técnica a cargo de Químico Farmacéutico o Regente de Farmacia según complejidad del servicio.',
-    isKiller: true, // Causal de cierre (Riesgo Crítico)
-    scope: ['FORMAL'],
-    tags: ['DROGUERIA', 'FARMACIA'],
-    triggerCondition: 'FAIL',
-    childItems: [
-      { id: 'TH_001_A', block: 'TALENTO_HUMANO', text: '¿Ausencia del DT es temporal o definitiva?', isKiller: false },
-      { id: 'TH_001_B', block: 'TALENTO_HUMANO', text: 'Acto administrativo de inscripción ante SDS/IDS', isKiller: true }
-    ],
-    legalCitation: 'Dec. 780/2016 (Art. 2.5.3.10.18) - Res. 1403/2007'
-  },
-  {
-    id: 'TH_002',
-    block: 'TALENTO_HUMANO',
-    text: 'Personal auxiliar idóneo (Expendedor de Drogas / Auxiliar SF) con credencial vigente.',
-    isKiller: false,
-    scope: ['FORMAL'],
-    tags: ['DROGUERIA'],
-    legalCitation: 'Dec. 780/2016 (Art. 2.5.3.10.19) - Ley 17/1974'
-  },
-  {
-    id: 'TH_003',
-    block: 'TALENTO_HUMANO',
-    text: 'Personal manipulador con indumentaria (uniforme), carnet y capacitación en higiene.',
-    isKiller: false,
-    scope: ['FORMAL', 'INFORMAL', 'AMBULANTE'],
-    tags: ['ALIMENTOS', 'DROGUERIA', 'RESTAURANTE'],
-    legalCitation: 'Res. 2674/2013 (Art. 14)'
-  },
-
-  // --- BLOQUE 2: LEGAL / DOCUMENTAL ---
+  // ---------------------------------------------------------------------------
+  // BLOQUE: ASPECTOS LEGALES Y ADMINISTRATIVOS
+  // ---------------------------------------------------------------------------
   {
     id: 'LEG_001',
     block: 'LEGAL',
-    text: 'Certificado de Inscripción en Cámara de Comercio vigente y renovada.',
+    text: 'Cuenta con autorización de apertura o funcionamiento vigente (Resolución/Concepto previo).',
     isKiller: false,
-    scope: ['FORMAL', 'INFORMAL'],
+    scope: ['FORMAL'],
     tags: ['TODOS'],
-    legalCitation: 'Código de Comercio'
+    legalCitation: 'Dec. 780/2016'
   },
   {
     id: 'LEG_002',
     block: 'LEGAL',
-    text: 'Concepto de Uso de Suelo compatible con la actividad económica.',
-    isKiller: false,
-    scope: ['FORMAL'],
-    tags: ['TODOS'],
-    legalCitation: 'Ley 1801/2016 (Código de Policía)'
-  },
-
-  // --- BLOQUE 3: INFRAESTRUCTURA (Locativo) ---
-  {
-    id: 'INF_001',
-    block: 'INFRAESTRUCTURA',
-    text: 'Pisos, Paredes y Techos (Material sanitario, lavable, continuo, resistente, de fácil limpieza).',
+    text: 'El establecimiento cuenta con letrero exterior que lo identifica claramente (Razón Social).',
     isKiller: false,
     scope: ['FORMAL', 'INFORMAL'],
     tags: ['TODOS'],
+    legalCitation: 'Res. 1403/2007'
+  },
+
+  // ---------------------------------------------------------------------------
+  // BLOQUE: TALENTO HUMANO (CRÍTICO)
+  // ---------------------------------------------------------------------------
+  {
+    id: 'TH_001',
+    block: 'TALENTO_HUMANO',
+    text: 'La Dirección Técnica está a cargo de personal idóneo (Q.F. o Regente de Farmacia) con presencia verificada.',
+    isKiller: true, // CAUSAL DE CIERRE
+    scope: ['FORMAL'],
+    tags: ['DROGUERIA', 'FARMACIA'],
     triggerCondition: 'FAIL',
-    childItems: [
-      { id: 'INF_001_A', block: 'INFRAESTRUCTURA', text: 'Evidencia crítica de humedad, moho o grietas', isKiller: true },
-      { id: 'INF_001_B', block: 'INFRAESTRUCTURA', text: 'Uniones media caña en zonas de asepsia', isKiller: false }
-    ],
-    legalCitation: 'Res. 1403/2007 (Manual de Condiciones) - Res. 2674/2013'
+    legalCitation: 'Dec. 780/2016 Art. 2.5.3.10.12'
+  },
+  {
+    id: 'TH_002',
+    block: 'TALENTO_HUMANO',
+    text: 'El Director Técnico presenta contrato vigente y certificado de inscripción en RETHUS.',
+    isKiller: false,
+    scope: ['FORMAL'],
+    tags: ['DROGUERIA', 'FARMACIA'],
+    legalCitation: 'Ley 1164/2007'
+  },
+  {
+    id: 'TH_003',
+    block: 'TALENTO_HUMANO',
+    text: 'El personal auxiliar (Expendedor de Drogas/Aux. Farmacia) cuenta con credencial expedida por autoridad competente.',
+    isKiller: false,
+    scope: ['FORMAL'],
+    tags: ['DROGUERIA'],
+    legalCitation: 'Ley 17/1974'
+  },
+  {
+    id: 'TH_004',
+    block: 'TALENTO_HUMANO',
+    text: 'El personal cuenta con dotación adecuada (bata, identificación) y elementos de protección personal.',
+    isKiller: false,
+    scope: ['FORMAL', 'INFORMAL'],
+    tags: ['TODOS'],
+    legalCitation: 'Res. 1403/2007'
+  },
+
+  // ---------------------------------------------------------------------------
+  // BLOQUE: INFRAESTRUCTURA (LOCATIVO)
+  // ---------------------------------------------------------------------------
+  {
+    id: 'INF_001',
+    block: 'INFRAESTRUCTURA',
+    text: 'Pisos en material impermeable, resistente, uniforme y de fácil limpieza (Media caña).',
+    isKiller: false,
+    scope: ['FORMAL', 'INFORMAL'],
+    tags: ['TODOS'],
+    legalCitation: 'Res. 1403/2007 - Manual de Condiciones'
   },
   {
     id: 'INF_002',
     block: 'INFRAESTRUCTURA',
-    text: 'Áreas delimitadas, señalizadas e independientes (Recepción, Almacenamiento, Cuarentena, Dispensación).',
-    isKiller: false, 
-    scope: ['FORMAL'],
-    tags: ['DROGUERIA', 'TIENDA_NATURISTA'],
-    legalCitation: 'Res. 1403/2007 (Art. 12)'
+    text: 'Paredes y techos limpios, en buen estado, resistentes a factores ambientales e impermeables.',
+    isKiller: false,
+    scope: ['FORMAL', 'INFORMAL'],
+    tags: ['TODOS'],
+    legalCitation: 'Res. 1403/2007'
   },
   {
     id: 'INF_003',
     block: 'INFRAESTRUCTURA',
-    text: 'Protección adecuada contra el ambiente exterior (Techo, Parasol, barreras físicas).',
+    text: 'Áreas de almacenamiento independientes, delimitadas e identificadas (Recepción, Cuarentena, Bodega, Averiados).',
+    isKiller: true, // CRÍTICO: MEZCLA DE PRODUCTOS
+    scope: ['FORMAL'],
+    tags: ['DROGUERIA', 'TIENDA_NATURISTA', 'FARMACIA'],
+    legalCitation: 'Res. 1403/2007'
+  },
+  {
+    id: 'INF_004',
+    block: 'INFRAESTRUCTURA',
+    text: 'Ventilación e iluminación (natural o artificial) adecuadas para la conservación de productos.',
     isKiller: false,
-    scope: ['AMBULANTE'],
+    scope: ['FORMAL', 'INFORMAL'],
     tags: ['TODOS'],
-    legalCitation: 'Res. 604/1993'
+    legalCitation: 'Res. 1403/2007'
+  },
+  {
+    id: 'INF_005',
+    block: 'INFRAESTRUCTURA',
+    text: 'Cuenta con unidad sanitaria limpia y funcional, aislada del área de almacenamiento.',
+    isKiller: false,
+    scope: ['FORMAL'],
+    tags: ['TODOS'],
+    legalCitation: 'Ley 9/1979'
   },
 
-  // --- BLOQUE 4: DOTACIÓN (Equipos) ---
+  // ---------------------------------------------------------------------------
+  // BLOQUE: DOTACIÓN Y EQUIPOS
+  // ---------------------------------------------------------------------------
   {
     id: 'DOT_001',
     block: 'DOTACION',
-    text: 'Termohigrómetro calibrado con registro diario de condiciones ambientales (Humedad y Temperatura).',
-    isKiller: true, // Vital para estabilidad de medicamentos
+    text: 'Cuenta con termohigrómetros calibrados en áreas de almacenamiento (Certificado de calibración vigente).',
+    isKiller: true, // CRÍTICO
     scope: ['FORMAL'],
-    tags: ['DROGUERIA', 'TIENDA_NATURISTA'],
-    childItems: [
-      { id: 'DOT_001_A', block: 'DOTACION', text: 'Certificado de calibración vigente (1 año)', isKiller: true },
-      { id: 'DOT_001_B', block: 'DOTACION', text: 'Planilla de registro de temperatura y humedad diligenciada', isKiller: false }
-    ],
-    legalCitation: 'Dec. 780/2016 (Buenas Prácticas) - Res. 1403/2007'
+    tags: ['DROGUERIA', 'TIENDA_NATURISTA', 'FARMACIA'],
+    legalCitation: 'Res. 1403/2007'
   },
   {
     id: 'DOT_002',
     block: 'DOTACION',
-    text: 'Equipos de cadena de frío (Nevera) exclusivos para productos y funcionales.',
-    isKiller: true,
+    text: 'Estanterías en material lavable, en buen estado y separadas de paredes/piso (Uso de estibas).',
+    isKiller: false,
     scope: ['FORMAL', 'INFORMAL'],
-    tags: ['REFRIGERACION'],
-    legalCitation: 'Manual de Cadena de Frío'
+    tags: ['TODOS'],
+    legalCitation: 'Res. 1403/2007'
   },
   {
     id: 'DOT_003',
     block: 'DOTACION',
-    text: 'Estanterías en material sanitario (Inoxidable, Plástico técnico). No madera.',
+    text: 'Sistema de cadena de frío (Nevera) con control de temperatura, plan de contingencia y planta eléctrica.',
+    isKiller: true, // CRÍTICO PARA BIOLÓGICOS
+    scope: ['FORMAL'],
+    tags: ['REFRIGERACION'],
+    legalCitation: 'Dec. 1782/2014'
+  },
+
+  // ---------------------------------------------------------------------------
+  // BLOQUE: PROCESOS GENERALES
+  // ---------------------------------------------------------------------------
+  {
+    id: 'PRO_001',
+    block: 'PROCESOS',
+    text: 'Realiza proceso técnico de Recepción comparando administrativo vs técnico (Actas de recepción).',
     isKiller: false,
-    scope: ['FORMAL', 'INFORMAL'],
-    tags: ['DROGUERIA', 'ALIMENTOS'],
+    scope: ['FORMAL'],
+    tags: ['TODOS'],
     legalCitation: 'Res. 1403/2007'
   },
-
-  // --- BLOQUE 5: PROCESOS (Operacional) ---
   {
-    id: 'PROC_001',
+    id: 'PRO_002',
     block: 'PROCESOS',
-    text: 'Prohibición de actividades no autorizadas (Inyectología sin requisitos, consulta médica, reenvase).',
-    isKiller: true, // Riesgo salud pública
-    scope: ['FORMAL'],
-    tags: ['DROGUERIA'],
-    triggerCondition: 'FAIL',
-    childItems: [
-      { id: 'PROC_001_A', block: 'PROCESOS', text: 'Evidencia de inyectología sin área autorizada independiente', isKiller: true },
-      { id: 'PROC_001_B', block: 'PROCESOS', text: 'Evidencia de fraccionamiento de antibióticos u orales', isKiller: true }
-    ],
-    legalCitation: 'Dec. 780/2016 (Art. 2.5.3.10.11)'
-  },
-  {
-    id: 'PROC_002',
-    block: 'PROCESOS',
-    text: 'Control de Fechas de Vencimiento y segregación de productos en Cuarentena/Baja.',
-    isKiller: true,
-    scope: ['FORMAL', 'INFORMAL', 'AMBULANTE'],
-    tags: ['TODOS'],
-    childItems: [
-      { id: 'PROC_002_A', block: 'PROCESOS', text: 'Hallazgo de productos vencidos en estantería de venta', isKiller: true },
-      { id: 'PROC_002_B', block: 'PROCESOS', text: 'Área de Baja/Rechazo claramente identificada', isKiller: false }
-    ],
-    legalCitation: 'Dec. 780/2016 - Res. 1403/2007'
-  },
-  {
-    id: 'PROC_003',
-    block: 'PROCESOS',
-    text: 'Procedencia lícita de productos (Factura proveedor autorizado, Trazabilidad, Integridad de sellos).',
-    isKiller: true, // Contrabando
+    text: 'Almacenamiento ordenado (Alfabético, Farmacológico o Laboratorio) evitando confusión.',
+    isKiller: false,
     scope: ['FORMAL', 'INFORMAL'],
     tags: ['TODOS'],
-    legalCitation: 'Ley 1762/2015 (Ley Anticontrabando)'
+    legalCitation: 'Res. 1403/2007'
+  },
+  {
+    id: 'PRO_003',
+    block: 'PROCESOS',
+    text: 'Control de fechas de vencimiento (Semaforización, sistema o revisión periódica).',
+    isKiller: true, // CRÍTICO
+    scope: ['FORMAL', 'INFORMAL'],
+    tags: ['TODOS'],
+    legalCitation: 'Res. 1403/2007'
+  },
+  {
+    id: 'PRO_004',
+    block: 'PROCESOS',
+    text: 'Manejo de Medicamentos de Control Especial (MCE): Libro oficial, resoluciones y armario de seguridad.',
+    isKiller: true, // CRÍTICO LEGAL
+    scope: ['FORMAL'],
+    tags: ['FARMACIA', 'DROGUERIA'], // Tiendas naturistas no pueden manejar MCE
+    legalCitation: 'Res. 1478/2006'
+  },
+  {
+    id: 'PRO_005',
+    block: 'PROCESOS',
+    text: 'Se prohíbe la realización de procedimientos de inyectología sin cumplimiento de requisitos (Área, camilla, dotación).',
+    isKiller: true, // CRÍTICO
+    scope: ['FORMAL'],
+    tags: ['DROGUERIA'],
+    legalCitation: 'Dec. 2330/2006'
   },
 
-  // --- BLOQUE 6: SANEAMIENTO (Salida) ---
+  // ---------------------------------------------------------------------------
+  // BLOQUE: SANEAMIENTO
+  // ---------------------------------------------------------------------------
   {
     id: 'SAN_001',
     block: 'SANEAMIENTO',
-    text: 'Control de Plagas y Vectores (Concepto Técnico / Certificado de Fumigación vigente).',
-    isKiller: true,
-    scope: ['FORMAL', 'INFORMAL', 'AMBULANTE'],
+    text: 'Programa de control de plagas y roedores vigente (Certificado de fumigación).',
+    isKiller: false,
+    scope: ['FORMAL', 'INFORMAL'],
     tags: ['TODOS'],
-    triggerCondition: 'FAIL',
-    childItems: [
-      { id: 'SAN_001_A', block: 'SANEAMIENTO', text: 'Evidencia visual de plagas (Heces, nidos, insectos vivos)', isKiller: true },
-      { id: 'SAN_001_B', block: 'SANEAMIENTO', text: 'Foco de contaminación externo cercano', isKiller: true }
-    ],
-    legalCitation: 'Ley 9/1979 - Res. 2674/2013'
+    legalCitation: 'Ley 9/1979'
   },
   {
     id: 'SAN_002',
     block: 'SANEAMIENTO',
-    text: 'Gestión Integral de Residuos (PGIRASA / Código de colores / Recolección).',
+    text: 'Manejo de residuos sólidos y líquidos (PGIRH, guardianes, ruta sanitaria, contrato de recolección).',
+    isKiller: false,
+    scope: ['FORMAL'],
+    tags: ['TODOS'],
+    legalCitation: 'Dec. 351/2014'
+  },
+  {
+    id: 'SAN_003',
+    block: 'SANEAMIENTO',
+    text: 'Áreas, estanterías y productos libres de polvo y suciedad visible.',
     isKiller: false,
     scope: ['FORMAL', 'INFORMAL'],
     tags: ['TODOS'],
-    childItems: [
-      { id: 'SAN_002_A', block: 'SANEAMIENTO', text: 'Contrato vigente de recolección de residuos peligrosos', isKiller: false },
-      { id: 'SAN_002_B', block: 'SANEAMIENTO', text: 'Recipientes con tapa y pedal (Código de colores)', isKiller: false }
-    ],
-    legalCitation: 'Dec. 780/2016'
+    legalCitation: 'Res. 1403/2007'
   }
 ];
 
 // =============================================================================
-// 3. EL MOTOR LÓGICO
+// 3. EL MOTOR LÓGICO (CORE)
 // =============================================================================
 
 export const inspectionEngine = {
   /**
-   * Genera una lista de inspección adaptada al perfil del establecimiento.
-   * Filtra por Scope (Categoría) y Tags (Tipo de negocio).
-   * Ordena estrictamente por Bloque Lógico y luego por Criticidad.
+   * Genera la lista de inspección filtrada y ordenada según el establecimiento.
    */
   generate: (establishment: Establishment): InspectionItem[] => {
     const { category, type } = establishment;
-    
-    // 1. Normalización de Tags (Inteligencia de Negocio)
     const activeTags = new Set<string>(['TODOS']);
-    const upperType = type.toUpperCase();
+    const upperType = (type || '').toUpperCase();
 
-    // Mapeo Inteligente de Tags según actividad económica
-    if (upperType.includes('DROGUERÍA') || upperType.includes('FARMACIA') || upperType.includes('DROGAS') || upperType.includes('FARMACÉUTICO')) {
+    // 1. Detección de Tags basada en el Tipo de Establecimiento
+    if (upperType.includes('DROGUERÍA') || upperType.includes('FARMACIA') || upperType.includes('DROGAS')) {
       activeTags.add('DROGUERIA');
       activeTags.add('FARMACIA');
-      activeTags.add('REFRIGERACION');
+      activeTags.add('REFRIGERACION'); // Asumimos capacidad de cadena de frío por defecto
     }
-    if (upperType.includes('RESTAURANTE') || upperType.includes('COMIDA') || upperType.includes('ALIMENTO') || upperType.includes('FRUTAS') || upperType.includes('CARNICERÍA')) {
-      activeTags.add('ALIMENTOS');
-      activeTags.add('REFRIGERACION');
-      activeTags.add('RESTAURANTE');
-    }
+    
     if (upperType.includes('TIENDA NATURISTA')) {
       activeTags.add('TIENDA_NATURISTA');
     }
 
-    // 2. Filtrado del Catálogo (Solo lo relevante)
+    if (upperType.includes('DEPOSITO')) {
+        activeTags.add('DROGUERIA'); // Aplican normas similares
+    }
+
+    // 2. Filtrado del Catálogo Maestro
     const checklist = MASTER_CATALOG.filter(item => {
-      // Filtro A: Alcance
+      // Filtro por Categoría (Formal/Informal)
       const scopeMatch = item.scope.includes(category);
-      // Filtro B: Relevancia
+      
+      // Filtro por Etiquetas (Tags)
+      // El item debe tener al menos un tag que coincida con los tags activos del establecimiento
       const tagMatch = item.tags.some(tag => activeTags.has(tag));
+      
       return scopeMatch && tagMatch;
     });
 
-    // 3. Ordenamiento Táctico (NUEVO ALGORITMO)
-    // Prioridad 1: Orden de Bloque (Flujo de visita lógica)
-    // Prioridad 2: Criticidad (Killer primero dentro del bloque para alerta temprana)
+    // 3. Ordenamiento Lógico (Primero lo crítico, luego el flujo)
     return checklist.sort((a, b) => {
-      const priorityA = BLOCK_PRIORITY[a.block] || 99;
-      const priorityB = BLOCK_PRIORITY[b.block] || 99;
+      // Type assertion para asegurar que las claves existen en BLOCK_PRIORITY
+      const priorityA = BLOCK_PRIORITY[a.block as InspectionBlock] || 99;
+      const priorityB = BLOCK_PRIORITY[b.block as InspectionBlock] || 99;
 
       // Ordenar por Bloque
-      if (priorityA !== priorityB) {
-        return priorityA - priorityB;
-      }
-
-      // Ordenar por Criticidad dentro del bloque (Killer primero)
+      if (priorityA !== priorityB) return priorityA - priorityB;
+      
+      // Dentro del bloque, los items "Killer" (Críticos) van primero
       if (a.isKiller && !b.isKiller) return -1;
       if (!a.isKiller && b.isKiller) return 1;
-
-      return 0; // Orden estable
+      
+      // Ordenar por ID para consistencia visual
+      return a.id.localeCompare(b.id);
     });
   },
 
   /**
-   * Calcula el riesgo ponderado.
-   * Data Governance: Killers pesan 10x (Impacto Salud Pública)
+   * Calcula el porcentaje de cumplimiento ponderado.
+   * Killers pesan 10x más que items normales.
    */
   calculateRisk: (items: InspectionItem[], responses: Record<string, string>): number => {
     if (items.length === 0) return 100;
@@ -298,21 +326,74 @@ export const inspectionEngine = {
 
     items.forEach(item => {
       const response = responses[item.id];
-      // Peso Táctico: 10x para críticos, 1x para normales
-      const weight = item.isKiller ? 10 : 1; 
-
-      // Data Governance: Si NO APLICA, sacamos el ítem de la ecuación (ponderación dinámica)
+      // Si el item fue marcado como 'NO_APLICA', se excluye del denominador
       if (response === 'NO_APLICA') return;
 
+      const weight = item.isKiller ? 10 : 1; 
       totalWeight += weight;
 
       if (response === 'CUMPLE') {
         earnedWeight += weight;
       }
-      // NO_CUMPLE suma 0 al earnedWeight
     });
 
     // Evitar división por cero
     return totalWeight === 0 ? 100 : Math.round((earnedWeight / totalWeight) * 100);
+  },
+
+  /**
+   * Determina el concepto técnico final basado en puntaje y hallazgos críticos.
+   */
+  getConcept: (score: number, hasCriticalFindings: boolean): ConceptType => {
+    // Si hay productos decomisados (Riesgo Crítico), el concepto es Desfavorable automáticamente
+    if (hasCriticalFindings) return 'DESFAVORABLE';
+    
+    // Escala de calificación estándar INVIMA
+    if (score >= 90) return 'FAVORABLE';
+    if (score >= 60) return 'FAVORABLE_CON_REQUERIMIENTOS';
+    return 'DESFAVORABLE';
+  },
+
+  /**
+   * Valida un producto contra el Motor de Reglas (Jules).
+   * Devuelve estado de validez y lista de violaciones normativas.
+   */
+  validateProduct: (product: Partial<ProductFinding>): { isValid: boolean, violations: ManualRule[] } => {
+    const violations: ManualRule[] = [];
+
+    // 1. Regla Legal: Registro Sanitario Inválido o Corto (REG-L001)
+    if (!product.invimaReg || product.invimaReg.length < 5) {
+       const rule = MANUAL_RULES.find(r => r.id === 'REG-L001');
+       if (rule) violations.push(rule);
+    }
+
+    // 2. Regla Estado: Vencido o Sin Registro (REG-L006)
+    if (product.riskFactor === 'SIN_REGISTRO' || product.riskFactor === 'VENCIDO') {
+       const rule = MANUAL_RULES.find(r => r.id === 'REG-L006');
+       if (rule) violations.push(rule);
+    }
+
+    // 3. Regla Documental: Falta de Lote (REG-D003)
+    if (!product.lot || product.lot.length < 3) {
+       const rule = MANUAL_RULES.find(r => r.id === 'REG-D003');
+       if (rule) violations.push(rule);
+    }
+
+    // 4. Regla Técnica: Cadena de Frío (REG-T002)
+    if (product.coldChainStatus && product.coldChainStatus.includes('INCUMPLE')) {
+        const rule = MANUAL_RULES.find(r => r.id === 'REG-T002');
+        if (rule) violations.push(rule);
+    }
+
+    // 5. Regla Cuantitativa: Cantidades negativas o cero (REG-Q003)
+    if (product.quantity !== undefined && product.quantity <= 0) {
+        const rule = MANUAL_RULES.find(r => r.id === 'REG-Q003');
+        if (rule) violations.push(rule);
+    }
+
+    return {
+        isValid: violations.length === 0,
+        violations: violations.filter(Boolean) as ManualRule[]
+    };
   }
 };
