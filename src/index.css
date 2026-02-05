@@ -1,0 +1,82 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------------------------------------------------------
+   SISTEMA DE DISEÑO VIGISALUD v8.0
+   --------------------------------------------------------- */
+
+@layer base {
+  body {
+    @apply antialiased text-content-primary bg-surface-ground font-sans selection:bg-brand-light selection:text-brand-deep;
+  }
+
+  /* Títulos siempre oscuros y apretados */
+  h1, h2, h3, h4, h5, h6 {
+    @apply tracking-tight text-content-primary;
+  }
+}
+
+@layer components {
+  /* BOTONES ESTANDARIZADOS */
+  .btn-primary {
+    @apply flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold text-sm transition-all
+           bg-brand hover:bg-brand-dark text-white 
+           shadow-lg shadow-brand/20 active:scale-[0.98];
+  }
+
+  .btn-secondary {
+    @apply flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold text-sm transition-all
+           bg-white hover:bg-surface-hover text-content-secondary border border-surface-border
+           shadow-sm hover:text-content-primary active:scale-[0.98];
+  }
+
+  .btn-danger {
+    @apply flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold text-sm transition-all
+           bg-white border border-status-error/30 text-status-error 
+           hover:bg-status-errorBg hover:border-status-error active:scale-[0.98];
+  }
+
+  /* INPUTS ESTANDARIZADOS */
+  .input-field {
+    @apply w-full px-4 py-3 rounded-xl border border-surface-border bg-white text-content-primary 
+           placeholder:text-content-tertiary outline-none transition-all font-medium
+           focus:border-brand focus:ring-4 focus:ring-brand-light;
+  }
+  
+  /* TARJETAS ESTANDARIZADAS */
+  .card-base {
+    @apply bg-surface-card rounded-2xl border border-surface-border shadow-soft;
+  }
+}
+
+/* UTILIDADES ESPECIALES */
+.vigi-force-visible {
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: inline-flex !important;
+  transform: none !important;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* SCROLLBAR MODERNO */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-surface-border rounded-full hover:bg-content-tertiary transition-colors;
+}
