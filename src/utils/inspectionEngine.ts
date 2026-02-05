@@ -351,8 +351,8 @@ export const inspectionEngine = {
     // Prioridad 1: Orden de Bloque (Flujo de visita lógica)
     // Prioridad 2: Criticidad (Killer primero dentro del bloque para alerta temprana)
     return checklist.sort((a, b) => {
-      const priorityA = BLOCK_PRIORITY[a.block] || 99;
-      const priorityB = BLOCK_PRIORITY[b.block] || 99;
+      const priorityA = BLOCK_PRIORITY[a.block as InspectionBlock] || 99;
+      const priorityB = BLOCK_PRIORITY[b.block as InspectionBlock] || 99;
 
       // Ordenar por Bloque
       if (priorityA !== priorityB) {
