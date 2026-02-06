@@ -359,14 +359,27 @@ export const generateInspectionPDF = async (report: Report, isDraft: boolean = f
   
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8);
-  doc.text("FUNCIONARIO IVC (Inspector)", col1Sign, y + 4);
   
+  // Columna 1: Inspector
+  doc.text("FUNCIONARIO IVC (Inspector)", col1Sign, y + 4);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7);
+  doc.text(report.func || "Funcionario Competente", col1Sign, y + 8);
+
+  // Columna 2: Atendido / Testigo
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+
   if (report.data.refusalToSign) {
       doc.setTextColor(COLORS.danger[0], COLORS.danger[1], COLORS.danger[2]);
       doc.text("SE FIRMA CON TESTIGO (RENUENCIA)", col2Sign, y + 4);
+      doc.setTextColor(0);
+
+      doc.setFont("helvetica", "normal");
       doc.setFontSize(7);
       doc.text(`Testigo: ${report.data.witness?.name || '---'}`, col2Sign, y + 8);
       doc.text(`CC: ${report.data.witness?.id || '---'}`, col2Sign, y + 12);
+
       if (report.data.witness?.signature) {
           try {
               doc.addImage(report.data.witness.signature, 'PNG', col2Sign, y - 25, 40, 20);
@@ -374,8 +387,12 @@ export const generateInspectionPDF = async (report: Report, isDraft: boolean = f
       }
   } else {
       doc.text("ATENDIDO / REPRESENTANTE", col2Sign, y + 4);
+
+      doc.setFont("helvetica", "normal");
       doc.setFontSize(7);
-      doc.text(`CC: ${report.data.attendedId || '---'}`, col2Sign, y + 8);
+      doc.text(report.data.attendedBy || "Representante Legal", col2Sign, y + 8);
+      doc.text(`CC/NIT: ${report.data.attendedId || '---'}`, col2Sign, y + 12);
+
       if (report.signature) {
           try {
               doc.addImage(report.signature, 'PNG', col2Sign, y - 25, 40, 20);
