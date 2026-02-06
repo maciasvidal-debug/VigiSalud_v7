@@ -517,13 +517,15 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       const cleanVal = (val: string | undefined) => {
           if (!val) return '';
           const trimmed = val.trim();
-          // Eliminar basura: ".", "-", "null", o letras sueltas (A, B) sin números
-          if (['.', '-', 'null', 'undefined'].includes(trimmed.toLowerCase())) return '';
-          if (trimmed.length <= 1 && !/\d/.test(trimmed)) return ''; // Elimina 'A', 'F' pero mantiene '5'
+          // TAREA 2: Limpieza de Datos
+          // Si record.concentracion viene nulo o dice "Sin Dato", déjalo vacío
+          if (['.', '-', 'null', 'undefined', 'sin dato', 'no aplica', 'n/a'].includes(trimmed.toLowerCase())) return '';
+          // Elimina 'A', 'F' pero mantiene '5'
+          if (trimmed.length <= 1 && !/\d/.test(trimmed)) return '';
           return trimmed;
       };
 
-      // Mapeo Automático
+      // TAREA 2: Mapeo Directo de Columnas (Lectura CSV)
       const mappedProduct: Partial<ProductFinding> = {
           cum: record.expediente + (record.consecutivocum ? `-${record.consecutivocum}` : ''), 
           name: record.producto,
@@ -532,8 +534,8 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
           presentation: record.descripcioncomercial, 
           pharmaceuticalForm: record.formafarmaceutica,
           activePrinciple: record.principioactivo,
-          concentration: cleanVal(record.concentracion), // Dato limpio
-          unit: cleanVal(record.unidadmedida), // Campo separado
+          concentration: cleanVal(record.concentracion), // Mapeo Directo: record.concentracion
+          unit: cleanVal(record.unidadmedida), // Mapeo Directo: record.unidadmedida
           viaAdministration: record.viaadministracion,
           atcCode: record.atc,
           riskFactors: validation !== 'VALID' ? [(validation === 'EXPIRED' ? 'VENCIDO' : 'SIN_REGISTRO')] : []

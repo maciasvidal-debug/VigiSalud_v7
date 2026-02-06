@@ -156,14 +156,29 @@ export const SeizureCalculator: React.FC<SeizureCalculatorProps> = ({
                 </p>
             </div>
 
+            {/* TAREA 3: Eliminar Ruido Visual en Modo Discreto */}
+            {/* Si es DISCRETE (Vial, Tableta), NO mostrar Volumen Total. */}
+            {/* Si es MASS_BASED o VOLUMETRIC, mostrar volumen/masa si hay contentNet. */}
             {model.mode !== 'DISCRETE' && model.contentNet > 0 && (
                 <div className="text-right border-l border-slate-200 pl-4">
-                    <p className={`text-[9px] font-black text-${theme}-600 uppercase`}>Volumen Total</p>
+                    <p className={`text-[9px] font-black text-${theme}-600 uppercase`}>
+                        {model.mode === 'MASS_BASED' ? 'Masa Total' : 'Volumen Total'}
+                    </p>
                     <p className={`text-xl font-black text-${theme}-700`}>
                         {(((packInput * model.packFactor) + looseInput) * model.contentNet / (model.contentUnit === 'mL' && ((packInput * model.packFactor) + looseInput) * model.contentNet >= 1000 ? 1000 : 1)).toLocaleString('es-CO', { maximumFractionDigits: 2 })}
                         <span className="text-xs ml-1">{((packInput * model.packFactor) + looseInput) * model.contentNet >= 1000 && model.contentUnit === 'mL' ? 'L' : model.contentUnit}</span>
                     </p>
                 </div>
+            )}
+
+            {/* TAREA 3: Mostrar Masa Estimada Opcional para Sólidos si aplica */}
+            {model.mode === 'DISCRETE' && model.contentNet > 0 && ['mg', 'g'].includes(model.contentUnit) && (
+                 <div className="text-right border-l border-slate-200 pl-4 opacity-50">
+                    <p className="text-[9px] font-black text-slate-400 uppercase">Masa Neta (Est.)</p>
+                    <p className="text-sm font-bold text-slate-500">
+                        {(((packInput * model.packFactor) + looseInput) * model.contentNet).toLocaleString('es-CO')} {model.contentUnit}
+                    </p>
+                 </div>
             )}
         </div>
     </div>

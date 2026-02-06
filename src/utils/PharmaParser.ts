@@ -16,29 +16,54 @@ export const parsePresentation = (form: string = '', description: string = ''): 
     let containerType = 'UNIDAD';
 
     // Diccionarios Semánticos
-    const liquidForms = ['JARABE', 'SOLUCION', 'SUSPENSION', 'ELIXIR', 'EMULSION', 'LOCION', 'INYECCION', 'VIAL', 'AMPOLLA', 'AEROSOL', 'SPRAY', 'GOTAS', 'JERINGA', 'LÍQUIDO', 'LIQUIDO'];
-    const massForms = ['CREMA', 'UNGUENTO', 'GEL', 'POMADA', 'PASTA', 'POLVO', 'GRANULADO'];
+    const liquidForms = ['JARABE', 'SOLUCION', 'SUSPENSION', 'ELIXIR', 'EMULSION', 'LOCION', 'INYECCION', 'AMPOLLA', 'AEROSOL', 'SPRAY', 'GOTAS', 'JERINGA', 'LÍQUIDO', 'LIQUIDO'];
+    const massForms = ['CREMA', 'UNGUENTO', 'GEL', 'POMADA', 'PASTA', 'GRANULADO'];
     const solidForms = ['TABLETA', 'CAPSULA', 'GRAGEA', 'COMPRIMIDO', 'SUPOSITORIO', 'OVULO', 'TABLETA RECUBIERTA', 'PASTILLA'];
 
     // Biológicos especiales (Flag "No Aplica")
     const bioForms = ['VACUNA', 'SUERO', 'BIOLOGICO', 'TOXOIDE', 'INMUNOGLOBULINA', 'ANTITOXINA'];
     const isBiological = bioForms.some(k => normForm.includes(k) || normDesc.includes(k));
 
-    if (liquidForms.some(k => normForm.includes(k))) {
+    // --- NUEVA LÓGICA DE PRECEDENCIA (TAREA 1) ---
+
+    // 1.1 BIOLÓGICOS / LIOFILIZADOS / VIALES (Prioridad Alta)
+    if (normForm.includes('LIOFILIZADO') || normDesc.includes('LIOFILIZADO') || normForm.includes('VIAL') || normDesc.includes('VIAL')) {
+        mode = 'DISCRETE';
+        containerType = 'VIAL';
+    }
+    // 1.2 MANEJO ESPECIAL DE "POLVO" (Refinamiento - Subió de prioridad para evitar captura por "SUSPENSION")
+    else if (normForm.includes('POLVO')) {
+        // "POLVO" sin ser liofilizado
+        if (normDesc.includes('SOBRE') || normForm.includes('SOBRE')) {
+            mode = 'MASS_BASED';
+            containerType = 'SOBRE';
+        } else if (normDesc.includes('FRASCO') || normForm.includes('FRASCO')) {
+            // Ej: Polvo para suspensión oral
+            mode = 'DISCRETE';
+            containerType = 'FRASCO';
+        } else {
+            // Default Polvo
+            mode = 'MASS_BASED';
+            containerType = 'SOBRE';
+        }
+    }
+    // 1.3 LÍQUIDOS GENÉRICOS
+    else if (liquidForms.some(k => normForm.includes(k))) {
         mode = 'VOLUMETRIC';
         containerType = 'FRASCO'; // Default
         if (normForm.includes('AMPOLLA')) containerType = 'AMPOLLA';
-        if (normForm.includes('VIAL')) containerType = 'VIAL';
         if (normForm.includes('JERINGA')) containerType = 'JERINGA';
         if (normForm.includes('BOLS')) containerType = 'BOLSA';
-    } else if (massForms.some(k => normForm.includes(k))) {
+    }
+    // 1.4 MASAS / SEMISÓLIDOS
+    else if (massForms.some(k => normForm.includes(k))) {
         mode = 'MASS_BASED';
         containerType = 'TUBO';
-        if (normForm.includes('SOBRE')) containerType = 'SOBRE';
         if (normForm.includes('POTE')) containerType = 'POTE';
         if (normForm.includes('TARRO')) containerType = 'TARRO';
-    } else {
-        // Sólidos por defecto
+    }
+    // 1.5 SÓLIDOS (Default)
+    else {
         if (solidForms.some(k => normForm.includes(k))) {
             const found = solidForms.find(k => normForm.includes(k));
             containerType = found ? found.replace(/S$/, '') : 'TABLETA'; 
@@ -63,39 +88,38 @@ export const parsePresentation = (form: string = '', description: string = ''): 
             contentNet = parseFloat(massMatch[1].replace(',', '.'));
             contentUnit = massMatch[2].replace(/(GRAMO|G)/, 'g').replace('KG', 'kg');
         }
+    } else if (mode === 'DISCRETE') {
+        // TAREA 1.3: Extracción de Masa en Viales/Tabletas para Display informativo (NO volumen)
+        // Busca: 440 mg, 500 mg (pero NO asignamos a Volume en Calculator)
+        const massMatch = normDesc.match(/(\d+[\.,]?\d*)\s*(KG|GRAMO|G|MG|MCG|UI)/);
+        if (massMatch) {
+            contentNet = parseFloat(massMatch[1].replace(',', '.'));
+            contentUnit = massMatch[2].replace(/(GRAMO|G)/, 'g').replace('KG', 'kg');
+        }
     }
 
     // 3. EXTRACCIÓN DE FACTOR DE EMPAQUE (Dimensión Logística)
     let packFactor = 1;
     let packType = 'CAJA';
 
-    // Regex mejorada para detectar multiplicadores explícitos en multipacks líquidos y sólidos
-    // Soporta: "CAJA X 10", "PLEGADIZA POR 5", "CAJA CON 100", "ESTUCHE X 1"
+    // Regex mejorada para detectar multiplicadores explícitos
     const multiplierRegex = /(?:CAJA|PLEGADIZA|DISPENSER|BLISTER|DISPLAY|SOBRE|ESTUCHE|PAQUETE).*?(?:POR|X|CON)\s*(\d+)/;
     const match = normDesc.match(multiplierRegex);
 
     if (match) {
         const detectedNum = parseInt(match[1], 10);
         
-        // --- REGLA DE SEGURIDAD HEURÍSTICA ---
-        // Si detectamos un número igual al contenido neto en un producto NO sólido, asumimos falso positivo
-        // EXCEPTO si es explícitamente "CAJA X ...", en cuyo caso el regex manda.
-        // Pero mantenemos la cautela: si dice "FRASCO X 120 ML", el regex de arriba NO debería matchear porque busca palabras contenedoras (CAJA, PLEGADIZA).
-        // Si el regex matchea "CAJA ... X 10", es muy probable que sea el factor.
-
+        // Anti-false positive logic
         if (mode !== 'DISCRETE' && detectedNum === contentNet && !normDesc.includes('CAJA') && !normDesc.includes('PLEGADIZA')) {
-             // Caso ambiguo raro, conservador:
              packFactor = 1;
         } else {
              packFactor = detectedNum;
         }
     } else {
-        // Fallback para Sólidos y otros: Si dice "X 100" sin decir "Caja", asumimos factor
+        // Fallback
         const simpleMatch = normDesc.match(/(?:X|POR)\s*(\d+)\s*(?:UNIDADES|TABLETAS|CAPSULAS|AMPOLLAS|VIALES|FRASCOS|TUBOS|$)/);
         if (simpleMatch) {
              const val = parseInt(simpleMatch[1], 10);
-             // Evitar confundir con concentración o contenido (ej: "X 500mg")
-             // Si el número es seguido de una unidad de medida, NO es factor. El regex arriba busca UNIDADES/TABLETAS/etc o fin de linea.
              packFactor = val;
         }
     }
