@@ -191,7 +191,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
     subtype: 'SINTESIS_QUIMICA', 
     name: '', manufacturer: '', riskFactor: 'NINGUNO', seizureType: 'NINGUNO', quantity: 0, 
     cum: '', invimaReg: '', lot: '', serial: '', storageTemp: '', coldChainStatus: '', presentation: '',
-    pharmaceuticalForm: '', activePrinciple: '', concentration: '', viaAdministration: '', atcCode: '',
+    pharmaceuticalForm: '', activePrinciple: '', concentration: '', unit: '', viaAdministration: '', atcCode: '',
     packLabel: '', logistics: undefined, calibrationStatus: ''
   });
 
@@ -458,6 +458,16 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
           showToast("⚠️ ALERTA: Registro Sanitario NO VIGENTE en BD.", "warning");
       }
 
+      // Helper de Limpieza de datos (Data Governance)
+      const cleanVal = (val: string | undefined) => {
+          if (!val) return '';
+          const trimmed = val.trim();
+          // Eliminar basura: ".", "-", "null", o letras sueltas (A, B) sin números
+          if (['.', '-', 'null', 'undefined'].includes(trimmed.toLowerCase())) return '';
+          if (trimmed.length <= 1 && !/\d/.test(trimmed)) return ''; // Elimina 'A', 'F' pero mantiene '5'
+          return trimmed;
+      };
+
       // Mapeo Automático
       const mappedProduct: Partial<ProductFinding> = {
           cum: record.expediente + (record.consecutivocum ? `-${record.consecutivocum}` : ''), 
@@ -467,7 +477,8 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
           presentation: record.descripcioncomercial, 
           pharmaceuticalForm: record.formafarmaceutica,
           activePrinciple: record.principioactivo,
-          concentration: record.concentracion,
+          concentration: cleanVal(record.concentracion), // Dato limpio
+          unit: cleanVal(record.unidadmedida), // Campo separado
           viaAdministration: record.viaadministracion,
           atcCode: record.atc,
           riskFactor: validation !== 'VALID' ? (validation === 'EXPIRED' ? 'VENCIDO' : 'SIN_REGISTRO') : 'NINGUNO'
@@ -548,7 +559,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
         type: newProduct.type, subtype: newProduct.subtype,
         name: '', manufacturer: '', riskFactor: 'NINGUNO', seizureType: 'NINGUNO', quantity: 0,
         cum: '', invimaReg: '', lot: '', serial: '', storageTemp: '', coldChainStatus: '', presentation: '', 
-        pharmaceuticalForm: '', activePrinciple: '', concentration: '', viaAdministration: '', atcCode: '',
+        pharmaceuticalForm: '', activePrinciple: '', concentration: '', unit: '', viaAdministration: '', atcCode: '',
         packLabel: '', logistics: undefined, originalCumData: undefined, calibrationStatus: ''
       });
       setPacksInput(0);
@@ -758,6 +769,39 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                   </div>
               </div>
           );
+      }
+
+      // CAMPO CONCENTRACIÓN + UNIDAD (Hybrid - Manual Técnico)
+      if (field.key === 'concentration') {
+           return (
+              <div className={colClass} key={field.key}>
+                  <div className="flex justify-between items-end mb-1.5">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">
+                          {field.label} {field.required && <span className="text-red-500">*</span>}
+                      </label>
+                      {isDiscrepant && <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded font-bold border border-amber-100">MODIFICADO</span>}
+                  </div>
+                  <div className="flex gap-2">
+                      <div className="flex-1">
+                          <Input
+                              value={newProduct.concentration || ''}
+                              onChange={e => setNewProduct({...newProduct, concentration: e.target.value})}
+                              placeholder="Cant."
+                              className={`h-11 font-sans text-sm ${isDiscrepant ? 'border-amber-300 bg-amber-50/20' : ''}`}
+                          />
+                      </div>
+                      <div className="w-1/3">
+                          <Input
+                              value={newProduct.unit || ''}
+                              onChange={e => setNewProduct({...newProduct, unit: e.target.value})}
+                              placeholder="Unidad"
+                              className="h-11 font-sans text-sm bg-slate-50 text-slate-600 font-bold border-slate-200"
+                              title="Unidad de Medida (Ej: mg, mL)"
+                          />
+                      </div>
+                  </div>
+              </div>
+           );
       }
 
       // CAMPO CANTIDAD (Tarjeta Visual)
@@ -1134,12 +1178,12 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-200">
             <div className="absolute inset-0" onClick={() => setShowCumModal(false)}></div>
             <div className="relative bg-white w-full max-w-5xl rounded-3xl shadow-2xl border border-slate-200 flex flex-col max-h-[85vh] overflow-hidden">
-                <div className="bg-slate-900 p-5 flex items-center justify-between text-white shrink-0">
+                <div className="bg-white p-5 border-b border-slate-100 flex items-center justify-between shrink-0">
                     <div className="flex items-center gap-4">
-                        <div className="p-3 bg-white/10 rounded-2xl backdrop-blur-sm"><Icon name="database" size={24}/></div>
-                        <div><h3 className="font-black text-lg uppercase tracking-wide">Base de Datos Maestra INVIMA</h3><p className="text-xs opacity-70 font-medium">Motor de Búsqueda Regulatoria v8.2</p></div>
+                        <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl"><Icon name="database" size={24}/></div>
+                        <div><h3 className="font-black text-lg text-slate-800 uppercase tracking-wide">Base de Datos Maestra INVIMA</h3><p className="text-xs text-slate-500 font-medium">Motor de Búsqueda Regulatoria v8.2</p></div>
                     </div>
-                    <button onClick={() => setShowCumModal(false)} className="hover:bg-white/10 p-3 rounded-full transition-colors"><Icon name="x" size={24}/></button>
+                    <button onClick={() => setShowCumModal(false)} className="hover:bg-slate-100 text-slate-400 hover:text-slate-600 p-3 rounded-full transition-colors"><Icon name="x" size={24}/></button>
                 </div>
 
                 <div className="p-6 bg-slate-50 border-b border-slate-200 shrink-0">
