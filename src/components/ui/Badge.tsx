@@ -2,7 +2,7 @@ import React from 'react';
 
 interface BadgeProps {
   label: string;
-  variant?: 'success' | 'warning' | 'danger' | 'neutral';
+  variant?: 'success' | 'warning' | 'danger' | 'info' | 'neutral';
   className?: string;
 }
 
@@ -13,10 +13,11 @@ export const Badge: React.FC<BadgeProps> = ({
 }) => {
   
   const variants = {
-    success: "bg-emerald-100 text-emerald-700 border border-emerald-200",
-    warning: "bg-amber-100 text-amber-700 border border-amber-200",
-    danger: "bg-red-100 text-red-700 border border-red-200",
-    neutral: "bg-slate-100 text-slate-600 border border-slate-200",
+    success: "bg-status-successBg text-emerald-800 border border-status-success/30",
+    warning: "bg-status-warningBg text-amber-800 border border-status-warning/30",
+    danger: "bg-status-errorBg text-red-800 border border-status-error/30",
+    info: "bg-status-infoBg text-blue-800 border border-status-info/30",
+    neutral: "bg-surface-hover text-content-secondary border border-surface-border",
   };
 
   return (
