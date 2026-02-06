@@ -5,6 +5,20 @@ export type DocumentType = 'NIT' | 'CC' | 'PASAPORTE' | 'SINDOC';
 export type EstablishmentStatus = 'ACTIVO' | 'SUSPENDIDO' | 'CLAUSURADO' | 'PENDIENTE';
 export type ConceptType = 'FAVORABLE' | 'FAVORABLE_CON_REQUERIMIENTOS' | 'DESFAVORABLE' | 'PENDIENTE';
 
+export type InspectionBlock = 
+  | 'TALENTO_HUMANO' 
+  | 'LEGAL' 
+  | 'INFRAESTRUCTURA' 
+  | 'DOTACION' 
+  | 'PROCESOS' 
+  | 'SANEAMIENTO'
+  | 'SANITARIO'
+  | 'LOCATIVO'
+  | 'PERSONAL'
+  | 'DOCUMENTAL'
+  | 'PRODUCTOS'
+  | 'SEGURIDAD';
+
 export type ProductType = 
   | 'MEDICAMENTO' 
   | 'DISPOSITIVO_MEDICO' 
@@ -69,8 +83,17 @@ export interface CommercialPresentation {
   detectedString: string; // Resumen legible
 }
 
+// --- ESTRUCTURA POLIMÓRFICA (Sección 6.4 Manual Técnico) ---
+export interface PackagingStructure {
+  type: string;           // caja, blister, frasco
+  quantity: number;       // cantidad interna
+  child?: PackagingStructure; // Nivel inferior (recursion)
+}
+
 export interface SeizureLogistics {
   presentation: CommercialPresentation;
+  // Soporte para estructura multinivel (REG-Q024)
+  packagingStructure?: PackagingStructure; 
   inputs: {
     packs: number; // Cantidad de Cajas/Empaques
     loose: number; // Cantidad de Unidades Sueltas
@@ -78,13 +101,12 @@ export interface SeizureLogistics {
   totals: {
     legalUnits: number;     // Total unidades comerciales (Acta)
     logisticVolume: number; // Volumen/Masa total (Bodega)
-    logisticUnit: string;   // Unidad normalizada
+    logisticUnit: string;   // Unidad normalizada (REG-Q010)
   };
   calculationMethod: 'AUTO_CUM' | 'MANUAL_OVERRIDE' | 'PRESET'; 
 }
 
 // --- DATA GOVERNANCE: Interfaz extendida para el CUM (Fuente de Verdad) ---
-// Asegura que VigiSalud sepa qué leer de la base de datos local
 export interface ExtendedCumRecord {
     id?: number; 
     expediente: string;
@@ -157,6 +179,11 @@ export interface ProductFinding {
   observations?: string;
   photoUrl?: string;
   hasEvidence?: boolean;
+ 
+  // --- CAMPOS DE VALIDACIÓN NORMATIVA (Sección 3) ---
+  regRuleRef?: string;       // ID de la regla violada (Ej: REG-L001)
+  complianceState?: 'CONFORME' | 'NO_CONFORME' | 'ALERTA' | 'DECOMISO';
+  technicalAlerts?: string[]; // Lista de alertas (REG-T)
 }
 
 export interface Establishment {

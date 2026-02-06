@@ -257,7 +257,7 @@ const PRODUCT_RULES: InternalRule[] = [
     riskLevel: 'CRITICO',
     condition: (p) => p.riskFactor === 'FRAUDULENTO' || p.riskFactor === 'ALTERADO'
   },
-
+  
   // --- SECCION 3.3 VALIDACIONES CUANTITATIVAS ---
   {
     id: 'REG-Q001',
@@ -265,7 +265,7 @@ const PRODUCT_RULES: InternalRule[] = [
     riskLevel: 'BAJO',
     condition: (p) => p.quantity <= 0
   },
-
+  
   // --- SECCION 3.4 VALIDACIONES TÉCNICAS ---
   {
     id: 'REG-T015',
@@ -290,7 +290,7 @@ const PRODUCT_RULES: InternalRule[] = [
     riskLevel: 'ALTO',
     condition: (p) => p.riskFactor === 'MAL_ALMACENAMIENTO' || (!!p.coldChainStatus && p.coldChainStatus.includes('INCUMPLE'))
   },
-
+  
   // --- SECCION 3.2 VALIDACIONES DOCUMENTALES ---
   {
     id: 'REG-D006',
