@@ -517,15 +517,29 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       const cleanVal = (val: string | undefined) => {
           if (!val) return '';
           const trimmed = val.trim();
-          // TAREA 2: Limpieza de Datos
-          // Si record.concentracion viene nulo o dice "Sin Dato", déjalo vacío
-          if (['.', '-', 'null', 'undefined', 'sin dato', 'no aplica', 'n/a'].includes(trimmed.toLowerCase())) return '';
-          // Elimina 'A', 'F' pero mantiene '5'
-          if (trimmed.length <= 1 && !/\d/.test(trimmed)) return '';
+          // Eliminar basura: ".", "-", "null", o letras sueltas (A, B) sin números
+          if (['.', '-', 'null', 'undefined'].includes(trimmed.toLowerCase())) return '';
+          if (trimmed.length <= 1 && !/\d/.test(trimmed)) return ''; // Elimina 'A', 'F' pero mantiene '5'
           return trimmed;
       };
 
-      // TAREA 2: Mapeo Directo de Columnas (Lectura CSV)
+      // Lógica de Extracción Fallback (Si CUM no tiene datos explícitos)
+      let extractedConc = cleanVal(record.concentracion);
+      let extractedUnit = cleanVal(record.unidadmedida);
+
+      if (!extractedConc) {
+          // Intentar extraer de Nombre o Descripción
+          const combinedText = ((record.producto || '') + ' ' + (record.descripcioncomercial || '')).toUpperCase();
+          // Regex prioridad: MG, G, MCG, UI, IU
+          const match = combinedText.match(/(\d+[\.,]?\d*)\s*(MG|MCG|G|UI|IU)/);
+          if (match) {
+              extractedConc = match[1].replace(',', '.');
+              // Solo asignar unidad si no existía, para respetar la oficial si la hubiera (raro)
+              if (!extractedUnit) extractedUnit = match[2].replace('IU', 'UI');
+          }
+      }
+
+      // Mapeo Automático
       const mappedProduct: Partial<ProductFinding> = {
           cum: record.expediente + (record.consecutivocum ? `-${record.consecutivocum}` : ''), 
           name: record.producto,
@@ -534,8 +548,8 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
           presentation: record.descripcioncomercial, 
           pharmaceuticalForm: record.formafarmaceutica,
           activePrinciple: record.principioactivo,
-          concentration: cleanVal(record.concentracion), // Mapeo Directo: record.concentracion
-          unit: cleanVal(record.unidadmedida), // Mapeo Directo: record.unidadmedida
+          concentration: extractedConc,
+          unit: extractedUnit,
           viaAdministration: record.viaadministracion,
           atcCode: record.atc,
           riskFactors: validation !== 'VALID' ? [(validation === 'EXPIRED' ? 'VENCIDO' : 'SIN_REGISTRO')] : []
@@ -1322,13 +1336,28 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                             <div>
                                 <h3 className="font-black text-indigo-900 text-lg uppercase tracking-tight">Asistente de Redacción IVC</h3>
                                 <p className="text-sm text-indigo-800 mt-1 font-medium">Motor de Inteligencia Jurídica v2.0</p>
-                                <p className="text-xs text-indigo-600 mt-2">
-                                    Normas Incumplidas Detectadas: <strong>{(() => {
-                                        if (!establishment) return '0';
-                                        const res = inspectionEngine.generateLegalContext(checklistResponses, products, establishment);
-                                        return res.violatedNorms.length > 0 ? res.violatedNorms.join(', ') : 'Ninguna';
-                                    })()}</strong>
-                                </p>
+                                <div className="text-xs text-indigo-600 mt-2">
+                                    Normas Incumplidas Detectadas:
+                                    <div className="mt-1 max-h-32 overflow-y-auto bg-white/50 p-2 rounded border border-indigo-100">
+                                        {(() => {
+                                            if (!establishment) return <strong>0</strong>;
+                                            const res = inspectionEngine.generateLegalContext(checklistResponses, products, establishment);
+
+                                            // Safety Check: Incoherencia (Concepto Malo pero Lista Vacía)
+                                            if (res.violatedNorms.length === 0 && (concept === 'DESFAVORABLE' || score < 60)) {
+                                                return <strong className="text-red-600">⚠️ ERROR DE COHERENCIA: Se detectaron fallos críticos pero no se identificó la norma exacta. Revise Inventario y Matriz.</strong>;
+                                            }
+
+                                            return res.violatedNorms.length > 0 ? (
+                                                <ul className="list-none space-y-1">
+                                                    {res.violatedNorms.map((n, idx) => (
+                                                        <li key={idx} className="font-bold border-b border-indigo-50 pb-1 last:border-0">{n}</li>
+                                                    ))}
+                                                </ul>
+                                            ) : <strong>Ninguna (Cumplimiento Normativo)</strong>;
+                                        })()}
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <Button onClick={handleAutoGenerate} className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-200 h-12 px-6 transform transition-all hover:scale-105">

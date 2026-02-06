@@ -500,6 +500,33 @@ export const inspectionEngine = {
 
       // Agregar Ley 9 siempre que haya medida
       legalBasisParts.add("Ley 9 de 1979 (Código Sanitario Nacional - Art. 576)");
+
+      // --- GENERACIÓN DE NORMAS VIOLADAS (PRODUCTOS) ---
+      // Mapa de Riesgos a Normas
+      const RISK_NORM_MAP: Record<string, string> = {
+          'VENCIDO': 'Decreto 677/95 Art. 70 (Prohibición de venta producto expirado)',
+          'SIN_REGISTRO': 'Decreto 677/95 (Comercialización sin Registro Sanitario)',
+          'ALTERADO': 'Código Penal Art. 372 (Corrupción de Alimentos/Medicamentos)',
+          'FRAUDULENTO': 'Ley 9/79 Art. 576 (Producto Fraudulento)',
+          'MAL_ALMACENAMIENTO': 'Res. 1403/2007 (Deficiencia en Condiciones de Almacenamiento)',
+          'USO_INSTITUCIONAL': 'Ley 1438/2011 (Prohibición Venta Institucional)',
+          'MUESTRA_MEDICA': 'Res. 114/2004 (Prohibición Venta Muestras)',
+          'CADENA_FRIO': 'Decreto 1782/2014 (Ruptura Cadena de Frío)'
+      };
+
+      seizedProducts.forEach(p => {
+          const risks = p.riskFactors || [];
+          if (risks.length > 0) {
+              risks.forEach(r => {
+                  const norm = RISK_NORM_MAP[r] || 'Normatividad Sanitaria Vigente (Incumplimiento Técnico)';
+                  // Evitar duplicados por producto si tiene varios riesgos misma norma? No, listamos todo.
+                  violatedNorms.push(`• [PRODUCTO]: ${p.name} presenta ${r.replace(/_/g, ' ')} -> ${norm}`);
+              });
+          } else {
+              // Caso Raro: Decomiso sin riesgo explícito (Manual)
+              violatedNorms.push(`• [PRODUCTO]: ${p.name} -> Objeto de Medida Sanitaria por Criterio Técnico.`);
+          }
+      });
     }
 
     // 3. SUGERENCIA DE MEDIDA (Lógica Crítica)
