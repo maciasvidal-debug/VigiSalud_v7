@@ -1,5 +1,4 @@
 import React, { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { db } from '../../db';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
@@ -76,7 +75,6 @@ const normalizeRecord = (raw: any) => {
 // =============================================================================
 
 export const MaintenanceCenter = () => {
-  const navigate = useNavigate();
   const { showToast } = useToast();
   
   type LoadingOperation = 'IDLE' | 'BACKUP' | 'RESTORE' | 'IMPORT_CUM' | 'IMPORT_CENSUS' | 'RESET_CENSUS' | 'RESET_ALL';
