@@ -1316,7 +1316,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                                     </div>
 
                                     {/* Firmantes Dinámicos */}
-                                    {attendees.map((attendee, idx) => (
+                                    {attendees.map((attendee) => (
                                         <div key={attendee.id} className="relative border-2 border-slate-200 rounded-xl p-4 flex flex-col gap-3 animate-in fade-in zoom-in-95">
                                             <button onClick={() => removeAttendee(attendee.id)} className="absolute top-2 right-2 text-slate-300 hover:text-red-500"><Icon name="x" size={16}/></button>
 

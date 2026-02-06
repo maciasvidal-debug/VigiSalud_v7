@@ -465,7 +465,7 @@ export const inspectionEngine = {
 
     if (failedItems.length > 0) {
       const blocks = [...new Set(failedItems.map(i => i.block.replace(/_/g, ' ')))];
-      narrativeParts.push(`Durante la diligencia de inspección, vigilancia y control, se evidencian incumplimientos a la normatividad sanitaria vigente, afectando los subsistemas de: ${blocks.join(', ')}.`);
+      narrativeParts.push(`En la visita realizada al establecimiento ${establishment.name}, se evidencian incumplimientos a la normatividad sanitaria vigente, afectando los subsistemas de: ${blocks.join(', ')}.`);
 
       // Detalle de hallazgos críticos en la narrativa
       const criticals = failedItems.filter(i => i.isKiller).map(i => i.text);
