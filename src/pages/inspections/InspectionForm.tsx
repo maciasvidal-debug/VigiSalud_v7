@@ -203,11 +203,11 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       atcCode?: string;
       logistics?: SeizureLogistics;
       originalCumData?: Partial<ProductFinding>;
-      calibrationStatus?: string; // Support for Medical Devices
+      calibrationStatus?: string;
   }>({
     type: 'MEDICAMENTO', 
     subtype: 'SINTESIS_QUIMICA', 
-    name: '', manufacturer: '', riskFactor: 'NINGUNO', seizureType: 'NINGUNO', quantity: 0, 
+    name: '', manufacturer: '', riskFactors: [], seizureType: 'NINGUNO', quantity: 0,
     cum: '', invimaReg: '', lot: '', serial: '', storageTemp: '', coldChainStatus: '', presentation: '',
     pharmaceuticalForm: '', activePrinciple: '', concentration: '', unit: '', viaAdministration: '', atcCode: '',
     packLabel: '', logistics: undefined, calibrationStatus: ''
@@ -246,7 +246,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       Object.keys(checklistResponses).forEach(key => simpleResponses[key] = checklistResponses[key].status); 
       
       const engineScore = inspectionEngine.calculateRisk(inspectionItems, simpleResponses); 
-      const hasCriticalProductFindings = products.some(p => p.riskFactor !== 'NINGUNO');
+      const hasCriticalProductFindings = products.some(p => p.riskFactors && p.riskFactors.length > 0);
       
       const finalScore = hasCriticalProductFindings ? Math.min(engineScore, 59) : engineScore;
       
@@ -280,8 +280,17 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
 
         if (expDate < today) {
             setIsReportingIssue(true);
-            setNewProduct(prev => ({ ...prev, riskFactor: 'VENCIDO', seizureType: 'DECOMISO' })); // Sugerencia automática
+            setNewProduct(prev => ({
+                ...prev,
+                riskFactors: Array.from(new Set([...(prev.riskFactors || []), 'VENCIDO'] as RiskFactor[])),
+                seizureType: 'DECOMISO'
+            }));
             showToast("⚠️ ALERTA: La fecha indica que el producto está VENCIDO.", "warning");
+        } else {
+            setNewProduct(prev => ({
+                ...prev,
+                riskFactors: (prev.riskFactors || []).filter(r => r !== 'VENCIDO')
+            }));
         }
     }
   }, [newProduct.expirationDate, isReportingIssue, showToast]);
@@ -298,12 +307,20 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
           if (!isNaN(temp)) {
               if (temp < 2.0 || temp > 8.0) {
                   if (newProduct.coldChainStatus !== 'INCUMPLE') {
-                      setNewProduct(prev => ({ ...prev, coldChainStatus: 'INCUMPLE' }));
+                      setNewProduct(prev => ({
+                          ...prev,
+                          coldChainStatus: 'INCUMPLE',
+                          riskFactors: Array.from(new Set([...(prev.riskFactors || []), 'MAL_ALMACENAMIENTO'] as RiskFactor[]))
+                      }));
                       showToast("⛔ ALERTA CRÍTICA: Ruptura de Cadena de Frío detected (Fuera de 2°C - 8°C)!", "error");
                   }
               } else {
                   if (newProduct.coldChainStatus === 'INCUMPLE') {
-                      setNewProduct(prev => ({ ...prev, coldChainStatus: 'CUMPLE' }));
+                      setNewProduct(prev => ({
+                          ...prev,
+                          coldChainStatus: 'CUMPLE',
+                          riskFactors: (prev.riskFactors || []).filter(r => r !== 'MAL_ALMACENAMIENTO')
+                      }));
                   }
               }
           }
@@ -315,17 +332,21 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       if (newProduct.presentation) {
           const text = newProduct.presentation.toUpperCase();
 
-          if (text.includes("INSTITUCIONAL") && newProduct.riskFactor !== 'USO_INSTITUCIONAL' && !isReportingIssue) {
+          if (text.includes("INSTITUCIONAL") && !(newProduct.riskFactors || []).includes('USO_INSTITUCIONAL') && !isReportingIssue) {
                showToast("💡 Sugerencia: Se detectó 'USO INSTITUCIONAL'. Verifique si está permitido su venta.", "info");
           }
 
-          if (text.includes("MUESTRA") && newProduct.riskFactor !== 'MUESTRA_MEDICA' && !isReportingIssue) {
+          if (text.includes("MUESTRA") && !(newProduct.riskFactors || []).includes('MUESTRA_MEDICA') && !isReportingIssue) {
               setIsReportingIssue(true);
-              setNewProduct(prev => ({ ...prev, riskFactor: 'MUESTRA_MEDICA', seizureType: 'DECOMISO' }));
+              setNewProduct(prev => ({
+                  ...prev,
+                  riskFactors: Array.from(new Set([...(prev.riskFactors || []), 'MUESTRA_MEDICA'] as RiskFactor[])),
+                  seizureType: 'DECOMISO'
+              }));
               showToast("⛔ ALERTA: Prohibida la venta de Muestras Médicas.", "error");
           }
       }
-  }, [newProduct.presentation, isReportingIssue, newProduct.riskFactor, showToast]);
+  }, [newProduct.presentation, isReportingIssue, newProduct.riskFactors, showToast]);
 
 
   // --- HANDLER: DICTADO POR VOZ ---
@@ -515,7 +536,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
           unit: cleanVal(record.unidadmedida), // Campo separado
           viaAdministration: record.viaadministracion,
           atcCode: record.atc,
-          riskFactor: validation !== 'VALID' ? (validation === 'EXPIRED' ? 'VENCIDO' : 'SIN_REGISTRO') : 'NINGUNO'
+          riskFactors: validation !== 'VALID' ? [(validation === 'EXPIRED' ? 'VENCIDO' : 'SIN_REGISTRO')] : []
       };
 
       setNewProduct(prev => ({ ...prev, ...mappedProduct, originalCumData: mappedProduct }));
@@ -533,7 +554,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
 
   // --- AGREGAR PRODUCTO (COMMIT) ---
   const commitProduct = (overrideEvidence: boolean) => {
-      const finalRisk = newProduct.riskFactor || 'NINGUNO';
+      const currentRisks = newProduct.riskFactors || [];
       let finalQuantity = 0;
       let smartLabel = '';
       let currentLogistics = newProduct.logistics;
@@ -575,7 +596,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       const finding: LocalProductFinding = {
         ...(newProduct as LocalProductFinding), 
         id: crypto.randomUUID(), 
-        riskFactor: finalRisk,
+        riskFactors: currentRisks,
         seizureType: newProduct.seizureType || 'NINGUNO',
         quantity: finalQuantity,
         packLabel: smartLabel,
@@ -590,7 +611,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       // Reset Form
       setNewProduct({ 
         type: newProduct.type, subtype: newProduct.subtype,
-        name: '', manufacturer: '', riskFactor: 'NINGUNO', seizureType: 'NINGUNO', quantity: 0,
+        name: '', manufacturer: '', riskFactors: [], seizureType: 'NINGUNO', quantity: 0,
         cum: '', invimaReg: '', lot: '', serial: '', storageTemp: '', coldChainStatus: '', presentation: '', 
         pharmaceuticalForm: '', activePrinciple: '', concentration: '', unit: '', viaAdministration: '', atcCode: '',
         packLabel: '', logistics: undefined, originalCumData: undefined, calibrationStatus: ''
@@ -611,7 +632,8 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
     if (!newProduct.name) { setFormError("El nombre del producto es obligatorio."); return; }
     
     // 2. VALIDACIÓN MOTOR DE REGLAS (NUEVO)
-    const validation = inspectionEngine.validateProduct({ ...newProduct, riskFactor: isConform ? 'NINGUNO' : (newProduct.riskFactor || 'NINGUNO') } as ProductFinding);
+    const effectiveRisks = isConform ? [] : (newProduct.riskFactors || []);
+    const validation = inspectionEngine.validateProduct({ ...newProduct, riskFactors: effectiveRisks } as ProductFinding);
     
     if (!validation.isValid) {
         const violationsText = validation.violations.map(v => `${v.id}: ${v.description}`).join(' | ');
@@ -641,11 +663,10 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
         return;
     }
 
-    const finalRisk = isConform ? 'NINGUNO' : (newProduct.riskFactor || 'NINGUNO');
-    if (isConform && finalRisk !== 'NINGUNO') { setFormError("Inconsistencia: No puede ser Conforme si seleccionó un Riesgo."); return; }
+    if (isConform && effectiveRisks.length > 0) { setFormError("Inconsistencia: No puede ser Conforme si ha seleccionado Factores de Riesgo."); return; }
     
     // 4. EVIDENCIA OBLIGATORIA
-    if (!isConform && finalRisk !== 'NINGUNO' && !evidenceTemp) { 
+    if (!isConform && effectiveRisks.length > 0 && !evidenceTemp) {
         setShowEvidenceModal(true); 
         return; 
     }
@@ -655,7 +676,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
         newProduct.regRuleRef = validation.violations[0].id;
     }
 
-    commitProduct(evidenceTemp || finalRisk === 'NINGUNO');
+    commitProduct(evidenceTemp || isConform);
   };
 
   const removeProduct = (id: string) => {
@@ -689,7 +710,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
     if (!inspectionNarrative) { showToast("⚠️ Debe completar la narrativa de los hechos.", 'error'); return; }
     
     // Validación de Bloqueo por Falta de Evidencia
-    const pendingEvidence = products.some(p => p.riskFactor !== 'NINGUNO' && !p.hasEvidence);
+    const pendingEvidence = products.some(p => p.riskFactors && p.riskFactors.length > 0 && !p.hasEvidence);
     if (pendingEvidence) { 
         setShowBlockModal(true); 
         return; 
@@ -1092,9 +1113,48 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                                         <div className="p-2 bg-red-100 text-red-600 rounded-lg"><Icon name="shield-off" size={24}/></div>
                                         <div><h4 className="font-black text-red-900 uppercase">Panel de Medidas Sanitarias</h4><p className="text-xs text-red-700">Configure la causal y la medida a aplicar.</p></div>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-6 mb-6">
-                                        <div><label className="text-xs font-bold text-red-800 uppercase mb-2 block">Causal del Riesgo</label><select className="w-full h-12 border-2 border-red-200 rounded-xl text-red-900 font-bold bg-white px-3 focus:ring-4 focus:ring-red-100 outline-none" value={newProduct.riskFactor} onChange={e=>setNewProduct({...newProduct, riskFactor: e.target.value as RiskFactor})}><option value="NINGUNO">Seleccione...</option><option value="VENCIDO">VENCIDO / EXPIRADO</option><option value="SIN_REGISTRO">SIN REGISTRO / FRAUDULENTO</option><option value="ALTERADO">ALTERADO (Físico-Químico)</option><option value="USO_INSTITUCIONAL">USO INSTITUCIONAL</option></select></div>
-                                        <div><label className="text-xs font-bold text-red-800 uppercase mb-2 block">Medida a Aplicar</label><select className="w-full h-12 border-2 border-red-200 rounded-xl text-red-900 font-bold bg-white px-3 focus:ring-4 focus:ring-red-100 outline-none" value={newProduct.seizureType} onChange={e=>setNewProduct({...newProduct, seizureType: e.target.value as SeizureType})}><option value="NINGUNO">Seleccione...</option><option value="DECOMISO">DECOMISO (Incautación)</option><option value="CONGELAMIENTO">CONGELAMIENTO</option><option value="DESNATURALIZACION">DESTRUCCIÓN IN SITU</option></select></div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                                        <div>
+                                            <label className="text-xs font-bold text-red-800 uppercase mb-2 block">Causales del Riesgo (Selección Múltiple)</label>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {['VENCIDO', 'SIN_REGISTRO', 'ALTERADO', 'USO_INSTITUCIONAL', 'MUESTRA_MEDICA', 'MAL_ALMACENAMIENTO', 'FRAUDULENTO'].map((risk) => {
+                                                    const isSelected = (newProduct.riskFactors || []).includes(risk as RiskFactor);
+                                                    return (
+                                                        <button
+                                                            key={risk}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setNewProduct(prev => {
+                                                                    const current = prev.riskFactors || [];
+                                                                    return {
+                                                                        ...prev,
+                                                                        riskFactors: isSelected
+                                                                            ? current.filter(r => r !== risk)
+                                                                            : [...current, risk as RiskFactor]
+                                                                    };
+                                                                });
+                                                            }}
+                                                            className={`px-2 py-3 rounded-lg border text-[10px] font-bold transition-all flex items-center justify-center text-center leading-tight h-14 ${isSelected ? 'bg-red-600 text-white border-red-700 shadow-md transform scale-[1.02]' : 'bg-white text-red-800 border-red-200 hover:bg-red-50'}`}
+                                                        >
+                                                            {risk.replace(/_/g, ' ')}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold text-red-800 uppercase mb-2 block">Medida a Aplicar</label>
+                                            <select className="w-full h-12 border-2 border-red-200 rounded-xl text-red-900 font-bold bg-white px-3 focus:ring-4 focus:ring-red-100 outline-none" value={newProduct.seizureType} onChange={e=>setNewProduct({...newProduct, seizureType: e.target.value as SeizureType})}><option value="NINGUNO">Seleccione...</option><option value="DECOMISO">DECOMISO (Incautación)</option><option value="CONGELAMIENTO">CONGELAMIENTO</option><option value="DESNATURALIZACION">DESTRUCCIÓN IN SITU</option></select>
+
+                                            <div className="mt-4 p-4 bg-red-100 rounded-xl">
+                                                <h5 className="text-[10px] font-bold text-red-800 uppercase mb-1">Resumen de Hallazgos</h5>
+                                                {(newProduct.riskFactors || []).length > 0 ? (
+                                                    <ul className="list-disc pl-4 text-xs text-red-900 font-medium">
+                                                        {(newProduct.riskFactors || []).map(r => <li key={r}>{r.replace(/_/g, ' ')}</li>)}
+                                                    </ul>
+                                                ) : <p className="text-xs text-red-400 italic">Ningún riesgo seleccionado.</p>}
+                                            </div>
+                                        </div>
                                     </div>
                                     {newProduct.seizureType !== 'NINGUNO' && (<div className="mb-6"><SeizureCalculator onCalculate={handleCalculatorUpdate} cum={newProduct.cum} presentation={newProduct.presentation} pharmaceuticalForm={newProduct.pharmaceuticalForm} isVerified={cumSearchStatus === 'FOUND'} /></div>)}
                                     <div className="flex justify-end gap-4"><button onClick={() => setIsReportingIssue(false)} className="px-6 py-3 text-slate-500 font-bold hover:text-slate-800 transition-colors">Cancelar</button><button onClick={() => handleAddProduct(false)} className="px-8 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold shadow-lg shadow-red-200 flex items-center gap-2"><Icon name="alert-octagon" size={18}/> CONFIRMAR HALLAZGO</button></div>
@@ -1108,19 +1168,31 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                 <div className="space-y-4">
                     <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest px-2 flex items-center gap-2"><Icon name="clock" size={14}/> Historial de Registros</h4>
                     {products.length === 0 && <div className="p-12 text-center border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50"><Icon name="inbox" size={40} className="text-slate-300 mx-auto mb-3"/><p className="text-slate-500 font-medium">No se han registrado productos en esta visita.</p></div>}
-                    {products.map(p => (
-                        <div key={p.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all flex justify-between items-center group">
-                            <div className="flex items-center gap-4">
-                                <div className={`w-1.5 h-12 rounded-full ${p.riskFactor === 'NINGUNO' ? 'bg-emerald-400' : 'bg-red-500'}`}></div>
-                                <div><h5 className="font-black text-slate-700">{p.name}</h5><div className="flex gap-3 text-xs text-slate-500 mt-1"><span className="flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded"><Icon name="tag" size={10}/> Lote: {p.lot || 'N/A'}</span><span className="flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded"><Icon name="box" size={10}/> {p.packLabel}</span></div></div>
+                    {products.map(p => {
+                        const hasRisks = p.riskFactors && p.riskFactors.length > 0;
+                        return (
+                            <div key={p.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all flex justify-between items-center group">
+                                <div className="flex items-center gap-4">
+                                    <div className={`w-1.5 h-12 rounded-full ${!hasRisks ? 'bg-emerald-400' : 'bg-red-500'}`}></div>
+                                    <div>
+                                        <h5 className="font-black text-slate-700">{p.name}</h5>
+                                        <div className="flex flex-wrap gap-2 mt-1">
+                                            {hasRisks && p.riskFactors.map(r => (
+                                                <span key={r} className="text-[10px] font-black uppercase text-red-600 bg-red-50 px-1.5 py-0.5 rounded border border-red-100">{r.replace('_', ' ')}</span>
+                                            ))}
+                                            {!hasRisks && <span className="text-[10px] font-black uppercase text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">CONFORME</span>}
+                                        </div>
+                                        <div className="flex gap-3 text-xs text-slate-500 mt-1"><span className="flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded"><Icon name="tag" size={10}/> Lote: {p.lot || 'N/A'}</span><span className="flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded"><Icon name="box" size={10}/> {p.packLabel}</span></div>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                    {hasRisks && <Badge label={p.seizureType} className="bg-red-100 text-red-700 border-red-200"/>}
+                                    {hasRisks && !p.hasEvidence && (<button onClick={() => triggerEvidenceCheck(p.id)} className="px-3 py-1 bg-red-50 text-red-600 border border-red-200 rounded-lg text-xs font-bold flex items-center gap-1 hover:bg-red-100"><Icon name="camera" size={12}/> FOTO</button>)}
+                                    <button onClick={() => removeProduct(p.id)} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Icon name="trash" size={18}/></button>
+                                </div>
                             </div>
-                            <div className="flex items-center gap-4">
-                                {p.riskFactor !== 'NINGUNO' && <Badge label={p.seizureType} className="bg-red-100 text-red-700 border-red-200"/>}
-                                {p.riskFactor !== 'NINGUNO' && !p.hasEvidence && (<button onClick={() => triggerEvidenceCheck(p.id)} className="px-3 py-1 bg-red-50 text-red-600 border border-red-200 rounded-lg text-xs font-bold flex items-center gap-1 hover:bg-red-100"><Icon name="camera" size={12}/> FOTO</button>)}
-                                <button onClick={() => removeProduct(p.id)} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Icon name="trash" size={18}/></button>
-                            </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
 
                 <div className="flex justify-between mt-12 pt-8 border-t border-slate-200">

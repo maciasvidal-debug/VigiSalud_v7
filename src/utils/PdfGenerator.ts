@@ -42,8 +42,9 @@ const getFindingDescription = (product: ProductFinding) => {
     if (product.regRuleRef && RULE_DESCRIPTIONS[product.regRuleRef]) {
         return RULE_DESCRIPTIONS[product.regRuleRef];
     }
-    if (product.riskFactor !== 'NINGUNO') {
-        return `Riesgo Detectado: ${product.riskFactor.replace('_', ' ')}`;
+    if (product.riskFactors && product.riskFactors.length > 0) {
+        const risks = product.riskFactors.map(r => r.replace(/_/g, ' ')).join(', ');
+        return `Riesgos Detectados: ${risks}`;
     }
     if (product.observations) {
         return `Obs: ${product.observations}`;
@@ -271,7 +272,7 @@ export const generateInspectionPDF = async (report: Report, isDraft: boolean = f
           x += cols[2].width;
 
           // Col 4: Hallazgo (Split Text)
-          const isRisk = p.riskFactor !== 'NINGUNO';
+          const isRisk = p.riskFactors && p.riskFactors.length > 0;
           if (isRisk) doc.setTextColor(COLORS.danger[0], COLORS.danger[1], COLORS.danger[2]);
           doc.text(splitDesc, x, y);
           doc.setTextColor(0);

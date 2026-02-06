@@ -249,13 +249,13 @@ const PRODUCT_RULES: InternalRule[] = [
     id: 'REG-L006',
     description: 'Prohibición de comercialización sin RS o con RS vencido (Riesgo Crítico).',
     riskLevel: 'CRITICO',
-    condition: (p) => p.riskFactor === 'SIN_REGISTRO'
+    condition: (p) => (p.riskFactors || []).includes('SIN_REGISTRO')
   },
   {
     id: 'REG-L020',
     description: 'Decomiso inmediato por evidencia de falsificación o fraude.',
     riskLevel: 'CRITICO',
-    condition: (p) => p.riskFactor === 'FRAUDULENTO' || p.riskFactor === 'ALTERADO'
+    condition: (p) => (p.riskFactors || []).includes('FRAUDULENTO') || (p.riskFactors || []).includes('ALTERADO')
   },
 
   // --- SECCION 3.3 VALIDACIONES CUANTITATIVAS ---
@@ -273,7 +273,7 @@ const PRODUCT_RULES: InternalRule[] = [
     riskLevel: 'ALTO',
     condition: (p) => {
       // Si ya está marcado como vencido explícitamente
-      if (p.riskFactor === 'VENCIDO') return true;
+      if ((p.riskFactors || []).includes('VENCIDO')) return true;
       // Validación dinámica de fecha
       if (p.expirationDate) {
         const expDate = new Date(p.expirationDate);
@@ -288,7 +288,7 @@ const PRODUCT_RULES: InternalRule[] = [
     id: 'REG-T001',
     description: 'Condiciones de almacenamiento inadecuadas / Ruptura de cadena de frío.',
     riskLevel: 'ALTO',
-    condition: (p) => p.riskFactor === 'MAL_ALMACENAMIENTO' || (!!p.coldChainStatus && p.coldChainStatus.includes('INCUMPLE'))
+    condition: (p) => (p.riskFactors || []).includes('MAL_ALMACENAMIENTO') || (!!p.coldChainStatus && p.coldChainStatus.includes('INCUMPLE'))
   },
 
   // --- SECCION 3.2 VALIDACIONES DOCUMENTALES ---
@@ -487,9 +487,9 @@ export const inspectionEngine = {
 
     if (seizedProducts.length > 0) {
       const totalSeized = seizedProducts.reduce((acc, p) => acc + p.quantity, 0);
-      const causes = [...new Set(seizedProducts.map(p => p.riskFactor))];
+      const causes = [...new Set(seizedProducts.flatMap(p => p.riskFactors || []))];
 
-      narrativeParts.push(`\nAdicionalmente, se aplicó Medida Sanitaria de Seguridad consistente en el congelamiento/decomiso de ${totalSeized} unidades de productos, debido a las siguientes causales de riesgo identificadas: ${causes.join(', ')}.`);
+      narrativeParts.push(`\nAdicionalmente, se aplicó Medida Sanitaria de Seguridad consistente en el congelamiento/decomiso de ${totalSeized} unidades de productos, debido a las siguientes causales de riesgo identificadas: ${causes.map(c => c.replace(/_/g, ' ')).join(', ')}.`);
 
       // Determinar normas según tipo de producto
       const hasMeds = seizedProducts.some(p => p.type === 'MEDICAMENTO');

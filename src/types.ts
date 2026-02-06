@@ -144,7 +144,7 @@ export interface ProductFinding {
   state?: PhysicalState;
 
   // Riesgo y Medida
-  riskFactor: RiskFactor;
+  riskFactors: RiskFactor[]; // Multiples causales permitidas
   seizureType: SeizureType;
   
   // Cantidades (Sincronizadas con Calculadora)
