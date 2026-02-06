@@ -299,6 +299,12 @@ const PRODUCT_RULES: InternalRule[] = [
     condition: (p) => p.type === 'DISPOSITIVO_MEDICO' && p.observations === 'NO'
   },
   {
+    id: 'REG-T012',
+    description: 'Equipos biomédicos deben tener calibración vigente (Decreto 4725).',
+    riskLevel: 'ALTO',
+    condition: (p) => p.type === 'DISPOSITIVO_MEDICO' && p.subtype === 'EQUIPO_BIOMEDICO' && p.calibrationStatus === 'VENCIDA'
+  },
+  {
     id: 'REG-D008',
     description: 'Suplementos dietarios requieren tabla nutricional obligatoria.',
     riskLevel: 'MEDIO',

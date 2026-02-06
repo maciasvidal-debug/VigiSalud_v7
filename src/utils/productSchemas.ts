@@ -69,7 +69,9 @@ export const PRODUCT_SCHEMAS: Record<string, ProductSchema> = {
       { key: 'riskClassDM', label: 'Clasificación Riesgo', type: 'select', required: true, options: ['CLASE_I', 'CLASE_IIA', 'CLASE_IIB', 'CLASE_III', 'NO_APLICA'], colSpan: 4, section: 'TECHNICAL' },
       { key: 'model', label: 'Modelo / Referencia', type: 'text', required: false, colSpan: 4, section: 'TECHNICAL' },
       { key: 'serial', label: 'Serie / Lote', type: 'text', required: true, colSpan: 4, section: 'TECHNICAL' },
-      { key: 'expirationDate', label: 'Vida Útil (Si aplica)', type: 'date', required: false, colSpan: 12, section: 'TECHNICAL' },
+      { key: 'expirationDate', label: 'Vida Útil (Si aplica)', type: 'date', required: false, colSpan: 6, section: 'TECHNICAL' },
+      // REG-T012: Calibración
+      { key: 'calibrationStatus', label: 'Estado de Calibración', type: 'select', required: true, options: ['VIGENTE', 'VENCIDA', 'NO_REQUERIDA'], colSpan: 6, section: 'TECHNICAL', triggerSubtypes: ['EQUIPO_BIOMEDICO'] },
       // REG-D006: Manual de uso obligatorio
       { key: 'observations', label: '¿Manual de Uso presente?', type: 'select', required: true, options: ['SI', 'NO', 'NO_APLICA'], colSpan: 12, section: 'TECHNICAL' },
       { key: 'quantity', label: 'Cantidad', type: 'number', required: true, colSpan: 12, section: 'LOGISTICS' },

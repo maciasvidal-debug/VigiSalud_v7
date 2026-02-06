@@ -185,13 +185,14 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       atcCode?: string;
       logistics?: SeizureLogistics;
       originalCumData?: Partial<ProductFinding>;
+      calibrationStatus?: string; // Support for Medical Devices
   }>({
     type: 'MEDICAMENTO', 
     subtype: 'SINTESIS_QUIMICA', 
     name: '', manufacturer: '', riskFactor: 'NINGUNO', seizureType: 'NINGUNO', quantity: 0, 
     cum: '', invimaReg: '', lot: '', serial: '', storageTemp: '', coldChainStatus: '', presentation: '',
     pharmaceuticalForm: '', activePrinciple: '', concentration: '', viaAdministration: '', atcCode: '',
-    packLabel: '', logistics: undefined
+    packLabel: '', logistics: undefined, calibrationStatus: ''
   });
 
   // --- QUERIES DE BASE DE DATOS (DEXIE) ---
@@ -506,7 +507,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
         name: '', manufacturer: '', riskFactor: 'NINGUNO', seizureType: 'NINGUNO', quantity: 0,
         cum: '', invimaReg: '', lot: '', serial: '', storageTemp: '', coldChainStatus: '', presentation: '', 
         pharmaceuticalForm: '', activePrinciple: '', concentration: '', viaAdministration: '', atcCode: '',
-        packLabel: '', logistics: undefined, originalCumData: undefined
+        packLabel: '', logistics: undefined, originalCumData: undefined, calibrationStatus: ''
       });
       setPacksInput(0);
       setLooseInput(0);
@@ -678,7 +679,8 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
 
   const renderField = (field: FieldConfig) => {
       if (field.key === 'quantity' && isReportingIssue && newProduct.seizureType !== 'NINGUNO') return null;
-      
+      if (field.triggerSubtypes && !field.triggerSubtypes.includes(newProduct.subtype as ProductSubtype)) return null;
+
       const colClass = getColSpanClass(field);
       const isColdChainError = field.section === 'COLD_CHAIN' && newProduct.coldChainStatus?.includes('INCUMPLE');
       

@@ -137,6 +137,7 @@ export interface ProductFinding {
   
   // Datos técnicos
   riskClassDM?: RiskClassDM; 
+  calibrationStatus?: string; // REG-T012
   storageTemp?: string; 
   coldChainStatus?: string; 
   state?: PhysicalState;
