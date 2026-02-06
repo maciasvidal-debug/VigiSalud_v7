@@ -31,7 +31,8 @@ import type {
     ProductSubtype, 
     SeizureLogistics, 
     ExtendedCumRecord,
-    ConceptType
+    ConceptType,
+    InspectionAttendee
 } from '../../types';
 
 // =============================================================================
@@ -155,13 +156,30 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
   });
 
   // --- ESTADOS DE CIERRE Y LEGAL ---
-  const [signature, setSignature] = useState<string | null>(null);
+  const [attendees, setAttendees] = useState<InspectionAttendee[]>([]);
   const [citizenObservation, setCitizenObservation] = useState('');
   const [inspectionNarrative, setInspectionNarrative] = useState(''); 
   const [legalBasis, setLegalBasis] = useState(''); 
   const [isListening, setIsListening] = useState<string | null>(null); 
-  const [refusalToSign, setRefusalToSign] = useState(false);
-  const [witness, setWitness] = useState({ name: '', id: '', signature: null as string | null });
+
+  // --- GESTIÓN DE FIRMANTES ---
+  const addAttendee = (role: InspectionAttendee['role']) => {
+      setAttendees(prev => [...prev, {
+          id: crypto.randomUUID(),
+          name: '',
+          idNumber: '',
+          role,
+          signature: null
+      }]);
+  };
+
+  const updateAttendee = (id: string, field: keyof InspectionAttendee, value: any) => {
+      setAttendees(prev => prev.map(a => a.id === id ? { ...a, [field]: value } : a));
+  };
+
+  const removeAttendee = (id: string) => {
+      setAttendees(prev => prev.filter(a => a.id !== id));
+  };
   
   // --- ESTADOS DE MODALES ---
   const [showCumModal, setShowCumModal] = useState(false);
@@ -714,8 +732,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
             attendedId: contextData?.attendedId, 
             attendedRole: contextData?.attendedRole, 
             gpsBypass: false, 
-            witness: refusalToSign ? witness : undefined, 
-            refusalToSign: refusalToSign, 
+            attendees: attendees,
             inspectionNarrative, 
             legalBasis, 
             city: establishment.city 
@@ -723,8 +740,8 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
         findings: checklistResponses, 
         products: products, 
         seizure: seizureRecord, 
-        signature: refusalToSign ? null : signature, 
-        citizenFeedback: { text: citizenObservation, signature: '', agreed: !refusalToSign }
+        signature: null,
+        citizenFeedback: { text: citizenObservation, signature: '', agreed: true }
       };
       
       setPendingReportData(reportDraft); 
@@ -1265,37 +1282,58 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                         </div>
                     </Card>
 
-                    <Card title="Formalización Legal" icon="gavel">
+                    <Card title="Formalización Legal y Firmas" icon="gavel">
                         <div className="space-y-8 p-2">
                             <div>
                                 <div className="flex justify-between items-center mb-2"><div className="flex items-center gap-2"><label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Observaciones del Vigilado</label><span className="text-[9px] bg-slate-100 px-2 py-0.5 rounded font-bold text-slate-400">DERECHO DE CONTRADICCIÓN</span></div><button onClick={() => toggleListening('citizen', setCitizenObservation)} className="text-blue-600"><Icon name="mic" size={16}/></button></div>
                                 <textarea className="w-full p-4 rounded-xl border-2 border-slate-200 text-sm font-medium focus:border-blue-500 outline-none min-h-[100px]" placeholder="Espacio para descargos del atendido..." value={citizenObservation} onChange={(e) => setCitizenObservation(e.target.value)}/>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4 border-t border-slate-100">
-                                <div className="flex flex-col h-full justify-between gap-4">
-                                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest text-center">Funcionario Responsable (IVC)</p>
-                                    <div className="border-2 border-slate-200 rounded-xl flex-1 min-h-[180px] flex flex-col items-center justify-center bg-slate-50/50">
-                                        <div className="w-16 h-16 bg-teal-100 rounded-full flex items-center justify-center text-teal-600 mb-3"><Icon name="user-check" size={32}/></div>
-                                        <p className="font-black text-slate-700 text-sm">INSPECTOR VIGISALUD</p>
-                                        <p className="text-[10px] text-slate-400 font-bold mt-1">Firma Digital Autenticada</p>
+                            <div className="pt-4 border-t border-slate-100">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest">Participantes de la Diligencia</h4>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => addAttendee('REPRESENTANTE_LEGAL')} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-[10px] font-bold rounded-lg flex items-center gap-1 transition-colors"><Icon name="user-plus" size={12}/> REPRESENTANTE</button>
+                                        <button onClick={() => addAttendee('TESTIGO')} className="px-3 py-1.5 bg-slate-100 hover:bg-red-50 text-slate-600 hover:text-red-600 text-[10px] font-bold rounded-lg flex items-center gap-1 transition-colors"><Icon name="alert-triangle" size={12}/> TESTIGO (RENUENCIA)</button>
                                     </div>
                                 </div>
 
-                                <div className="flex flex-col h-full justify-between gap-4">
-                                    <div className="flex justify-between items-center"><p className="text-xs font-black text-slate-400 uppercase tracking-widest">{refusalToSign ? 'Firma de Testigo' : `Firma de: ${contextData?.attendedBy?.slice(0,15)}...`}</p><button onClick={() => setRefusalToSign(!refusalToSign)} className={`text-[9px] font-bold px-3 py-1.5 rounded-lg border transition-all ${refusalToSign?'bg-red-50 text-red-600 border-red-200':'bg-white text-slate-500 border-slate-200 hover:border-red-300 hover:text-red-500'}`}>{refusalToSign ? 'Cancelar Renuencia' : '¿Se niega a firmar?'}</button></div>
-                                    <div className="flex-1 min-h-[180px]">
-                                        {!refusalToSign ? (
-                                            <SignaturePad onChange={(data) => setSignature(data)} label="Firme aquí dentro del recuadro" />
-                                        ) : (
-                                            <div className="h-full flex flex-col gap-3 animate-in fade-in">
-                                                <div className="bg-red-50 p-3 rounded-xl border border-red-100 text-xs text-red-700 font-bold text-center flex items-center justify-center gap-2"><Icon name="alert-triangle" size={14}/> Protocolo de Renuencia Activado</div>
-                                                <Input label="Nombre Testigo" value={witness.name} onChange={e => setWitness({...witness, name: e.target.value})} />
-                                                <Input label="Cédula" value={witness.id} onChange={e => setWitness({...witness, id: e.target.value})} />
-                                                <div className="flex-1"><SignaturePad onChange={(data) => setWitness({...witness, signature: data})} label="Firma del Testigo" /></div>
-                                            </div>
-                                        )}
+                                {attendees.length === 0 && (
+                                    <div className="p-8 border-2 border-dashed border-slate-200 rounded-xl text-center">
+                                        <Icon name="users" className="mx-auto text-slate-300 mb-2" size={32}/>
+                                        <p className="text-xs text-slate-400 font-medium">No hay firmantes registrados.</p>
                                     </div>
+                                )}
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {/* Inspector (Siempre fijo) */}
+                                    <div className="flex flex-col h-full gap-4">
+                                        <div className="border-2 border-slate-200 rounded-xl flex-1 min-h-[220px] flex flex-col items-center justify-center bg-slate-50/50 p-4">
+                                            <div className="w-12 h-12 bg-teal-100 rounded-full flex items-center justify-center text-teal-600 mb-3"><Icon name="user-check" size={24}/></div>
+                                            <p className="font-black text-slate-700 text-sm">INSPECTOR VIGISALUD</p>
+                                            <p className="text-[10px] text-slate-400 font-bold mt-1">Firma Digital Autenticada</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Firmantes Dinámicos */}
+                                    {attendees.map((attendee, idx) => (
+                                        <div key={attendee.id} className="relative border-2 border-slate-200 rounded-xl p-4 flex flex-col gap-3 animate-in fade-in zoom-in-95">
+                                            <button onClick={() => removeAttendee(attendee.id)} className="absolute top-2 right-2 text-slate-300 hover:text-red-500"><Icon name="x" size={16}/></button>
+
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <Badge label={attendee.role.replace('_', ' ')} variant={attendee.role === 'TESTIGO' ? 'warning' : 'neutral'} className="text-[9px]"/>
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <Input value={attendee.name} onChange={e => updateAttendee(attendee.id, 'name', e.target.value)} placeholder="Nombre Completo" className="h-9 text-xs font-bold"/>
+                                                <Input value={attendee.idNumber} onChange={e => updateAttendee(attendee.id, 'idNumber', e.target.value)} placeholder="Cédula/NIT" className="h-9 text-xs font-bold"/>
+                                            </div>
+
+                                            <div className="flex-1 bg-slate-50 rounded-lg border border-slate-200 overflow-hidden min-h-[120px]">
+                                                <SignaturePad onChange={(data) => updateAttendee(attendee.id, 'signature', data)} label="Firme aquí" />
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
                         </div>

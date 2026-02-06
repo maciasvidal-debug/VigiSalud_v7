@@ -464,11 +464,18 @@ export const inspectionEngine = {
     });
 
     if (failedItems.length > 0) {
-      const blocks = [...new Set(failedItems.map(i => i.block))];
-      narrativeParts.push(`Durante la diligencia de inspección, vigilancia y control, se evidencian incumplimientos a la normatividad sanitaria vigente en los bloques: ${blocks.map(b => b.replace(/_/g, ' ')).join(', ')}.`);
+      const blocks = [...new Set(failedItems.map(i => i.block.replace(/_/g, ' ')))];
+      narrativeParts.push(`Durante la diligencia de inspección, vigilancia y control, se evidencian incumplimientos a la normatividad sanitaria vigente, afectando los subsistemas de: ${blocks.join(', ')}.`);
+
+      // Detalle de hallazgos críticos en la narrativa
+      const criticals = failedItems.filter(i => i.isKiller).map(i => i.text);
+      if (criticals.length > 0) {
+          narrativeParts.push(`De manera específica y con impacto en la Salud Pública, se observan hallazgos críticos tales como: ${criticals.join('; ')}.`);
+      }
 
       failedItems.forEach(item => {
-        violatedNorms.push(item.id);
+        const citation = item.legalCitation || 'Normatividad Sanitaria Vigente';
+        violatedNorms.push(`• [${citation}]: ${item.text}`);
         if (item.legalCitation) legalBasisParts.add(item.legalCitation);
       });
     } else {

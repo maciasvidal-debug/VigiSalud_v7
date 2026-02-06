@@ -346,59 +346,70 @@ export const generateInspectionPDF = async (report: Report, isDraft: boolean = f
   renderLongText("5.2 Fundamentación Jurídica:", report.data.legalBasis || "Normatividad sanitaria vigente aplicable.");
   renderLongText("5.3 Descargos / Observaciones del Atendido:", report.citizenFeedback?.text || "El atendido no manifiesta observaciones.");
 
-  // --- SECCIÓN 6: FIRMAS ---
-  checkPageBreak(50);
-  y = Math.max(y + 10, height - 60);
+  // --- SECCIÓN 6: FIRMAS Y CIERRE ---
+  if (y > height - 80) { doc.addPage(); paintBackground(); y = 40; }
+  else { y += 10; }
 
-  const col1Sign = FORMATS.margin;
-  const col2Sign = (width / 2) + 10;
-
-  doc.setDrawColor(0);
-  doc.line(col1Sign, y, col1Sign + 70, y);
-  doc.line(col2Sign, y, col2Sign + 70, y);
-  
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(8);
+  doc.setFontSize(10);
+  doc.text("6. PARTICIPANTES DE LA DILIGENCIA", FORMATS.margin, y);
+  y += 15;
+
+  let currentX = FORMATS.margin;
+  const colWidth = 60;
+  const colGap = 10;
+  const signatureLineY = y + 25;
+
+  // 1. INSPECTOR (Siempre presente)
+  doc.setDrawColor(0);
+  doc.line(currentX, signatureLineY, currentX + colWidth - 5, signatureLineY);
   
-  // Columna 1: Inspector
-  doc.text("FUNCIONARIO IVC (Inspector)", col1Sign, y + 4);
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "bold");
+  doc.text("FUNCIONARIO IVC", currentX, signatureLineY + 4);
+  
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7);
-  doc.text(report.func || "Funcionario Competente", col1Sign, y + 8);
+  doc.text(report.func || "Funcionario Competente", currentX, signatureLineY + 8);
+  doc.text("Secretaría de Salud", currentX, signatureLineY + 12);
 
-  // Columna 2: Atendido / Testigo
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(8);
+  currentX += colWidth + colGap;
 
-  if (report.data.refusalToSign) {
-      doc.setTextColor(COLORS.danger[0], COLORS.danger[1], COLORS.danger[2]);
-      doc.text("SE FIRMA CON TESTIGO (RENUENCIA)", col2Sign, y + 4);
-      doc.setTextColor(0);
+  // 2. FIRMANTES DINÁMICOS (Atendidos/Testigos)
+  const attendees = report.data.attendees || [];
+
+  attendees.forEach((att) => {
+      // Salto de fila si no cabe
+      if (currentX + colWidth > width - FORMATS.margin) {
+          currentX = FORMATS.margin;
+          y += 45;
+          if (y > height - 60) { doc.addPage(); paintBackground(); y = 40; }
+      }
+
+      // Firma Imagen
+      if (att.signature) {
+          try {
+              doc.addImage(att.signature, 'PNG', currentX + 5, y + 5, 35, 18);
+          } catch (e) {
+              // Fallback
+          }
+      }
+
+      // Línea y Datos
+      const sigY = y + 25;
+      doc.line(currentX, sigY, currentX + colWidth - 5, sigY);
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.text(att.role.replace(/_/g, ' '), currentX, sigY + 4);
 
       doc.setFont("helvetica", "normal");
       doc.setFontSize(7);
-      doc.text(`Testigo: ${report.data.witness?.name || '---'}`, col2Sign, y + 8);
-      doc.text(`CC: ${report.data.witness?.id || '---'}`, col2Sign, y + 12);
+      doc.text(att.name.substring(0, 35), currentX, sigY + 8);
+      doc.text(`CC: ${att.idNumber}`, currentX, sigY + 12);
 
-      if (report.data.witness?.signature) {
-          try {
-              doc.addImage(report.data.witness.signature, 'PNG', col2Sign, y - 25, 40, 20);
-          } catch(e) {}
-      }
-  } else {
-      doc.text("ATENDIDO / REPRESENTANTE", col2Sign, y + 4);
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(7);
-      doc.text(report.data.attendedBy || "Representante Legal", col2Sign, y + 8);
-      doc.text(`CC/NIT: ${report.data.attendedId || '---'}`, col2Sign, y + 12);
-
-      if (report.signature) {
-          try {
-              doc.addImage(report.signature, 'PNG', col2Sign, y - 25, 40, 20);
-          } catch(e) {}
-      }
-  }
+      currentX += colWidth + colGap;
+  });
 
   // Hash Final
   y = height - 10;

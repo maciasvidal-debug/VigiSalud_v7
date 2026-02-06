@@ -229,6 +229,14 @@ export interface CustodyChain {
   disposalEvidence?: string; 
 }
 
+export interface InspectionAttendee {
+  id: string;
+  name: string;
+  idNumber: string;
+  role: 'REPRESENTANTE_LEGAL' | 'DIRECTOR_TECNICO' | 'AUXILIAR' | 'TESTIGO' | 'OTRO';
+  signature: string | null; // Base64
+}
+
 export interface Report {
   id?: number;
   date: string; 
@@ -251,6 +259,7 @@ export interface Report {
     attendedBy: string;
     attendedId?: string;
     attendedRole?: string;
+    attendees?: InspectionAttendee[];
     gpsBypass?: boolean;
     [key: string]: any;
   };
