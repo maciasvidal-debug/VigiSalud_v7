@@ -252,6 +252,48 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       }
   }, [newProduct.presentation, newProduct.pharmaceuticalForm, packsInput, looseInput, isReportingIssue]);
 
+  // --- MONITOR DE VENCIMIENTO MANUAL (LÓGICA REACTIVA 2.1) ---
+  useEffect(() => {
+    if (newProduct.expirationDate && !isReportingIssue) {
+        const expDate = new Date(newProduct.expirationDate);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // Normalizar hoy a medianoche
+
+        // Ajustar la fecha de vencimiento a medianoche para comparación justa o final del día
+        // Si la fecha ingresada es "2023-10-10", new Date la toma UTC o local 00:00.
+        // Asumimos que si vence HOY, todavía es válido (o no, según norma estricta INVIMA vence fin de mes si solo tiene MM/YY,
+        // pero aquí el input date da YYYY-MM-DD).
+        // Regla conservadora: Si la fecha es MENOR a hoy, está vencido.
+        if (expDate < today) {
+            setIsReportingIssue(true);
+            setNewProduct(prev => ({ ...prev, riskFactor: 'VENCIDO', seizureType: 'DECOMISO' })); // Sugerencia automática
+            showToast("⚠️ ALERTA: La fecha indica que el producto está VENCIDO.", "warning");
+        }
+    }
+  }, [newProduct.expirationDate, isReportingIssue, showToast]);
+
+  // --- INFERENCIA DE TEXTO (LÓGICA REACTIVA 2.2) ---
+  useEffect(() => {
+      if (newProduct.presentation) {
+          const text = newProduct.presentation.toUpperCase();
+
+          if (text.includes("INSTITUCIONAL") && newProduct.riskFactor !== 'USO_INSTITUCIONAL' && !isReportingIssue) {
+               showToast("💡 Sugerencia: Se detectó 'USO INSTITUCIONAL'. Verifique si está permitido su venta.", "info");
+               // No forzamos el cambio, solo sugerimos o preparamos el terreno
+               // Si quisiéramos ser agresivos:
+               // setIsReportingIssue(true);
+               // setNewProduct(prev => ({ ...prev, riskFactor: 'USO_INSTITUCIONAL' }));
+          }
+
+          if (text.includes("MUESTRA") && newProduct.riskFactor !== 'MUESTRA_MEDICA' && !isReportingIssue) {
+              setIsReportingIssue(true);
+              setNewProduct(prev => ({ ...prev, riskFactor: 'MUESTRA_MEDICA', seizureType: 'DECOMISO' }));
+              showToast("⛔ ALERTA: Prohibida la venta de Muestras Médicas.", "error");
+          }
+      }
+  }, [newProduct.presentation, isReportingIssue, newProduct.riskFactor, showToast]);
+
+
   // --- HANDLER: DICTADO POR VOZ ---
   const toggleListening = (fieldId: string, setter: React.Dispatch<React.SetStateAction<string>>) => {
     if (isListening === fieldId) { setIsListening(null); return; }
@@ -692,9 +734,9 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       if (field.key === 'cum') {
           return (
               <div className={colClass} key={field.key}>
-                  <div className="flex justify-between items-center mb-1">
-                    <label className="text-xs font-black text-slate-500 uppercase tracking-wider">{field.label}</label>
-                    {newProduct.originalCumData && <Badge label="✓ BD OFICIAL" className="bg-emerald-100 text-emerald-700 border-emerald-200"/>}
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">{field.label}</label>
+                    {newProduct.originalCumData && <Badge label="✓ BD OFICIAL" className="bg-emerald-100 text-emerald-700 border-emerald-200 text-[10px] py-0.5 px-2"/>}
                   </div>
                   <div className="flex gap-2">
                       <div className="relative flex-1">
@@ -702,13 +744,13 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                               value={newProduct.cum || ''} 
                               onChange={e => setNewProduct({...newProduct, cum: e.target.value})} 
                               placeholder={field.placeholder || "Digite..."}
-                              className="font-mono text-sm"
+                              className="font-sans text-sm h-11" // Standardized
                           />
                       </div>
                       <button 
                           type="button"
                           onClick={() => { setCumQuery(newProduct.cum || ''); setShowCumModal(true); }}
-                          className="px-4 bg-slate-800 text-white rounded-xl hover:bg-slate-700 shadow-md transition-all flex items-center justify-center gap-2 font-bold text-xs"
+                          className="px-4 bg-slate-800 text-white rounded-xl hover:bg-slate-700 shadow-sm transition-all flex items-center justify-center gap-2 font-bold text-xs h-11" // Matched height
                           title="Abrir Buscador Maestro (F2)"
                       >
                           <Icon name="database" size={16}/> BÚSQUEDA
@@ -723,27 +765,27 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
           return (
               <div className={colClass} key={field.key}>
                   <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 h-full flex flex-col justify-center shadow-inner">
-                      <label className="text-xs font-black text-slate-600 mb-3 block border-b border-slate-200 pb-2">CONTEO FÍSICO</label>
+                      <label className="text-xs font-bold text-slate-600 uppercase mb-3 block border-b border-slate-200 pb-2">CONTEO FÍSICO</label>
                       <div className="flex items-end gap-3">
                           <div className="flex-1">
-                              <label className="text-[9px] font-bold text-slate-400 mb-1 block uppercase">Cajas/Empaques</label>
+                              <label className="text-[10px] font-bold text-slate-400 mb-1.5 block uppercase">Cajas/Empaques</label>
                               <Input 
                                   type="number" 
                                   value={packsInput || ''} 
                                   onChange={e => setPacksInput(Math.max(0, parseInt(e.target.value) || 0))} 
                                   placeholder="0" 
-                                  className="text-center font-black text-lg h-12 border-slate-300"
+                                  className="text-center font-bold text-lg h-12 border-slate-300" // Aligned height
                               />
                           </div>
                           <div className="pb-3 text-slate-300"><Icon name="plus" size={24}/></div>
                           <div className="flex-1">
-                              <label className="text-[9px] font-bold text-slate-400 mb-1 block uppercase">Unidades Sueltas</label>
+                              <label className="text-[10px] font-bold text-slate-400 mb-1.5 block uppercase">Unidades Sueltas</label>
                               <Input 
                                   type="number" 
                                   value={looseInput || ''} 
                                   onChange={e => setLooseInput(Math.max(0, parseInt(e.target.value) || 0))} 
                                   placeholder="0" 
-                                  className="text-center font-black text-lg h-12 border-slate-300"
+                                  className="text-center font-bold text-lg h-12 border-slate-300" // Aligned height
                               />
                           </div>
                       </div>
@@ -762,17 +804,17 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       // CAMPOS ESTÁNDAR
       return (
           <div className={colClass} key={field.key}>
-              <div className="flex justify-between items-end mb-1">
-                  <label className={`text-xs font-bold text-slate-500 uppercase tracking-wider ${isColdChainError ? 'text-red-500' : ''}`}>
+              <div className="flex justify-between items-end mb-1.5">
+                  <label className={`text-xs font-bold text-slate-500 uppercase tracking-wide ${isColdChainError ? 'text-red-500' : ''}`}>
                       {field.label} {field.required && <span className="text-red-500">*</span>}
                   </label>
-                  {isDiscrepant && <span className="text-[9px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded font-bold border border-amber-100">MODIFICADO</span>}
+                  {isDiscrepant && <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded font-bold border border-amber-100">MODIFICADO</span>}
               </div>
               
               {field.type === 'select' ? (
                   <div className="relative">
                       <select 
-                          className={`w-full h-12 px-4 bg-white border rounded-xl text-slate-700 font-medium text-sm outline-none transition-all appearance-none cursor-pointer shadow-sm hover:border-blue-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 ${isDiscrepant ? 'border-amber-300 ring-2 ring-amber-50' : 'border-slate-200'}`}
+                          className={`w-full h-11 px-4 bg-white border rounded-xl text-slate-700 font-medium text-sm outline-none transition-all appearance-none cursor-pointer shadow-sm hover:border-blue-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 ${isDiscrepant ? 'border-amber-300 ring-2 ring-amber-50' : 'border-slate-200'}`}
                           value={newProduct[field.key as keyof ProductFinding] as string || ''} 
                           onChange={e => setNewProduct({...newProduct, [field.key]: e.target.value})}
                           disabled={field.disabled}
@@ -780,7 +822,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                           <option value="">Seleccione...</option>
                           {field.options?.map(opt => <option key={opt} value={opt}>{formatEnum(opt)}</option>)}
                       </select>
-                      <div className="absolute right-4 top-4 text-slate-400 pointer-events-none"><Icon name="chevron-down" size={16}/></div>
+                      <div className="absolute right-4 top-3.5 text-slate-400 pointer-events-none"><Icon name="chevron-down" size={16}/></div>
                   </div>
               ) : (
                   <Input 
@@ -789,7 +831,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                       onChange={e => setNewProduct({...newProduct, [field.key]: e.target.value})} 
                       placeholder={field.placeholder} 
                       disabled={field.disabled}
-                      className={`h-12 shadow-sm ${isDiscrepant ? 'border-amber-300 bg-amber-50/20' : ''}`}
+                      className={`h-11 shadow-sm font-sans text-sm ${isDiscrepant ? 'border-amber-300 bg-amber-50/20' : ''}`} // Standardized
                   />
               )}
           </div>
@@ -839,7 +881,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                     {/* ENCABEZADO DE SECCIÓN */}
                     <div className="bg-slate-50 p-6 border-b border-slate-200 flex flex-col md:flex-row gap-6 items-end">
                         <div className="flex-1 w-full">
-                            <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2 block">CATEGORÍA</label>
+                            <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 block">CATEGORÍA</label>
                             <div className="relative">
                                 <select className="w-full h-14 pl-12 pr-4 bg-white border-2 border-slate-200 rounded-xl font-bold text-slate-700 text-lg outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all appearance-none cursor-pointer" value={newProduct.type} onChange={e => setNewProduct({...newProduct, type: e.target.value as ProductType, subtype: PRODUCT_SCHEMAS[e.target.value]?.subtypes[0] || 'GENERAL', cum: '', name: ''})}>{Object.keys(PRODUCT_SCHEMAS).map(t => <option key={t} value={t}>{formatEnum(t)}</option>)}</select>
                                 <div className="absolute left-4 top-4 text-slate-400"><Icon name="package" size={24}/></div>
@@ -847,7 +889,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                             </div>
                         </div>
                         <div className="flex-1 w-full">
-                            <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2 block">SUBTIPO</label>
+                            <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 block">SUBTIPO</label>
                             <div className="relative">
                                 <select className="w-full h-14 pl-12 pr-4 bg-white border-2 border-slate-200 rounded-xl font-bold text-slate-700 text-lg outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all appearance-none cursor-pointer" value={newProduct.subtype} onChange={e => setNewProduct({...newProduct, subtype: e.target.value as ProductSubtype})}>{PRODUCT_SCHEMAS[newProduct.type as ProductType]?.subtypes.map(s => <option key={s} value={s}>{formatEnum(s)}</option>)}</select>
                                 <div className="absolute left-4 top-4 text-slate-400"><Icon name="tag" size={24}/></div>
