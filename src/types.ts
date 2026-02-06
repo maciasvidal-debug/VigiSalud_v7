@@ -67,6 +67,7 @@ export interface CommercialPresentation {
   contentNet: number;     // Contenido físico (mL, g)
   contentUnit: string;    // Unidad (mL, L, g, kg)
   detectedString: string; // Resumen legible
+  isConcentrationIrrelevant?: boolean; // Flag para Biológicos/Vacunas
 }
 
 export interface SeizureLogistics {

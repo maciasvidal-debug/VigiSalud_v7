@@ -49,6 +49,8 @@ export const SeizureCalculator: React.FC<SeizureCalculatorProps> = ({
       let displayUnit = model.contentUnit;
 
       if (mode !== 'DISCRETE' && contentNet > 0) {
+          // Fórmula: (Cajas * Factor * ContenidoNeto) + (Sueltos * ContenidoNeto)
+          // Simplificada: totalLegalUnits * contentNet
           logisticVolume = totalLegalUnits * contentNet;
           displayVolume = logisticVolume;
           
@@ -91,6 +93,11 @@ export const SeizureCalculator: React.FC<SeizureCalculatorProps> = ({
                         {model.mode === 'VOLUMETRIC' ? 'Líquido / Volumétrico' : 
                          model.mode === 'MASS_BASED' ? 'Masa / Semisólido' : 'Sólido / Unitario'}
                     </span>
+                    {model.isConcentrationIrrelevant && (
+                        <span className="text-[9px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
+                            BIOLÓGICO
+                        </span>
+                    )}
                 </div>
                 <p className="text-xs font-bold text-slate-700">{model.detectedString}</p>
                 {cum && <p className="text-[9px] text-slate-400 font-mono mt-0.5">ID REF: {cum}</p>}
@@ -110,7 +117,7 @@ export const SeizureCalculator: React.FC<SeizureCalculatorProps> = ({
                 <div className="relative">
                     <input 
                         type="number" min="0"
-                        className={`w-full h-10 pl-3 pr-2 rounded-lg border border-slate-300 font-bold text-slate-700 focus:border-${theme}-500 outline-none transition-all`}
+                        className={`w-full h-10 pl-3 pr-2 rounded-lg border border-slate-300 font-bold text-sm text-slate-700 focus:border-${theme}-500 outline-none transition-all`}
                         value={packInput || ''}
                         onChange={e => setPackInput(Math.max(0, parseInt(e.target.value) || 0))}
                         placeholder="0"
@@ -128,7 +135,7 @@ export const SeizureCalculator: React.FC<SeizureCalculatorProps> = ({
                 <div className="relative">
                     <input 
                         type="number" min="0"
-                        className={`w-full h-10 pl-3 pr-2 rounded-lg border border-slate-300 font-bold text-slate-700 focus:border-${theme}-500 outline-none transition-all`}
+                        className={`w-full h-10 pl-3 pr-2 rounded-lg border border-slate-300 font-bold text-sm text-slate-700 focus:border-${theme}-500 outline-none transition-all`}
                         value={looseInput || ''}
                         onChange={e => setLooseInput(Math.max(0, parseInt(e.target.value) || 0))}
                         placeholder="0"

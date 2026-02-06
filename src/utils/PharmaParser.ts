@@ -2,8 +2,8 @@
 import type { CommercialPresentation, PresentationMode } from '../types';
 
 /**
- * PARSER FARMACÉUTICO (Motor Semántico v8)
- * Interpreta descripciones como "CAJA X 100 TABLETAS" o "FRASCO X 120 ML"
+ * PARSER FARMACÉUTICO (Motor Semántico v8.1)
+ * Interpreta descripciones como "CAJA X 100 TABLETAS", "FRASCO X 120 ML" o "CAJA X 10 JERINGAS"
  * Cumple con Manual Técnico IVC - Sección 6.4 (Modelo Polimórfico)
  */
 export const parsePresentation = (form: string = '', description: string = ''): CommercialPresentation => {
@@ -16,9 +16,13 @@ export const parsePresentation = (form: string = '', description: string = ''): 
     let containerType = 'UNIDAD';
 
     // Diccionarios Semánticos
-    const liquidForms = ['JARABE', 'SOLUCION', 'SUSPENSION', 'ELIXIR', 'EMULSION', 'LOCION', 'INYECCION', 'VIAL', 'AMPOLLA', 'AEROSOL', 'SPRAY', 'GOTAS'];
+    const liquidForms = ['JARABE', 'SOLUCION', 'SUSPENSION', 'ELIXIR', 'EMULSION', 'LOCION', 'INYECCION', 'VIAL', 'AMPOLLA', 'AEROSOL', 'SPRAY', 'GOTAS', 'JERINGA', 'LÍQUIDO', 'LIQUIDO'];
     const massForms = ['CREMA', 'UNGUENTO', 'GEL', 'POMADA', 'PASTA', 'POLVO', 'GRANULADO'];
-    const solidForms = ['TABLETA', 'CAPSULA', 'GRAGEA', 'COMPRIMIDO', 'SUPOSITORIO', 'OVULO', 'TABLETA RECUBIERTA'];
+    const solidForms = ['TABLETA', 'CAPSULA', 'GRAGEA', 'COMPRIMIDO', 'SUPOSITORIO', 'OVULO', 'TABLETA RECUBIERTA', 'PASTILLA'];
+
+    // Biológicos especiales (Flag "No Aplica")
+    const bioForms = ['VACUNA', 'SUERO', 'BIOLOGICO', 'TOXOIDE', 'INMUNOGLOBULINA', 'ANTITOXINA'];
+    const isBiological = bioForms.some(k => normForm.includes(k) || normDesc.includes(k));
 
     if (liquidForms.some(k => normForm.includes(k))) {
         mode = 'VOLUMETRIC';
@@ -65,30 +69,34 @@ export const parsePresentation = (form: string = '', description: string = ''): 
     let packFactor = 1;
     let packType = 'CAJA';
 
-    // Regex para detectar multiplicadores explícitos: "Caja por 100", "Plegadiza x 30"
-    // El orden es vital: Buscamos primero la palabra contenedora + número
-    const multiplierRegex = /(?:CAJA|PLEGADIZA|DISPENSER|BLISTER|DISPLAY|SOBRE|ESTUCHE)\s*(?:POR|X|CON)?\s*(\d+)\s*(?:UNIDADES|TABLETAS|CAPSULAS|AMPOLLAS|VIALES|FRASCOS|TUBOS|$)/;
+    // Regex mejorada para detectar multiplicadores explícitos en multipacks líquidos y sólidos
+    // Soporta: "CAJA X 10", "PLEGADIZA POR 5", "CAJA CON 100", "ESTUCHE X 1"
+    const multiplierRegex = /(?:CAJA|PLEGADIZA|DISPENSER|BLISTER|DISPLAY|SOBRE|ESTUCHE|PAQUETE).*?(?:POR|X|CON)\s*(\d+)/;
     const match = normDesc.match(multiplierRegex);
 
     if (match) {
         const detectedNum = parseInt(match[1], 10);
         
         // --- REGLA DE SEGURIDAD HEURÍSTICA ---
-        // Evitamos confundir "120" de "120 mL" con "Caja x 120".
-        // Si detectamos un número igual al contenido neto en un producto NO sólido, asumimos falso positivo.
-        if (mode !== 'DISCRETE' && detectedNum === contentNet) {
-            packFactor = 1; // Es un unitario (Ej: Caja con 1 Frasco de 120mL)
+        // Si detectamos un número igual al contenido neto en un producto NO sólido, asumimos falso positivo
+        // EXCEPTO si es explícitamente "CAJA X ...", en cuyo caso el regex manda.
+        // Pero mantenemos la cautela: si dice "FRASCO X 120 ML", el regex de arriba NO debería matchear porque busca palabras contenedoras (CAJA, PLEGADIZA).
+        // Si el regex matchea "CAJA ... X 10", es muy probable que sea el factor.
+
+        if (mode !== 'DISCRETE' && detectedNum === contentNet && !normDesc.includes('CAJA') && !normDesc.includes('PLEGADIZA')) {
+             // Caso ambiguo raro, conservador:
+             packFactor = 1;
         } else {
-            packFactor = detectedNum; // Es un multipack (Ej: Caja x 100 Tabletas)
+             packFactor = detectedNum;
         }
     } else {
-        // Fallback para Sólidos: Si dice "X 100" sin decir "Caja", asumimos factor si no hay otra unidad
-        if (mode === 'DISCRETE') {
-             const simpleMatch = normDesc.match(/(?:X|POR)\s*(\d+)/);
-             if (simpleMatch) packFactor = parseInt(simpleMatch[1], 10);
-        } else {
-             // Líquidos por defecto: 1
-             packFactor = 1;
+        // Fallback para Sólidos y otros: Si dice "X 100" sin decir "Caja", asumimos factor
+        const simpleMatch = normDesc.match(/(?:X|POR)\s*(\d+)\s*(?:UNIDADES|TABLETAS|CAPSULAS|AMPOLLAS|VIALES|FRASCOS|TUBOS|$)/);
+        if (simpleMatch) {
+             const val = parseInt(simpleMatch[1], 10);
+             // Evitar confundir con concentración o contenido (ej: "X 500mg")
+             // Si el número es seguido de una unidad de medida, NO es factor. El regex arriba busca UNIDADES/TABLETAS/etc o fin de linea.
+             packFactor = val;
         }
     }
 
@@ -108,6 +116,7 @@ export const parsePresentation = (form: string = '', description: string = ''): 
         packFactor,
         contentNet,
         contentUnit,
-        detectedString
+        detectedString,
+        isConcentrationIrrelevant: isBiological
     };
 };
