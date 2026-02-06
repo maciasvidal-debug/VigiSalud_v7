@@ -644,6 +644,27 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       setProducts(prev => prev.filter(p => p.id !== id));
   };
 
+  // --- ASISTENTE LEGAL IA ---
+  const handleAutoGenerate = () => {
+      if (!establishment) return;
+      const { narrativeSuggestion, legalBasisSuggestion, violatedNorms } = inspectionEngine.generateLegalContext(checklistResponses, products, establishment);
+
+      setInspectionNarrative(prev => {
+          const cleanPrev = prev.trim();
+          return cleanPrev ? cleanPrev + "\n\n" + narrativeSuggestion : narrativeSuggestion;
+      });
+      setLegalBasis(prev => {
+          const cleanPrev = prev.trim();
+          return cleanPrev ? cleanPrev + "\n\n" + legalBasisSuggestion : legalBasisSuggestion;
+      });
+
+      if (violatedNorms.length > 0) {
+          showToast(`Se detectaron ${violatedNorms.length} normas incumplidas.`, 'info');
+      } else {
+          showToast("Narrativa base generada con éxito.", 'success');
+      }
+  };
+
   // --- CIERRE Y PDF (LÓGICA FINAL) ---
   const handleReviewDraft = async () => {
     if (!establishment || !establishmentId) return;
@@ -1190,6 +1211,38 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                         </div>
                         <div className="absolute top-0 right-0 -mt-10 -mr-10 w-64 h-64 bg-white/5 rounded-full blur-3xl"></div>
                         <div className="absolute bottom-0 left-0 -mb-10 -ml-10 w-64 h-64 bg-black/10 rounded-full blur-3xl"></div>
+                    </div>
+
+                    {/* ALERTA DE MEDIDA SANITARIA */}
+                    {concept === 'DESFAVORABLE' && (
+                        <div className="bg-red-50 border-2 border-red-500 p-4 rounded-xl flex items-center gap-4 animate-pulse shadow-lg shadow-red-100">
+                            <div className="bg-red-100 p-3 rounded-full text-red-600"><Icon name="alert-triangle" size={32}/></div>
+                            <div>
+                                <h4 className="font-black text-red-800 uppercase text-lg">ATENCIÓN: MEDIDA SANITARIA OBLIGATORIA</h4>
+                                <p className="text-sm font-bold text-red-700">El puntaje y los hallazgos obligan a aplicar una Medida Sanitaria. Asegúrese de documentar el número de precinto si aplica clausura.</p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* PANEL ASISTENTE LEGAL */}
+                    <div className="bg-indigo-50 border-l-4 border-indigo-500 p-6 rounded-r-2xl shadow-sm flex flex-col md:flex-row gap-6 items-center justify-between animate-in slide-in-from-left-4">
+                        <div className="flex items-center gap-4">
+                            <div className="bg-indigo-100 p-3 rounded-xl text-indigo-600"><Icon name="cpu" size={32}/></div>
+                            <div>
+                                <h3 className="font-black text-indigo-900 text-lg uppercase tracking-tight">Asistente de Redacción IVC</h3>
+                                <p className="text-sm text-indigo-800 mt-1 font-medium">Motor de Inteligencia Jurídica v2.0</p>
+                                <p className="text-xs text-indigo-600 mt-2">
+                                    Normas Incumplidas Detectadas: <strong>{(() => {
+                                        if (!establishment) return '0';
+                                        const res = inspectionEngine.generateLegalContext(checklistResponses, products, establishment);
+                                        return res.violatedNorms.length > 0 ? res.violatedNorms.join(', ') : 'Ninguna';
+                                    })()}</strong>
+                                </p>
+                            </div>
+                        </div>
+                        <Button onClick={handleAutoGenerate} className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-200 h-12 px-6 transform transition-all hover:scale-105">
+                            <Icon name="zap" size={18} className="mr-2"/> GENERAR NARRATIVA Y FUNDAMENTOS
+                        </Button>
                     </div>
 
                     <Card title="Narrativa Técnica y Legal" icon="book-open">

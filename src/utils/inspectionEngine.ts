@@ -440,5 +440,76 @@ export const inspectionEngine = {
       return 'FAVORABLE_CON_REQUERIMIENTOS';
     }
     return 'FAVORABLE';
+  },
+
+  /**
+   * Genera borrador automático de narrativa técnica y jurídica (Asistente IA).
+   * Contexto: Tablero de Cierre.
+   */
+  generateLegalContext: (
+    checklistResponses: Record<string, { status: string }>,
+    products: ProductFinding[],
+    establishment: Establishment
+  ): { narrativeSuggestion: string; legalBasisSuggestion: string; violatedNorms: string[] } => {
+
+    const violatedNorms: string[] = [];
+    const narrativeParts: string[] = [];
+    const legalBasisParts: Set<string> = new Set(); // Evitar duplicados
+
+    // 1. ANÁLISIS DE MATRIZ (Checklist)
+    // Filtramos los items que tienen respuesta NO_CUMPLE
+    const failedItems = MASTER_CATALOG.filter(item => {
+      const resp = checklistResponses[item.id];
+      return resp && resp.status === 'NO_CUMPLE';
+    });
+
+    if (failedItems.length > 0) {
+      const blocks = [...new Set(failedItems.map(i => i.block))];
+      narrativeParts.push(`Durante la diligencia de inspección, vigilancia y control, se evidencian incumplimientos a la normatividad sanitaria vigente en los bloques: ${blocks.map(b => b.replace(/_/g, ' ')).join(', ')}.`);
+
+      failedItems.forEach(item => {
+        violatedNorms.push(item.id);
+        if (item.legalCitation) legalBasisParts.add(item.legalCitation);
+      });
+    } else {
+      narrativeParts.push("Se verificaron las condiciones higiénico-locativas, técnico-sanitarias y de control de calidad, encontrando CUMPLIMIENTO en los aspectos evaluados al momento de la visita.");
+    }
+
+    // 2. ANÁLISIS DE INVENTARIO (Productos)
+    const seizedProducts = products.filter(p => p.seizureType !== 'NINGUNO');
+
+    if (seizedProducts.length > 0) {
+      const totalSeized = seizedProducts.reduce((acc, p) => acc + p.quantity, 0);
+      const causes = [...new Set(seizedProducts.map(p => p.riskFactor))];
+
+      narrativeParts.push(`\nAdicionalmente, se aplicó Medida Sanitaria de Seguridad consistente en el congelamiento/decomiso de ${totalSeized} unidades de productos, debido a las siguientes causales de riesgo identificadas: ${causes.join(', ')}.`);
+
+      // Determinar normas según tipo de producto
+      const hasMeds = seizedProducts.some(p => p.type === 'MEDICAMENTO');
+      const hasDevices = seizedProducts.some(p => p.type === 'DISPOSITIVO_MEDICO');
+
+      if (hasMeds) legalBasisParts.add("Decreto 677 de 1995 (Art. 70 y subsiguientes)");
+      if (hasDevices) legalBasisParts.add("Decreto 4725 de 2005 (Régimen de Dispositivos Médicos)");
+
+      // Agregar Ley 9 siempre que haya medida
+      legalBasisParts.add("Ley 9 de 1979 (Código Sanitario Nacional - Art. 576)");
+    }
+
+    // 3. SUGERENCIA DE MEDIDA (Lógica Crítica)
+    const criticalFindings = failedItems.filter(i => i.isKiller);
+    if (criticalFindings.length > 0 || seizedProducts.length > 0) {
+      const measures = [];
+      if (criticalFindings.length > 0) measures.push("CLAUSURA TEMPORAL DEL ESTABLECIMIENTO");
+      if (seizedProducts.length > 0) measures.push("DECOMISO DE PRODUCTOS");
+
+      narrativeParts.push(`\nEn consecuencia, y con el objeto de impedir que se atente contra la salud de la comunidad, se procede a aplicar MEDIDA SANITARIA DE SEGURIDAD consistente en ${measures.join(' y ')}, de ejecución inmediata, carácter preventivo y transitorio.`);
+    }
+
+    // Construcción Final
+    return {
+      narrativeSuggestion: narrativeParts.join(' '),
+      legalBasisSuggestion: Array.from(legalBasisParts).join('.\n'),
+      violatedNorms
+    };
   }
 };
