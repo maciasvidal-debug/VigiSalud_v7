@@ -140,6 +140,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
   const [inspectionNarrative, setInspectionNarrative] = useState(''); 
   const [legalBasis, setLegalBasis] = useState(''); 
   const [isListening, setIsListening] = useState<string | null>(null); 
+  const [isAddingProduct, setIsAddingProduct] = useState(false); // IDEMPOTENCY SHIELD
 
   const addAttendee = (role: InspectionAttendee['role']) => {
       setAttendees(prev => [...prev, { id: crypto.randomUUID(), name: '', idNumber: '', role, signature: null }]);
@@ -500,8 +501,15 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
   };
 
   const handleAddProduct = (isConform: boolean) => {
+    if (isAddingProduct) return; // Prevent double-submission
+    setIsAddingProduct(true);
+
     setFormError(null); 
-    if (!newProduct.name) { setFormError("El nombre del producto es obligatorio."); return; }
+
+    // Safety check: Release lock if validation fails early
+    const releaseLock = () => setTimeout(() => setIsAddingProduct(false), 500);
+
+    if (!newProduct.name) { setFormError("El nombre del producto es obligatorio."); releaseLock(); return; }
     
     const effectiveRisks = isConform ? [] : (newProduct.riskFactors || []);
     const validation = inspectionEngine.validateProduct({ ...newProduct, riskFactors: effectiveRisks } as ProductFinding);
@@ -509,14 +517,14 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
     if (!validation.isValid) {
         const violationsText = validation.violations.map(v => `${v.id}: ${v.description}`).join(' | ');
         const isCritical = validation.violations.some(v => v.riskLevel === 'CRITICO');
-        if (isConform && isCritical) { setFormError(`⛔ BLOQUEO REGULATORIO: ${violationsText}`); return; }
+        if (isConform && isCritical) { setFormError(`⛔ BLOQUEO REGULATORIO: ${violationsText}`); releaseLock(); return; }
         if (!isConform) { showToast(`⚠️ Alerta Regulatoria: ${violationsText}`, 'warning'); }
     }
 
     // --- VALIDACIONES ESPECIALIZADAS (LOGIC ENGINE V2) ---
     const coldChainVal = validateColdChain(newProduct as ProductFinding);
     if (!coldChainVal.isValid) {
-        if (isConform) { setFormError(`⛔ ${coldChainVal.message}`); return; }
+        if (isConform) { setFormError(`⛔ ${coldChainVal.message}`); releaseLock(); return; }
         // Auto-tagging si es hallazgo
         if (!effectiveRisks.includes('MAL_ALMACENAMIENTO')) {
              effectiveRisks.push('MAL_ALMACENAMIENTO');
@@ -526,23 +534,37 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
 
     const expVal = validateExpiration(newProduct as ProductFinding);
     if (!expVal.isValid) {
-        if (isConform) { setFormError(`⛔ ${expVal.message}`); return; }
+        if (isConform) { setFormError(`⛔ ${expVal.message}`); releaseLock(); return; }
         if (!effectiveRisks.includes('VENCIDO')) effectiveRisks.push('VENCIDO');
     }
 
     const instVal = validateInstitucional(newProduct as ProductFinding);
     if (!instVal.isValid) {
-        if (isConform) { setFormError(`⛔ ${instVal.message}`); return; }
+        if (isConform) { setFormError(`⛔ ${instVal.message}`); releaseLock(); return; }
         if (!effectiveRisks.includes('USO_INSTITUCIONAL')) effectiveRisks.push('USO_INSTITUCIONAL');
     }
 
-    if (needsColdChain && newProduct.coldChainStatus === 'INCUMPLE' && isConform) { setFormError("⛔ BLOQUEO TÉCNICO: Ruptura de Cadena de Frío. Debe reportar como hallazgo."); return; }
-    if (isConform && (cumValidationState === 'EXPIRED' || cumValidationState === 'SUSPENDED' || cumValidationState === 'REVOKED')) { setFormError("⛔ BLOQUEO: Registro Vencido/Cancelado. Debe reportarlo como Hallazgo."); return; }
-    if (isConform && effectiveRisks.length > 0) { setFormError("Inconsistencia: No puede ser Conforme si ha seleccionado Factores de Riesgo."); return; }
-    if (!isConform && effectiveRisks.length > 0 && !evidenceTemp) { setShowEvidenceModal(true); return; }
+    if (needsColdChain && newProduct.coldChainStatus === 'INCUMPLE' && isConform) { setFormError("⛔ BLOQUEO TÉCNICO: Ruptura de Cadena de Frío. Debe reportar como hallazgo."); releaseLock(); return; }
+    if (isConform && (cumValidationState === 'EXPIRED' || cumValidationState === 'SUSPENDED' || cumValidationState === 'REVOKED')) { setFormError("⛔ BLOQUEO: Registro Vencido/Cancelado. Debe reportarlo como Hallazgo."); releaseLock(); return; }
+    if (isConform && effectiveRisks.length > 0) { setFormError("Inconsistencia: No puede ser Conforme si ha seleccionado Factores de Riesgo."); releaseLock(); return; }
+    if (!isConform && effectiveRisks.length > 0 && !evidenceTemp) { setShowEvidenceModal(true); return; } // Modal will handle unlock? No, modal is separate.
+    // Wait, if showEvidenceModal is true, we return and don't commit yet. The lock should be released?
+    // Or we keep it locked until modal action?
+    // Actually, if we show modal, the flow pauses. We should release lock so user can interact with modal buttons.
+    // But modal buttons call handlePhotoClick or commitProduct directly.
+    // commitProduct doesn't check isAddingProduct.
+    // Ideally commitProduct should also be shielded or we just release here.
+
+    if (!isConform && effectiveRisks.length > 0 && !evidenceTemp) {
+        setShowEvidenceModal(true);
+        releaseLock();
+        return;
+    }
 
     if (!validation.isValid && validation.violations.length > 0) { newProduct.regRuleRef = validation.violations[0].id; }
+
     commitProduct(evidenceTemp || isConform);
+    releaseLock();
   };
 
   const removeProduct = (id: string) => { setProducts(prev => prev.filter(p => p.id !== id)); };
