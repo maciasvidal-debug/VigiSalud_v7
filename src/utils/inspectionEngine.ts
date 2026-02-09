@@ -456,6 +456,21 @@ export const inspectionEngine = {
     const narrativeParts: string[] = [];
     const legalBasisParts: Set<string> = new Set(); // Evitar duplicados
 
+    // 0. CÁLCULO DE CONCEPTO EN TIEMPO REAL (Para consistencia legal)
+    // Reconstruimos la lógica de puntaje para garantizar que la sugerencia coincida con la realidad
+    const allItems = inspectionEngine.generate(establishment);
+    const simpleResponses: Record<string, string> = {};
+    Object.keys(checklistResponses).forEach(key => simpleResponses[key] = checklistResponses[key].status);
+
+    const calculatedScore = inspectionEngine.calculateRisk(allItems, simpleResponses);
+
+    // Principio de Proporcionalidad:
+    // El concepto base se determina por el puntaje.
+    // Score < 60 = Desfavorable.
+    // Score >= 60 = Favorable (o con reqs).
+    // NO forzamos Desfavorable solo por "Killers" aislados en esta etapa de sugerencia de medidas.
+    const isDesfavorable = calculatedScore < 60;
+
     // 1. ANÁLISIS DE MATRIZ (Checklist)
     // Filtramos los items que tienen respuesta NO_CUMPLE
     const failedItems = MASTER_CATALOG.filter(item => {
@@ -529,14 +544,34 @@ export const inspectionEngine = {
       });
     }
 
-    // 3. SUGERENCIA DE MEDIDA (Lógica Crítica)
+    // 3. SUGERENCIA DE MEDIDA (Lógica de Proporcionalidad Sanitaria)
     const criticalFindings = failedItems.filter(i => i.isKiller);
-    if (criticalFindings.length > 0 || seizedProducts.length > 0) {
-      const measures = [];
-      if (criticalFindings.length > 0) measures.push("CLAUSURA TEMPORAL DEL ESTABLECIMIENTO");
-      if (seizedProducts.length > 0) measures.push("DECOMISO DE PRODUCTOS");
+    const measures: string[] = [];
+    const warnings: string[] = [];
 
+    // A. DECOMISO (Independiente del concepto del establecimiento)
+    if (seizedProducts.length > 0) {
+        measures.push("DECOMISO DE PRODUCTOS");
+    }
+
+    // B. CLAUSURA (Solo si es DESFAVORABLE por puntaje)
+    if (isDesfavorable) {
+        measures.push("CLAUSURA TEMPORAL DEL ESTABLECIMIENTO");
+    } else {
+        // C. ADVERTENCIA (Si es FAVORABLE pero tiene fallas graves aisladas)
+        if (criticalFindings.length > 0) {
+            warnings.push("SE REQUIERE SUBSANACIÓN INMEDIATA DE HALLAZGOS CRÍTICOS (Sin Clausura por Principio de Proporcionalidad)");
+        }
+    }
+
+    // Construcción de Narrativa de Medidas
+    if (measures.length > 0) {
       narrativeParts.push(`\nEn consecuencia, y con el objeto de impedir que se atente contra la salud de la comunidad, se procede a aplicar MEDIDA SANITARIA DE SEGURIDAD consistente en ${measures.join(' y ')}, de ejecución inmediata, carácter preventivo y transitorio.`);
+    }
+
+    // Construcción de Narrativa de Advertencias
+    if (warnings.length > 0) {
+        narrativeParts.push(`\nOBSERVACIÓN TÉCNICA: Aunque el concepto es favorable, ${warnings.join('. ')}.`);
     }
 
     // Construcción Final
