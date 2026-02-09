@@ -2,14 +2,24 @@
 import type { CommercialPresentation, PresentationMode } from '../types';
 
 /**
- * PARSER FARMACÉUTICO (Motor Semántico v8.2)
- * Interpreta descripciones como "CAJA X 100 TABLETAS", "FRASCO X 120 ML" o "CAJA X 10 JERINGAS"
- * Cumple con Manual Técnico IVC - Sección 6.4 (Modelo Polimórfico)
+ * PARSER FARMACÉUTICO INTELIGENTE (Motor Semántico v8.3)
+ * Transforma descripciones técnicas sucias ("CAJA PLEGADIZA CONTENIENDO 100...")
+ * en texto humano limpio ("CAJA POR 100 TABLETAS (10 BLISTERS POR 10 U)")
+ *
+ * Cumple con Manual Técnico IVC - Sección 6.4 (Modelo Polimórfico) y Requerimiento "Smart Parser"
  */
 export const parsePresentation = (form: string = '', description: string = ''): CommercialPresentation => {
-    // Normalización
+    // 0. LIMPIEZA INICIAL (STOP WORDS)
+    const stopWords = ['PLEGADIZA', 'CONTENIENDO', 'ALUMINIO', 'PVC', 'PVDC', 'FOIL', 'CADA UNO', 'CADA UNA', 'TRANSPARENTE', 'AMBAR', 'COLOR', 'TIPO', 'I', 'II', 'III', 'VIDRIO', 'PLASTICO', 'POLIPROPILENO', 'MATERIAL', 'EMPAQUE', 'SECUNDARIO', 'PRIMARIO'];
+
+    let cleanDesc = description.toUpperCase();
+    stopWords.forEach(word => {
+        // Reemplazar palabra exacta o con signos de puntuación alrededor
+        cleanDesc = cleanDesc.replace(new RegExp(`\\b${word}\\b`, 'g'), '');
+    });
+    cleanDesc = cleanDesc.replace(/\s+/g, ' ').trim(); // Normalizar espacios
+
     const normForm = form.toUpperCase().trim();
-    const normDesc = description.toUpperCase().trim();
 
     // 1. CLASIFICACIÓN TAXONÓMICA (Modo)
     let mode: PresentationMode = 'DISCRETE';
@@ -22,19 +32,18 @@ export const parsePresentation = (form: string = '', description: string = ''): 
 
     // Biológicos especiales (Flag "No Aplica")
     const bioForms = ['VACUNA', 'SUERO', 'BIOLOGICO', 'TOXOIDE', 'INMUNOGLOBULINA', 'ANTITOXINA'];
-    const isBiological = bioForms.some(k => normForm.includes(k) || normDesc.includes(k));
+    const isBiological = bioForms.some(k => normForm.includes(k) || cleanDesc.includes(k));
 
     // Regla Especial: Polvos Liofilizados (Prioridad Alta)
-    // Se tratan como DISCRETE (Viales) aunque digan "PARA SOLUCION"
     const isLyophilized = normForm.includes('LIOFILIZADO') ||
                           (normForm.includes('POLVO') && (normForm.includes('RECONSTITUIR') || normForm.includes('SOLUCION') || normForm.includes('INYEC')));
 
     if (isLyophilized) {
         mode = 'DISCRETE';
-        containerType = 'VIAL'; // Default para liofilizados
+        containerType = 'VIAL';
     } else if (liquidForms.some(k => normForm.includes(k))) {
         mode = 'VOLUMETRIC';
-        containerType = 'FRASCO'; // Default
+        containerType = 'FRASCO';
     } else if (massForms.some(k => normForm.includes(k))) {
         mode = 'MASS_BASED';
         containerType = 'TUBO';
@@ -46,19 +55,16 @@ export const parsePresentation = (form: string = '', description: string = ''): 
         }
     }
 
-    // 1.1 REFINAMIENTO DE CONTENEDOR (Busca en Descripción si no es específico)
-    // Si tenemos un tipo genérico (FRASCO, TUBO, UNIDAD), buscamos más especificidad en la descripción
+    // 1.1 REFINAMIENTO DE CONTENEDOR
     const specificContainers = ['VIAL', 'AMPOLLA', 'JERINGA', 'BOLSA', 'CARTUCHO', 'FRASCO', 'SOBRE', 'LATA', 'POTE', 'TARRO'];
-    const descContainer = specificContainers.find(c => normDesc.includes(c) || normForm.includes(c));
+    const descContainer = specificContainers.find(c => cleanDesc.includes(c) || normForm.includes(c));
 
     if (descContainer) {
-        // Prioridad a lo encontrado explícitamente, salvo si es Liofilizado que ya forzamos a VIAL (aunque si dice AMPOLLA, respetamos)
         if (isLyophilized && descContainer === 'AMPOLLA') {
             containerType = 'AMPOLLA';
         } else if (!isLyophilized || descContainer !== 'FRASCO') {
-             // Evitamos que 'FRASCO' sobreescriba 'VIAL' si ya estaba seteado, pero si encontramos 'VIAL' en desc, lo usamos
              containerType = descContainer;
-             if (containerType === 'JERINGA' && normDesc.includes('PRELLENADA')) containerType = 'JERINGA PRELLENADA';
+             if (containerType === 'JERINGA' && cleanDesc.includes('PRELLENADA')) containerType = 'JERINGA PRELLENADA';
         }
     }
 
@@ -66,10 +72,8 @@ export const parsePresentation = (form: string = '', description: string = ''): 
     let contentNet = 0;
     let contentUnit = '';
 
-    // Intentamos extraer volumen/masa incluso en DISCRETE si es relevante (ej: Vial de 50ml)
-    // Pero solo afectará la visualización si mode != DISCRETE, o si queremos mostrar información extra.
-    const volMatch = normDesc.match(/(\d+[\.,]?\d*)\s*(ML|LITRO|L|CC|CM3)/);
-    const massMatch = normDesc.match(/(\d+[\.,]?\d*)\s*(KG|GRAMO|G|MG|MCG)/);
+    const volMatch = cleanDesc.match(/(\d+[\.,]?\d*)\s*(ML|LITRO|L|CC|CM3)/);
+    const massMatch = cleanDesc.match(/(\d+[\.,]?\d*)\s*(KG|GRAMO|G|MG|MCG)/);
 
     if (mode === 'VOLUMETRIC' && volMatch) {
         contentNet = parseFloat(volMatch[1].replace(',', '.'));
@@ -79,40 +83,65 @@ export const parsePresentation = (form: string = '', description: string = ''): 
         contentUnit = massMatch[2].replace(/(GRAMO|G)/, 'g').replace('KG', 'kg');
     }
 
-    // 3. EXTRACCIÓN DE FACTOR DE EMPAQUE (Dimensión Logística)
+    // 3. EXTRACCIÓN DE FACTOR DE EMPAQUE (Dimensión Logística - Smart Grouping)
     let packFactor = 1;
     let packType = 'CAJA';
+    let groupingText = '';
 
-    // Regex mejorada para detectar multiplicadores explícitos en multipacks líquidos y sólidos
-    // Soporta: "CAJA X 10", "PLEGADIZA POR 5", "CAJA CON 100", "ESTUCHE X 1"
-    const multiplierRegex = /(?:CAJA|PLEGADIZA|DISPENSER|BLISTER|DISPLAY|SOBRE|ESTUCHE|PAQUETE).*?(?:POR|X|CON)\s*(\d+)/;
-    const match = normDesc.match(multiplierRegex);
+    // Lógica Avanzada: Detectar Total vs Sub-Empaque
+    // Ejemplo: "CAJA POR 100 TABLETAS EN BLISTER POR 10" -> packFactor = 100, pero detectamos agrupación
 
-    if (match) {
-        const detectedNum = parseInt(match[1], 10);
+    // Buscar el número mayor asociado a "POR" o "X" o "CON" (Total)
+    const totalMatch = cleanDesc.match(/(?:CAJA|FRASCO|TUBO|SOBRE).*?(?:POR|X|CON)\s*(\d+)/);
+    // Buscar un número menor asociado a sub-empaques (Blister, Sobre)
+    const subMatch = cleanDesc.match(/(?:BLISTER|SOBRE|DISPLAY).*?(?:POR|X|CON)\s*(\d+)/);
+
+    if (totalMatch) {
+        const total = parseInt(totalMatch[1], 10);
         
-        // --- REGLA DE SEGURIDAD HEURÍSTICA ---
-        if (mode !== 'DISCRETE' && detectedNum === contentNet && !normDesc.includes('CAJA') && !normDesc.includes('PLEGADIZA')) {
+        // Evitar confusión con contenido neto (ej: Frasco x 120 mL)
+        if (mode !== 'DISCRETE' && total === contentNet && !cleanDesc.includes('CAJA')) {
              packFactor = 1;
         } else {
-             packFactor = detectedNum;
+             packFactor = total;
+        }
+
+        // Calcular agrupación si existe sub-empaque
+        if (subMatch && packFactor > 1) {
+            const subQty = parseInt(subMatch[1], 10);
+            if (subQty > 0 && subQty < packFactor && packFactor % subQty === 0) {
+                const numSubPacks = packFactor / subQty;
+                // Detectar tipo de sub-empaque
+                const subType = cleanDesc.includes('BLISTER') ? 'BLISTERS' : (cleanDesc.includes('SOBRE') ? 'SOBRES' : 'EMPAQUES');
+                groupingText = `(${numSubPacks} ${subType} POR ${subQty} U)`;
+            }
         }
     } else {
-        // Fallback: Busca "X 100" al final o seguido de unidades
-        const simpleMatch = normDesc.match(/(?:X|POR)\s*(\d+)\s*(?:UNIDADES|TABLETAS|CAPSULAS|AMPOLLAS|VIALES|FRASCOS|TUBOS|$)/);
+        // Fallback simple
+        const simpleMatch = cleanDesc.match(/(?:X|POR)\s*(\d+)\s*(?:UNIDADES|TABLETAS|CAPSULAS|AMPOLLAS|VIALES|FRASCOS|TUBOS|$)/);
         if (simpleMatch) {
              packFactor = parseInt(simpleMatch[1], 10);
         }
     }
 
-    if (normDesc.includes('BLISTER')) packType = 'BLISTER';
-    if (normDesc.includes('SOBRE') && mode === 'DISCRETE') packType = 'SOBRE';
+    if (cleanDesc.includes('BLISTER') && !cleanDesc.includes('CAJA')) packType = 'BLISTER';
     
-    // Construcción del String Normalizado para UI
+    // Construcción del String Normalizado para UI (Limpio y Humano)
+    // Ejemplo: "CAJA POR 100 TABLETAS (10 BLISTERS POR 10 U)"
     const contentString = contentNet > 0 ? `${contentNet} ${contentUnit}` : '';
-    const detectedString = packFactor > 1 
-        ? `${packType} x ${packFactor} ${containerType}s ${contentString ? '('+contentString+')' : ''}`
-        : `${containerType} Individual ${contentString ? '('+contentString+')' : ''}`;
+
+    let detectedString = '';
+
+    if (packFactor > 1) {
+        detectedString = `${packType} POR ${packFactor} ${containerType}S`;
+        if (groupingText) detectedString += ` ${groupingText}`;
+        if (contentString) detectedString += ` DE ${contentString}`;
+    } else {
+        detectedString = `${containerType} INDIVIDUAL`;
+        if (contentString) detectedString += ` DE ${contentString}`;
+    }
+
+    // Capitalize first letter logic for better UI look (optional, keeping uppercase for consistency with pharma standard)
 
     return {
         mode,

@@ -18,6 +18,7 @@ import { SeizureCalculator } from '../../components/seizure/SeizureCalculator';
 import { PRODUCT_SCHEMAS, type FieldConfig } from '../../utils/productSchemas'; 
 import { generateInspectionPDF } from '../../utils/PdfGenerator'; 
 import { parsePresentation } from '../../utils/PharmaParser';
+import { validateColdChain, validateExpiration, validateInstitucional } from '../../utils/specializedValidators';
 import type { 
     Report, 
     ProductFinding, 
@@ -341,24 +342,51 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
   };
   const triggerEvidenceCheck = (id: string) => { setPendingEvidenceId(id); fileInputRef.current?.click(); };
 
-  // --- BÚSQUEDA CUM ---
+  // --- BÚSQUEDA CUM (OMNICANAL) ---
   const searchCum = async (query: string) => {
       setIsSearchingCum(true);
       const cleanQuery = query.trim().toUpperCase();
       let results: ExtendedCumRecord[] = [];
       try {
           if (!cleanQuery) { setCumResults([]); setIsSearchingCum(false); return; }
+
+          // ESTRATEGIA DE BÚSQUEDA PARALELA
+          const promises = [];
+
+          // 1. Por Expediente (Si empieza con dígitos)
           if (/^\d+/.test(cleanQuery)) {
-              results = await db.cums.where('expediente').startsWith(cleanQuery).limit(20).toArray() as unknown as ExtendedCumRecord[];
-          } else {
-              const byProduct = await db.cums.where('producto').startsWithIgnoreCase(cleanQuery).limit(15).toArray();
-              const byActive = await db.cums.where('principioactivo').startsWithIgnoreCase(cleanQuery).limit(10).toArray();
-              const combined = [...byProduct, ...byActive];
-              const unique = new Map();
-              combined.forEach(item => unique.set(item.expediente, item));
-              results = Array.from(unique.values()) as unknown as ExtendedCumRecord[];
+              promises.push(db.cums.where('expediente').startsWith(cleanQuery).limit(15).toArray());
           }
-      } catch (e) { console.error("Error CUM:", e); }
+
+          // 2. Por Registro Sanitario (Si tiene letras y números ej: 2021M)
+          // Heurística simple: Contiene dígitos y no es solo dígitos
+          if (/\d/.test(cleanQuery)) {
+             promises.push(db.cums.where('registrosanitario').startsWithIgnoreCase(cleanQuery).limit(15).toArray());
+          }
+
+          // 3. Por Nombre del Producto
+          promises.push(db.cums.where('producto').startsWithIgnoreCase(cleanQuery).limit(15).toArray());
+
+          // 4. Por Principio Activo
+          promises.push(db.cums.where('principioactivo').startsWithIgnoreCase(cleanQuery).limit(10).toArray());
+
+          // Ejecutar en paralelo
+          const rawResults = await Promise.all(promises);
+
+          // Aplanar y Unificar (Deduplicación por Expediente + Consecutivo)
+          const flatResults = rawResults.flat();
+          const uniqueMap = new Map();
+
+          flatResults.forEach((item: any) => {
+              const uniqueKey = `${item.expediente}-${item.consecutivocum}`;
+              if (!uniqueMap.has(uniqueKey)) {
+                  uniqueMap.set(uniqueKey, item);
+              }
+          });
+
+          results = Array.from(uniqueMap.values()) as ExtendedCumRecord[];
+
+      } catch (e) { console.error("Error CUM Search:", e); }
       finally {
           setCumResults(results);
           setIsSearchingCum(false);
@@ -387,12 +415,14 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
           showToast("⚠️ ALERTA: Registro Sanitario NO VIGENTE en BD.", "warning");
       }
 
+      const parsed = parsePresentation(record.formafarmaceutica, record.descripcioncomercial);
+
       const mappedProduct: Partial<ProductFinding> = {
           cum: record.expediente + (record.consecutivocum ? `-${record.consecutivocum}` : ''), 
           name: record.producto,
           manufacturer: record.titular,
           invimaReg: record.registrosanitario,
-          presentation: record.descripcioncomercial, 
+          presentation: parsed.detectedString, // Usar string limpio
           pharmaceuticalForm: record.formafarmaceutica,
           activePrinciple: record.principioactivo,
           concentration: record.concentracion,
@@ -483,11 +513,34 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
         if (!isConform) { showToast(`⚠️ Alerta Regulatoria: ${violationsText}`, 'warning'); }
     }
 
+    // --- VALIDACIONES ESPECIALIZADAS (LOGIC ENGINE V2) ---
+    const coldChainVal = validateColdChain(newProduct as ProductFinding);
+    if (!coldChainVal.isValid) {
+        if (isConform) { setFormError(`⛔ ${coldChainVal.message}`); return; }
+        // Auto-tagging si es hallazgo
+        if (!effectiveRisks.includes('MAL_ALMACENAMIENTO')) {
+             effectiveRisks.push('MAL_ALMACENAMIENTO');
+             newProduct.coldChainStatus = 'INCUMPLE';
+        }
+    }
+
+    const expVal = validateExpiration(newProduct as ProductFinding);
+    if (!expVal.isValid) {
+        if (isConform) { setFormError(`⛔ ${expVal.message}`); return; }
+        if (!effectiveRisks.includes('VENCIDO')) effectiveRisks.push('VENCIDO');
+    }
+
+    const instVal = validateInstitucional(newProduct as ProductFinding);
+    if (!instVal.isValid) {
+        if (isConform) { setFormError(`⛔ ${instVal.message}`); return; }
+        if (!effectiveRisks.includes('USO_INSTITUCIONAL')) effectiveRisks.push('USO_INSTITUCIONAL');
+    }
+
     if (needsColdChain && newProduct.coldChainStatus === 'INCUMPLE' && isConform) { setFormError("⛔ BLOQUEO TÉCNICO: Ruptura de Cadena de Frío. Debe reportar como hallazgo."); return; }
     if (isConform && (cumValidationState === 'EXPIRED' || cumValidationState === 'SUSPENDED' || cumValidationState === 'REVOKED')) { setFormError("⛔ BLOQUEO: Registro Vencido/Cancelado. Debe reportarlo como Hallazgo."); return; }
     if (isConform && effectiveRisks.length > 0) { setFormError("Inconsistencia: No puede ser Conforme si ha seleccionado Factores de Riesgo."); return; }
     if (!isConform && effectiveRisks.length > 0 && !evidenceTemp) { setShowEvidenceModal(true); return; }
-    
+
     if (!validation.isValid && validation.violations.length > 0) { newProduct.regRuleRef = validation.violations[0].id; }
     commitProduct(evidenceTemp || isConform);
   };
@@ -664,6 +717,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
               {field.type === 'select' ? (
                   <div className="relative">
                       <select 
+                          aria-label={field.label}
                           className={`w-full h-11 px-4 bg-white border rounded-xl text-slate-700 font-bold text-sm outline-none transition-all appearance-none cursor-pointer shadow-sm hover:border-blue-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 ${isDiscrepant ? 'border-amber-300 ring-2 ring-amber-50' : 'border-slate-200'}`}
                           value={newProduct[field.key as keyof ProductFinding] as string || ''} 
                           onChange={e => setNewProduct({...newProduct, [field.key]: e.target.value})}
@@ -746,7 +800,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                         <div className="flex-1 w-full">
                             <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 block">CATEGORÍA</label>
                             <div className="relative">
-                                <select className="w-full h-14 pl-12 pr-4 bg-white border-2 border-slate-200 rounded-xl font-bold text-slate-700 text-lg outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all appearance-none cursor-pointer" value={newProduct.type} onChange={e => setNewProduct({...newProduct, type: e.target.value as ProductType, subtype: PRODUCT_SCHEMAS[e.target.value]?.subtypes[0] || 'GENERAL', cum: '', name: ''})}>{Object.keys(PRODUCT_SCHEMAS).map(t => <option key={t} value={t}>{formatEnum(t)}</option>)}</select>
+                                <select aria-label="Categoría del Producto" className="w-full h-14 pl-12 pr-4 bg-white border-2 border-slate-200 rounded-xl font-bold text-slate-700 text-lg outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all appearance-none cursor-pointer" value={newProduct.type} onChange={e => setNewProduct({...newProduct, type: e.target.value as ProductType, subtype: PRODUCT_SCHEMAS[e.target.value]?.subtypes[0] || 'GENERAL', cum: '', name: ''})}>{Object.keys(PRODUCT_SCHEMAS).map(t => <option key={t} value={t}>{formatEnum(t)}</option>)}</select>
                                 <div className="absolute left-4 top-4 text-slate-400"><Icon name="package" size={24}/></div>
                                 <div className="absolute right-4 top-5 text-slate-400 pointer-events-none"><Icon name="chevron-down" size={16}/></div>
                             </div>
@@ -754,7 +808,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                         <div className="flex-1 w-full">
                             <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 block">SUBTIPO</label>
                             <div className="relative">
-                                <select className="w-full h-14 pl-12 pr-4 bg-white border-2 border-slate-200 rounded-xl font-bold text-slate-700 text-lg outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all appearance-none cursor-pointer" value={newProduct.subtype} onChange={e => setNewProduct({...newProduct, subtype: e.target.value as ProductSubtype})}>{PRODUCT_SCHEMAS[newProduct.type as ProductType]?.subtypes.map(s => <option key={s} value={s}>{formatEnum(s)}</option>)}</select>
+                                <select aria-label="Subtipo del Producto" className="w-full h-14 pl-12 pr-4 bg-white border-2 border-slate-200 rounded-xl font-bold text-slate-700 text-lg outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all appearance-none cursor-pointer" value={newProduct.subtype} onChange={e => setNewProduct({...newProduct, subtype: e.target.value as ProductSubtype})}>{PRODUCT_SCHEMAS[newProduct.type as ProductType]?.subtypes.map(s => <option key={s} value={s}>{formatEnum(s)}</option>)}</select>
                                 <div className="absolute left-4 top-4 text-slate-400"><Icon name="tag" size={24}/></div>
                                 <div className="absolute right-4 top-5 text-slate-400 pointer-events-none"><Icon name="chevron-down" size={16}/></div>
                             </div>
@@ -764,26 +818,30 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                     <div className="p-8">
                         {/* 1. SECCIÓN IDENTIDAD (PRODUCT CARD VS INPUTS) */}
                         {newProduct.originalCumData && !isEditingMasterData ? (
-                            <div className="bg-slate-800 rounded-xl p-5 mb-8 text-white relative shadow-lg overflow-hidden group border border-slate-700">
-                                <div className="absolute top-0 right-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button onClick={() => setIsEditingMasterData(true)} className="flex items-center gap-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-bold backdrop-blur-md transition-colors border border-white/10">
-                                        <Icon name="edit-2" size={14}/> Editar Datos Maestros
+                            <div className="bg-slate-900 rounded-xl p-6 mb-8 text-white relative shadow-2xl overflow-hidden group border border-slate-800">
+                                {/* Decoración de fondo */}
+                                <div className="absolute top-0 right-0 -mt-10 -mr-10 w-40 h-40 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+                                <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                                    <button onClick={() => setIsEditingMasterData(true)} className="flex items-center gap-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-bold backdrop-blur-md transition-colors border border-white/10 text-white shadow-sm">
+                                        <Icon name="edit-2" size={14}/> EDITAR
                                     </button>
                                 </div>
-                                <div className="flex items-start gap-4">
-                                    <div className="p-3 bg-blue-500/20 rounded-xl border border-blue-500/30">
-                                        <Icon name="database" size={24} className="text-blue-400"/>
+                                <div className="flex items-start gap-5 relative z-0">
+                                    <div className="p-4 bg-blue-500/20 rounded-2xl border border-blue-500/30 shadow-inner">
+                                        <Icon name="database" size={32} className="text-blue-400"/>
                                     </div>
-                                    <div>
-                                        <div className="flex items-center gap-3 mb-1">
-                                            <h3 className="text-lg font-black tracking-tight">{newProduct.name}</h3>
-                                            <span className="px-2 py-0.5 bg-blue-500 rounded text-[10px] font-bold">CUM OFICIAL</span>
+                                    <div className="flex-1">
+                                        <div className="flex flex-col md:flex-row md:items-center gap-2 mb-2">
+                                            <h3 className="text-xl font-black tracking-tight text-white leading-tight">{newProduct.name}</h3>
+                                            <span className="px-2 py-0.5 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 rounded text-[10px] font-bold w-fit flex items-center gap-1"><Icon name="check-circle" size={10}/> CUM VIGENTE</span>
                                         </div>
-                                        <p className="text-sm font-medium text-slate-300 mb-3">{newProduct.manufacturer}</p>
+                                        <p className="text-sm font-medium text-slate-300 mb-4 flex items-center gap-2"><Icon name="briefcase" size={12}/> {newProduct.manufacturer}</p>
+
                                         <div className="flex flex-wrap gap-2 text-xs font-bold">
-                                            <span className="bg-slate-700 px-2 py-1 rounded border border-slate-600">REG: {newProduct.invimaReg}</span>
-                                            <span className="bg-slate-700 px-2 py-1 rounded border border-slate-600">CUM: {newProduct.cum}</span>
-                                            <span className="bg-slate-700 px-2 py-1 rounded border border-slate-600">{newProduct.presentation}</span>
+                                            <span className="bg-white/10 px-3 py-1.5 rounded-lg border border-white/10 text-slate-200 flex items-center gap-2"><span className="text-slate-400">REG:</span> {newProduct.invimaReg}</span>
+                                            <span className="bg-white/10 px-3 py-1.5 rounded-lg border border-white/10 text-slate-200 flex items-center gap-2"><span className="text-slate-400">CUM:</span> {newProduct.cum}</span>
+                                            <span className="bg-indigo-500/20 px-3 py-1.5 rounded-lg border border-indigo-500/30 text-indigo-200 w-full md:w-auto mt-1 md:mt-0 flex items-center gap-2"><Icon name="package" size={12}/> {newProduct.presentation}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -894,7 +952,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                                         <div>
                                             <label className="text-xs font-bold text-red-800 uppercase mb-3 block tracking-wide">Medida a Aplicar</label>
                                             <div className="relative">
-                                                <select className="w-full h-12 pl-4 pr-10 border-2 border-red-200 rounded-xl text-red-900 font-bold bg-white focus:border-red-500 focus:ring-4 focus:ring-red-100 outline-none appearance-none transition-all cursor-pointer" value={newProduct.seizureType} onChange={e=>setNewProduct({...newProduct, seizureType: e.target.value as SeizureType})}>
+                                                <select aria-label="Medida Sanitaria a Aplicar" className="w-full h-12 pl-4 pr-10 border-2 border-red-200 rounded-xl text-red-900 font-bold bg-white focus:border-red-500 focus:ring-4 focus:ring-red-100 outline-none appearance-none transition-all cursor-pointer" value={newProduct.seizureType} onChange={e=>setNewProduct({...newProduct, seizureType: e.target.value as SeizureType})}>
                                                     <option value="NINGUNO">SOLO HALLAZGO (Sin Medida)</option>
                                                     <option value="DECOMISO">DECOMISO (Incautación)</option>
                                                     <option value="CONGELAMIENTO">CONGELAMIENTO</option>
@@ -971,7 +1029,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                     <Card title="1. Estación de Embalaje (Individualización)" icon="box">
                         <div className="space-y-8 p-2">
                             <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 flex flex-col md:flex-row gap-4 items-end">
-                                <div className="flex-1 w-full"><label className="text-[10px] font-bold text-slate-500 uppercase mb-2 block tracking-wider">Tipo de Embalaje</label><select className="w-full h-12 px-4 rounded-xl border border-slate-300 font-bold text-slate-700 bg-white" value={newContainer.type} onChange={e => setNewContainer({...newContainer, type: e.target.value})}><option value="BOLSA_SEGURIDAD">BOLSA DE SEGURIDAD</option><option value="CAJA_SELLADA">CAJA DE CARTÓN SELLADA</option><option value="NEVERA_PORTATIL">NEVERA / CONTENEDOR FRÍO</option></select></div>
+                                <div className="flex-1 w-full"><label className="text-[10px] font-bold text-slate-500 uppercase mb-2 block tracking-wider">Tipo de Embalaje</label><select aria-label="Tipo de Embalaje" className="w-full h-12 px-4 rounded-xl border border-slate-300 font-bold text-slate-700 bg-white" value={newContainer.type} onChange={e => setNewContainer({...newContainer, type: e.target.value})}><option value="BOLSA_SEGURIDAD">BOLSA DE SEGURIDAD</option><option value="CAJA_SELLADA">CAJA DE CARTÓN SELLADA</option><option value="NEVERA_PORTATIL">NEVERA / CONTENEDOR FRÍO</option></select></div>
                                 <div className="flex-1 w-full"><label className="text-[10px] font-bold text-slate-500 uppercase mb-2 block tracking-wider">Código de Precinto</label><input className="w-full h-12 px-4 rounded-xl border border-slate-300 font-bold text-slate-700" placeholder="Ej: B-10293..." value={newContainer.code} onChange={e => setNewContainer({...newContainer, code: e.target.value})} /></div>
                                 <button onClick={addContainer} className="h-12 px-6 bg-slate-800 text-white rounded-xl font-bold hover:bg-slate-700 flex items-center gap-2 shadow-lg transition-all"><Icon name="plus" size={18}/> Crear Contenedor</button>
                             </div>
@@ -985,7 +1043,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                                                 <div className="flex justify-between items-center mt-3 pt-3 border-t border-slate-50">
                                                     <span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-1 rounded">{p.packLabel}</span>
                                                     {containers.length > 0 ? (
-                                                        <select className="h-8 pl-2 pr-6 rounded-lg border border-slate-200 text-xs font-bold text-slate-600 bg-slate-50 cursor-pointer" onChange={(e) => assignItemToContainer(p.id, e.target.value)} defaultValue=""><option value="" disabled>Asignar a...</option>{containers.map(c => <option key={c.id} value={c.id}>{c.code.slice(-6)}</option>)}</select>
+                                                        <select aria-label="Asignar producto a contenedor" className="h-8 pl-2 pr-6 rounded-lg border border-slate-200 text-xs font-bold text-slate-600 bg-slate-50 cursor-pointer" onChange={(e) => assignItemToContainer(p.id, e.target.value)} defaultValue=""><option value="" disabled>Asignar a...</option>{containers.map(c => <option key={c.id} value={c.id}>{c.code.slice(-6)}</option>)}</select>
                                                     ) : <span className="text-[10px] text-slate-400 italic">Cree un contenedor</span>}
                                                 </div>
                                             </div>
