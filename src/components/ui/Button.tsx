@@ -2,7 +2,7 @@ import React from 'react';
 import { Loader2 } from 'lucide-react';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'danger';
+  variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
   isLoading?: boolean;
 }
 
@@ -15,13 +15,13 @@ export const Button: React.FC<ButtonProps> = ({
   ...props 
 }) => {
   
-  // Se integra 'vigi-force-visible' para anular cualquier opacidad externa
-  const baseStyles = "vigi-force-visible items-center justify-center gap-2 h-11 px-6 rounded-xl font-bold text-sm shadow-md transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed";
+  const baseStyles = "vigi-force-visible inline-flex items-center justify-center gap-2 h-11 px-6 rounded-xl font-bold text-sm transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/20";
   
   const variants = {
-    primary: "bg-teal-600 text-white hover:bg-teal-700 border border-teal-800/20",
-    secondary: "bg-slate-200 border-2 border-slate-400 text-slate-900 hover:bg-slate-300",
-    danger: "bg-red-600 text-white border border-red-800"
+    primary: "bg-brand text-white hover:bg-brand-dark shadow-lg shadow-brand/20 border border-transparent",
+    secondary: "bg-white text-content-secondary border border-surface-border hover:bg-surface-hover hover:text-content-primary shadow-sm",
+    danger: "bg-status-error text-white hover:bg-red-700 shadow-md shadow-status-error/20 border border-transparent",
+    ghost: "bg-transparent text-content-secondary hover:bg-surface-hover hover:text-brand-dark border-transparent"
   };
 
   return (

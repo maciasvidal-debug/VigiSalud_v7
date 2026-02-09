@@ -48,6 +48,7 @@ export const SeizureCalculator: React.FC<SeizureCalculatorProps> = ({
       let displayVolume = 0;
       let displayUnit = model.contentUnit;
 
+      // Strict Check: Only calculate volume if NOT Discrete and contentNet is valid
       if (mode !== 'DISCRETE' && contentNet > 0) {
           logisticVolume = totalLegalUnits * contentNet;
           displayVolume = logisticVolume;
@@ -59,6 +60,9 @@ export const SeizureCalculator: React.FC<SeizureCalculatorProps> = ({
               displayVolume /= 1000;
               displayUnit = 'g';
           }
+      } else {
+          // Explicitly zero out volume for Discrete items
+          displayVolume = 0;
       }
 
       const logistics: SeizureLogistics = {
@@ -91,6 +95,11 @@ export const SeizureCalculator: React.FC<SeizureCalculatorProps> = ({
                         {model.mode === 'VOLUMETRIC' ? 'Líquido / Volumétrico' : 
                          model.mode === 'MASS_BASED' ? 'Masa / Semisólido' : 'Sólido / Unitario'}
                     </span>
+                    {model.isConcentrationIrrelevant && (
+                        <span className="text-[9px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
+                            BIOLÓGICO
+                        </span>
+                    )}
                 </div>
                 <p className="text-xs font-bold text-slate-700">{model.detectedString}</p>
                 {cum && <p className="text-[9px] text-slate-400 font-mono mt-0.5">ID REF: {cum}</p>}
@@ -110,7 +119,7 @@ export const SeizureCalculator: React.FC<SeizureCalculatorProps> = ({
                 <div className="relative">
                     <input 
                         type="number" min="0"
-                        className={`w-full h-10 pl-3 pr-2 rounded-lg border border-slate-300 font-bold text-slate-700 focus:border-${theme}-500 outline-none transition-all`}
+                        className={`w-full h-10 pl-3 pr-2 rounded-lg border border-slate-300 font-bold text-sm text-slate-700 focus:border-${theme}-500 outline-none transition-all`}
                         value={packInput || ''}
                         onChange={e => setPackInput(Math.max(0, parseInt(e.target.value) || 0))}
                         placeholder="0"
@@ -128,7 +137,7 @@ export const SeizureCalculator: React.FC<SeizureCalculatorProps> = ({
                 <div className="relative">
                     <input 
                         type="number" min="0"
-                        className={`w-full h-10 pl-3 pr-2 rounded-lg border border-slate-300 font-bold text-slate-700 focus:border-${theme}-500 outline-none transition-all`}
+                        className={`w-full h-10 pl-3 pr-2 rounded-lg border border-slate-300 font-bold text-sm text-slate-700 focus:border-${theme}-500 outline-none transition-all`}
                         value={looseInput || ''}
                         onChange={e => setLooseInput(Math.max(0, parseInt(e.target.value) || 0))}
                         placeholder="0"
@@ -149,9 +158,12 @@ export const SeizureCalculator: React.FC<SeizureCalculatorProps> = ({
                 </p>
             </div>
 
+            {/* Strict Condition for Volume Display */}
             {model.mode !== 'DISCRETE' && model.contentNet > 0 && (
                 <div className="text-right border-l border-slate-200 pl-4">
-                    <p className={`text-[9px] font-black text-${theme}-600 uppercase`}>Volumen Total</p>
+                    <p className={`text-[9px] font-black text-${theme}-600 uppercase`}>
+                        {model.mode === 'VOLUMETRIC' ? 'Volumen Total' : 'Masa Total'}
+                    </p>
                     <p className={`text-xl font-black text-${theme}-700`}>
                         {(((packInput * model.packFactor) + looseInput) * model.contentNet / (model.contentUnit === 'mL' && ((packInput * model.packFactor) + looseInput) * model.contentNet >= 1000 ? 1000 : 1)).toLocaleString('es-CO', { maximumFractionDigits: 2 })}
                         <span className="text-xs ml-1">{((packInput * model.packFactor) + looseInput) * model.contentNet >= 1000 && model.contentUnit === 'mL' ? 'L' : model.contentUnit}</span>

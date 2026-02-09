@@ -62,6 +62,29 @@ export class VigiSaludDB extends Dexie {
       cums: '++id, expediente, producto, principioactivo, registrosanitario, atc' 
     });
 
+    // Version 4: Migración de RiskFactor (string) a RiskFactors (array)
+    this.version(4).stores({
+      establishments: '++id, category, nit, name, status, city',
+      inspections: '++id, date, establishment_id, concept, riskLevel, [date+establishment_id]',
+      officials: '++id, identification, role, status, username',
+      seizures: 'id, visitId, status, seizedBy',
+      cums: '++id, expediente, producto, principioactivo, registrosanitario, atc'
+    }).upgrade(trans => {
+        return trans.table("inspections").toCollection().modify(report => {
+            if (report.products) {
+                report.products.forEach((p: any) => {
+                    if (typeof p.riskFactor === 'string') {
+                        // Migrar legacy string a array
+                        p.riskFactors = p.riskFactor === 'NINGUNO' ? [] : [p.riskFactor];
+                        delete p.riskFactor; // Limpiar legacy
+                    } else if (!p.riskFactors) {
+                        p.riskFactors = []; // Inicializar si no existe
+                    }
+                });
+            }
+        });
+    });
+
     // CORRECCIÓN DE TIPO: Forzamos (obj as CumRecord) para que TS no reclame
     this.cums.hook('creating', (_primKey, obj) => {
         const record = obj as CumRecord; // <--- Casting explícito

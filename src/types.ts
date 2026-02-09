@@ -5,20 +5,6 @@ export type DocumentType = 'NIT' | 'CC' | 'PASAPORTE' | 'SINDOC';
 export type EstablishmentStatus = 'ACTIVO' | 'SUSPENDIDO' | 'CLAUSURADO' | 'PENDIENTE';
 export type ConceptType = 'FAVORABLE' | 'FAVORABLE_CON_REQUERIMIENTOS' | 'DESFAVORABLE' | 'PENDIENTE';
 
-export type InspectionBlock = 
-  | 'TALENTO_HUMANO' 
-  | 'LEGAL' 
-  | 'INFRAESTRUCTURA' 
-  | 'DOTACION' 
-  | 'PROCESOS' 
-  | 'SANEAMIENTO'
-  | 'SANITARIO'
-  | 'LOCATIVO'
-  | 'PERSONAL'
-  | 'DOCUMENTAL'
-  | 'PRODUCTOS'
-  | 'SEGURIDAD';
-
 export type ProductType = 
   | 'MEDICAMENTO' 
   | 'DISPOSITIVO_MEDICO' 
@@ -44,6 +30,32 @@ export type SeizureType = 'NINGUNO' | 'DECOMISO' | 'CONGELAMIENTO' | 'DESNATURAL
 export type PhysicalState = 'BUENO' | 'DETERIORADO' | 'ALTERADO';
 export type ComplaintType = 'CALIDAD_PRODUCTO' | 'USO_RACIONAL' | 'LEGALIDAD_CONTRABANDO' | 'SERVICIO_TECNICO' | 'FARMACOVIGILANCIA' | 'OTRO';
 
+export type InspectionBlock =
+  | 'TALENTO_HUMANO'
+  | 'LEGAL'
+  | 'INFRAESTRUCTURA'
+  | 'DOTACION'
+  | 'PROCESOS'
+  | 'SANEAMIENTO'
+  | 'SANITARIO'
+  | 'LOCATIVO'
+  | 'PERSONAL'
+  | 'DOCUMENTAL'
+  | 'PRODUCTOS'
+  | 'SEGURIDAD';
+
+export interface RuleViolation {
+  id: string;
+  description: string;
+  riskLevel: 'CRITICO' | 'ALTO' | 'MEDIO' | 'BAJO';
+  action?: string;
+}
+
+export interface ValidationResult {
+  isValid: boolean;
+  violations: RuleViolation[];
+}
+
 // --- NUEVO: Estructuras para Motor Polimórfico (Manual Técnico Secc 6.1) ---
 export type PresentationMode = 'DISCRETE' | 'VOLUMETRIC' | 'MASS_BASED';
 
@@ -55,19 +67,11 @@ export interface CommercialPresentation {
   contentNet: number;     // Contenido físico (mL, g)
   contentUnit: string;    // Unidad (mL, L, g, kg)
   detectedString: string; // Resumen legible
-}
-
-// --- ESTRUCTURA POLIMÓRFICA (Sección 6.4 Manual Técnico) ---
-export interface PackagingStructure {
-  type: string;           // caja, blister, frasco
-  quantity: number;       // cantidad interna
-  child?: PackagingStructure; // Nivel inferior (recursion)
+  isConcentrationIrrelevant?: boolean; // Flag para Biológicos/Vacunas
 }
 
 export interface SeizureLogistics {
   presentation: CommercialPresentation;
-  // Soporte para estructura multinivel (REG-Q024)
-  packagingStructure?: PackagingStructure; 
   inputs: {
     packs: number; // Cantidad de Cajas/Empaques
     loose: number; // Cantidad de Unidades Sueltas
@@ -75,12 +79,13 @@ export interface SeizureLogistics {
   totals: {
     legalUnits: number;     // Total unidades comerciales (Acta)
     logisticVolume: number; // Volumen/Masa total (Bodega)
-    logisticUnit: string;   // Unidad normalizada (REG-Q010)
+    logisticUnit: string;   // Unidad normalizada
   };
   calculationMethod: 'AUTO_CUM' | 'MANUAL_OVERRIDE' | 'PRESET'; 
 }
 
 // --- DATA GOVERNANCE: Interfaz extendida para el CUM (Fuente de Verdad) ---
+// Asegura que VigiSalud sepa qué leer de la base de datos local
 export interface ExtendedCumRecord {
     id?: number; 
     expediente: string;
@@ -121,7 +126,8 @@ export interface ProductFinding {
   atcCode?: string;            // Clasificación
   cumIndexRef?: string;        // ALCOA+: Trazabilidad al registro maestro original
   isLocked?: boolean;          // Data Integrity: Evita edición manual si viene de CUM
-  
+  regRuleRef?: string;         // Referencia a la regla infringida (Motor de Reglas)
+
   lot?: string; 
   serial?: string; 
   model?: string; 
@@ -132,12 +138,13 @@ export interface ProductFinding {
   
   // Datos técnicos
   riskClassDM?: RiskClassDM; 
+  calibrationStatus?: string; // REG-T012
   storageTemp?: string; 
   coldChainStatus?: string; 
   state?: PhysicalState;
 
   // Riesgo y Medida
-  riskFactor: RiskFactor;
+  riskFactors: RiskFactor[]; // Multiples causales permitidas
   seizureType: SeizureType;
   
   // Cantidades (Sincronizadas con Calculadora)
@@ -152,11 +159,6 @@ export interface ProductFinding {
   observations?: string;
   photoUrl?: string;
   hasEvidence?: boolean;
- 
-  // --- CAMPOS DE VALIDACIÓN NORMATIVA (Sección 3) ---
-  regRuleRef?: string;       // ID de la regla violada (Ej: REG-L001)
-  complianceState?: 'CONFORME' | 'NO_CONFORME' | 'ALERTA' | 'DECOMISO';
-  technicalAlerts?: string[]; // Lista de alertas (REG-T)
 }
 
 export interface Establishment {
@@ -191,7 +193,7 @@ export interface Establishment {
 export interface InspectionItem {
   id: string;
   text: string; 
-  block: string;
+  block: InspectionBlock;
   isKiller: boolean; 
   triggerCondition?: 'FAIL' | 'PASS'; 
   childItems?: InspectionItem[]; 
@@ -227,6 +229,14 @@ export interface CustodyChain {
   disposalEvidence?: string; 
 }
 
+export interface InspectionAttendee {
+  id: string;
+  name: string;
+  idNumber: string;
+  role: 'REPRESENTANTE_LEGAL' | 'DIRECTOR_TECNICO' | 'AUXILIAR' | 'TESTIGO' | 'OTRO';
+  signature: string | null; // Base64
+}
+
 export interface Report {
   id?: number;
   date: string; 
@@ -249,6 +259,7 @@ export interface Report {
     attendedBy: string;
     attendedId?: string;
     attendedRole?: string;
+    attendees?: InspectionAttendee[];
     gpsBypass?: boolean;
     [key: string]: any;
   };

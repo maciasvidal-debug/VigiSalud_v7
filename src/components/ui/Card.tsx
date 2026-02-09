@@ -17,17 +17,17 @@ export const Card: React.FC<CardProps> = ({
   actions 
 }) => {
   return (
-    <div className={`bg-white rounded-xl shadow-sm border border-slate-200/60 overflow-hidden ${className}`}>
+    <div className={`bg-surface-card rounded-xl shadow-soft border border-surface-border overflow-hidden ${className}`}>
       {(title || icon || actions) && (
-        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/80">
+        <div className="px-6 py-4 border-b border-surface-border flex justify-between items-center bg-surface-ground/50">
           <div className="flex items-center gap-3">
             {icon && (
-              <div className="p-2 bg-teal-50 text-teal-700 rounded-lg">
+              <div className="p-2 bg-brand-light text-brand-deep rounded-lg">
                 <Icon name={icon} size={18} strokeWidth={2.5} />
               </div>
             )}
             {title && (
-              <h3 className="font-black text-slate-800 text-xs uppercase tracking-widest">
+              <h3 className="font-black text-content-primary text-xs uppercase tracking-widest">
                 {title}
               </h3>
             )}
