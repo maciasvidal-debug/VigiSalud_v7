@@ -17,6 +17,7 @@ const initializeSystem = async () => {
         pin: '1234',
         name: 'Administrador VigiSalud',
         identification: '999999999',
+        rh: 'O+',
         role: 'DIRECTOR',
         status: 'ACTIVO',
         cargo: 'Director IVC',

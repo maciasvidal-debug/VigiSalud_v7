@@ -304,7 +304,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
         setter(prev => prev ? `${prev} ${transcript}` : transcript); 
         setIsListening(null);
     };
-    recognition.onerror = (event: any) => { setIsListening(null); };
+    recognition.onerror = () => { setIsListening(null); };
     recognition.onend = () => setIsListening(null);
     recognition.start();
   };
@@ -790,7 +790,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                         ) : (
                             <div className="grid grid-cols-12 gap-x-6 gap-y-8 mb-8">
                                 {/* Campo CUM siempre visible, Identity fields se renderizan si no están en modo tarjeta */}
-                                {renderField({ key: 'cum', label: 'CUM / Expediente', type: 'text', colSpan: 12 })}
+                                {renderField({ key: 'cum', label: 'CUM / Expediente', type: 'text', colSpan: 12, required: true })}
                                 {identityFields.map(renderField)}
                             </div>
                         )}
@@ -826,7 +826,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                                         <div className="flex gap-4 items-end mt-4">
                                             <div className="w-40">
                                                 <label className="text-[10px] font-bold text-sky-700 uppercase mb-1 block">Temperatura (°C)</label>
-                                                <Input type="number" step="0.1" value={newProduct.storageTemp || ''} onChange={e => setNewProduct({...newProduct, storageTemp: e.target.value})} placeholder="Ej: 4.5" className={`font-bold text-lg h-12 text-center ${newProduct.coldChainStatus === 'INCUMPLE' ? 'border-red-300 bg-red-50 text-red-700' : 'border-sky-300'}`} />
+                                                <Input type="number" step="0.1" value={newProduct.storageTemp || ''} onChange={e => setNewProduct({...newProduct, storageTemp: e.target.value})} aria-label="Temperatura de almacenamiento" placeholder="Ej: 4.5" className={`font-bold text-lg h-12 text-center ${newProduct.coldChainStatus === 'INCUMPLE' ? 'border-red-300 bg-red-50 text-red-700' : 'border-sky-300'}`} />
                                             </div>
                                             <div className="flex-1 pb-1">
                                                 {newProduct.coldChainStatus === 'INCUMPLE' ? (
@@ -945,7 +945,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                                 <div className="flex items-center gap-4">
                                     {hasRisks && <Badge label={p.seizureType} className="bg-red-100 text-red-700 border-red-200"/>}
                                     {hasRisks && !p.hasEvidence && (<button onClick={() => triggerEvidenceCheck(p.id)} className="px-3 py-1 bg-red-50 text-red-600 border border-red-200 rounded-lg text-xs font-bold flex items-center gap-1 hover:bg-red-100"><Icon name="camera" size={12}/> FOTO</button>)}
-                                    <button onClick={() => removeProduct(p.id)} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Icon name="trash" size={18}/></button>
+                                    <button onClick={() => removeProduct(p.id)} aria-label="Eliminar producto" className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Icon name="trash" size={18}/></button>
                                 </div>
                             </div>
                         );
