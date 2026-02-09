@@ -102,7 +102,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
   const { showToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // --- ESTADOS ---
+  // --- ESTADOS DE MÁQUINA ---
   const [loading, setLoading] = useState(false);
   const [currentTab, setCurrentTab] = useState<'DIAGNOSTICO' | 'PRODUCTOS' | 'CUSTODIA' | 'CIERRE'>('DIAGNOSTICO');
   const [inspectionItems, setInspectionItems] = useState<InspectionItem[]>([]);
@@ -110,12 +110,15 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
   const [score, setScore] = useState<number>(100);
   const [concept, setConcept] = useState<ConceptType>('PENDIENTE');
 
+  // --- ESTADOS DE INVENTARIO ---
   const [products, setProducts] = useState<LocalProductFinding[]>([]);
   const [containers, setContainers] = useState<EvidenceContainer[]>([]); 
   const [newContainer, setNewContainer] = useState<{type: string, code: string}>({ type: 'BOLSA_SEGURIDAD', code: '' }); 
   
+  // --- ESTADOS UX/UI (NUEVOS) ---
   const [formError, setFormError] = useState<string | null>(null); 
   const [isReportingIssue, setIsReportingIssue] = useState(false);
+  const [isEditingMasterData, setIsEditingMasterData] = useState(false); // [NEW] Toggle Edit CUM
   const [evidenceTemp, setEvidenceTemp] = useState(false); 
   const [packsInput, setPacksInput] = useState<number>(0);
   const [looseInput, setLooseInput] = useState<number>(0);
@@ -238,7 +241,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
     }
   }, [newProduct.expirationDate, isReportingIssue, showToast]);
 
-  // --- MONITOR CADENA DE FRÍO (FIX: Appending Risk) ---
+  // --- MONITOR CADENA DE FRÍO ---
   const needsColdChain = useMemo(() =>
       newProduct.type === 'MEDICAMENTO' &&
       ['BIOLOGICO', 'BIOTECNOLOGICO', 'REACTIVO_INVITRO'].includes(newProduct.subtype as string),
@@ -253,7 +256,6 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                       setNewProduct(prev => ({
                           ...prev,
                           coldChainStatus: 'INCUMPLE',
-                          // Append 'MAL_ALMACENAMIENTO' without overwriting existing risks
                           riskFactors: Array.from(new Set([...(prev.riskFactors || []), 'MAL_ALMACENAMIENTO'] as RiskFactor[]))
                       }));
                       showToast("⛔ ALERTA CRÍTICA: Ruptura de Cadena de Frío detected (Fuera de 2°C - 8°C)!", "error");
@@ -287,7 +289,6 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       }
   }, [newProduct.presentation, isReportingIssue, newProduct.riskFactors, showToast]);
 
-  // --- DICTADO POR VOZ ---
   const toggleListening = (fieldId: string, setter: React.Dispatch<React.SetStateAction<string>>) => {
     if (isListening === fieldId) { setIsListening(null); return; }
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -308,7 +309,6 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
     recognition.start();
   };
 
-  // --- LOGÍSTICA ---
   const addContainer = () => { 
       if (!newContainer.code) { showToast("⚠️ Código de precinto requerido.", 'warning'); return; } 
       const newId = crypto.randomUUID(); 
@@ -324,7 +324,6 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
   const assignItemToContainer = (productId: string, containerId: string) => { setProducts(prev => prev.map(p => p.id === productId ? { ...p, containerId } : p)); };
   const unassignItem = (productId: string) => { setProducts(prev => prev.map(p => p.id === productId ? { ...p, containerId: undefined } : p)); };
 
-  // --- EVIDENCIA ---
   const handlePhotoClick = () => { fileInputRef.current?.click(); };
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { 
       if (e.target.files && e.target.files[0]) { 
@@ -342,7 +341,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
   };
   const triggerEvidenceCheck = (id: string) => { setPendingEvidenceId(id); fileInputRef.current?.click(); };
 
-  // --- BÚSQUEDA CUM (STRICT MAPPING) ---
+  // --- BÚSQUEDA CUM ---
   const searchCum = async (query: string) => {
       setIsSearchingCum(true);
       const cleanQuery = query.trim().toUpperCase();
@@ -388,7 +387,6 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
           showToast("⚠️ ALERTA: Registro Sanitario NO VIGENTE en BD.", "warning");
       }
 
-      // FIX: Direct Mapping (No aggressive cleaning)
       const mappedProduct: Partial<ProductFinding> = {
           cum: record.expediente + (record.consecutivocum ? `-${record.consecutivocum}` : ''), 
           name: record.producto,
@@ -397,14 +395,15 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
           presentation: record.descripcioncomercial, 
           pharmaceuticalForm: record.formafarmaceutica,
           activePrinciple: record.principioactivo,
-          concentration: record.concentracion, // Direct map
-          unit: record.unidadmedida, // Direct map
+          concentration: record.concentracion,
+          unit: record.unidadmedida,
           viaAdministration: record.viaadministracion,
           atcCode: record.atc,
           riskFactors: validation !== 'VALID' ? [(validation === 'EXPIRED' ? 'VENCIDO' : 'SIN_REGISTRO')] : []
       };
 
       setNewProduct(prev => ({ ...prev, ...mappedProduct, originalCumData: mappedProduct }));
+      setIsEditingMasterData(false); // [NEW] Lock fields by default on load
       setShowCumModal(false);
       setCumQuery('');
   };
@@ -466,7 +465,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
         packLabel: '', logistics: undefined, originalCumData: undefined, calibrationStatus: ''
       });
       setPacksInput(0); setLooseInput(0);
-      setCumSearchStatus('IDLE'); setCumValidationState(null); setIsReportingIssue(false);
+      setCumSearchStatus('IDLE'); setCumValidationState(null); setIsReportingIssue(false); setIsEditingMasterData(false);
       setEvidenceTemp(false); setShowEvidenceModal(false);
   };
 
@@ -560,7 +559,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
   };
 
   // ===========================================================================
-  // 4. RENDERIZADO DINÁMICO (UI UPDATE: READ-ONLY & PROGRESSIVE)
+  // 4. RENDERIZADO DINÁMICO (UX/UI REFACTOR)
   // ===========================================================================
 
   const renderField = (field: FieldConfig) => {
@@ -574,22 +573,10 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       const currentValue = newProduct[field.key as keyof ProductFinding];
       const isDiscrepant = originalValue && currentValue && originalValue !== currentValue;
 
-      // --- [NEW] UI: READ ONLY CARD FOR CUM FIELDS ---
-      // If we have CUM data loaded, fields like Name, Reg, Manufacturer are READ ONLY.
-      const isLockedByCum = newProduct.originalCumData && ['name', 'invimaReg', 'manufacturer', 'presentation', 'activePrinciple'].includes(field.key);
-
-      if (isLockedByCum) {
-          return (
-              <div className={colClass} key={field.key}>
-                   <div className="flex justify-between items-end mb-1.5">
-                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">{field.label}</label>
-                      <Icon name="lock" size={12} className="text-slate-300"/>
-                  </div>
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-700 font-bold text-sm shadow-inner truncate">
-                      {currentValue as string || '---'}
-                  </div>
-              </div>
-          );
+      // [NEW] READ ONLY CARD MODE (When CUM data is loaded and not editing)
+      // Hide inputs for main identity fields if we have CUM data and are not in edit mode
+      if (newProduct.originalCumData && !isEditingMasterData && ['name', 'invimaReg', 'manufacturer', 'presentation'].includes(field.key)) {
+          return null; // Don't render individual fields, handled by Card Wrapper
       }
 
       // CAMPO CUM (Input Libre + Botón)
@@ -632,64 +619,6 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                   </div>
               </div>
           );
-      }
-
-      // CAMPO CONCENTRACIÓN + UNIDAD
-      if (field.key === 'concentration') {
-           const disableConcentration = newProduct.unit === 'NO_APLICA' || parsedModel.isConcentrationIrrelevant;
-           // If loaded from CUM, these are also locked, but handled by isLockedByCum logic above if strictly mapped?
-           // No, concentration/unit logic is complex. Let's lock if present in CUM.
-           const isConcLocked = newProduct.originalCumData?.concentration;
-
-           if (isConcLocked) {
-               return (
-                  <div className={colClass} key={field.key}>
-                      <div className="flex justify-between items-end mb-1.5">
-                          <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">{field.label}</label>
-                          <Icon name="lock" size={12} className="text-slate-300"/>
-                      </div>
-                      <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-700 font-bold text-sm shadow-inner truncate">
-                          {newProduct.concentration} {newProduct.unit}
-                      </div>
-                  </div>
-               );
-           }
-
-           return (
-              <div className={colClass} key={field.key}>
-                  <div className="flex justify-between items-end mb-1.5">
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">
-                          {field.label} {field.required && <span className="text-red-500">*</span>}
-                      </label>
-                      {isDiscrepant && <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded font-bold border border-amber-100">MODIFICADO</span>}
-                  </div>
-                  <div className="flex gap-2">
-                      <div className="flex-1">
-                          <Input
-                              value={newProduct.concentration || ''}
-                              onChange={e => setNewProduct({...newProduct, concentration: e.target.value})}
-                              placeholder="Cant."
-                              className={`h-11 font-bold text-sm ${isDiscrepant ? 'border-amber-300 bg-amber-50/20' : ''}`}
-                              disabled={disableConcentration === true}
-                          />
-                      </div>
-                      <div className="w-1/3">
-                          <div className="relative">
-                              <select
-                                  value={newProduct.unit || ''}
-                                  onChange={e => setNewProduct({...newProduct, unit: e.target.value})}
-                                  className="w-full h-11 px-3 bg-slate-50 text-slate-700 font-bold text-xs border border-slate-200 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 appearance-none cursor-pointer"
-                                  title="Unidad de Medida"
-                              >
-                                  <option value="">UNIDAD...</option>
-                                  {['mg', 'g', 'mL', 'L', 'UI', 'mcg', '%', 'Dosis', 'NO_APLICA'].map(u => <option key={u} value={u}>{u.replace('_', ' ')}</option>)}
-                              </select>
-                              <div className="absolute right-2 top-3.5 text-slate-400 pointer-events-none"><Icon name="chevron-down" size={14}/></div>
-                          </div>
-                      </div>
-                  </div>
-              </div>
-           );
       }
 
       // CAMPO CANTIDAD (Tarjeta Visual)
@@ -761,9 +690,19 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
   if (!establishment) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="text-center"><Icon name="loader" className="animate-spin text-blue-600 mx-auto mb-4" size={40}/><h2 className="text-slate-600 font-bold">Cargando Expediente...</h2></div></div>;
   const currentSchema = PRODUCT_SCHEMAS[newProduct.type as string] || PRODUCT_SCHEMAS['OTRO'];
 
-  // --- [NEW] SEPARAR CAMPOS TÉCNICOS ---
-  const mainFields = currentSchema.fields.filter(f => !['atcCode', 'viaAdministration', 'pharmaceuticalForm'].includes(f.key));
-  const technicalFields = currentSchema.fields.filter(f => ['atcCode', 'viaAdministration', 'pharmaceuticalForm'].includes(f.key));
+  // [NEW] FILTER FIELDS FOR GROUPING
+  // Identity: Name, Manufacturer, Reg, Presentation (Handled by Card if CUM)
+  // Technical: ATC, Via, ActivePrinciple, Unit (Accordion)
+  // Operational: Lot, Expiration, Quantity (Always Visible)
+
+  const identityFieldsKeys = ['name', 'manufacturer', 'invimaReg', 'presentation'];
+  const technicalFieldsKeys = ['atcCode', 'viaAdministration', 'activePrinciple', 'unit', 'pharmaceuticalForm', 'concentration'];
+
+  const identityFields = currentSchema.fields.filter(f => identityFieldsKeys.includes(f.key));
+  // Operational are the rest (minus Technical and Identity)
+  const operationalFields = currentSchema.fields.filter(f => !identityFieldsKeys.includes(f.key) && !technicalFieldsKeys.includes(f.key));
+  // Technical fields definition
+  const technicalFields = currentSchema.fields.filter(f => technicalFieldsKeys.includes(f.key));
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-24 animate-in fade-in relative">
@@ -822,19 +761,53 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                     </div>
 
                     <div className="p-8">
-                        {/* MAIN FIELDS GRID */}
+                        {/* 1. SECCIÓN IDENTIDAD (PRODUCT CARD VS INPUTS) */}
+                        {newProduct.originalCumData && !isEditingMasterData ? (
+                            <div className="bg-slate-800 rounded-xl p-5 mb-8 text-white relative shadow-lg overflow-hidden group border border-slate-700">
+                                <div className="absolute top-0 right-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button onClick={() => setIsEditingMasterData(true)} className="flex items-center gap-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-bold backdrop-blur-md transition-colors border border-white/10">
+                                        <Icon name="edit-2" size={14}/> Editar Datos Maestros
+                                    </button>
+                                </div>
+                                <div className="flex items-start gap-4">
+                                    <div className="p-3 bg-blue-500/20 rounded-xl border border-blue-500/30">
+                                        <Icon name="database" size={24} className="text-blue-400"/>
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center gap-3 mb-1">
+                                            <h3 className="text-lg font-black tracking-tight">{newProduct.name}</h3>
+                                            <span className="px-2 py-0.5 bg-blue-500 rounded text-[10px] font-bold">CUM OFICIAL</span>
+                                        </div>
+                                        <p className="text-sm font-medium text-slate-300 mb-3">{newProduct.manufacturer}</p>
+                                        <div className="flex flex-wrap gap-2 text-xs font-bold">
+                                            <span className="bg-slate-700 px-2 py-1 rounded border border-slate-600">REG: {newProduct.invimaReg}</span>
+                                            <span className="bg-slate-700 px-2 py-1 rounded border border-slate-600">CUM: {newProduct.cum}</span>
+                                            <span className="bg-slate-700 px-2 py-1 rounded border border-slate-600">{newProduct.presentation}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-12 gap-x-6 gap-y-8 mb-8">
+                                {/* Campo CUM siempre visible, Identity fields se renderizan si no están en modo tarjeta */}
+                                {renderField({ key: 'cum', label: 'CUM / Expediente', type: 'text', colSpan: 12 })}
+                                {identityFields.map(renderField)}
+                            </div>
+                        )}
+
+                        {/* 2. CAMPOS OPERATIVOS (Siempre visibles) */}
                         <div className="grid grid-cols-12 gap-x-6 gap-y-8">
-                            {mainFields.map(renderField)}
+                            {operationalFields.map(renderField)}
                         </div>
 
-                        {/* [NEW] COLLAPSIBLE TECHNICAL FIELDS (Progressive Disclosure) */}
+                        {/* 3. [NEW] ACCORDION DETALLES TÉCNICOS (Accordion Strict) */}
                         {technicalFields.length > 0 && (
-                            <details className="mt-8 group border border-slate-200 rounded-xl overflow-hidden">
-                                <summary className="bg-slate-50 p-4 font-bold text-slate-600 cursor-pointer flex justify-between items-center hover:bg-slate-100 transition-colors">
-                                    <span className="flex items-center gap-2"><Icon name="sliders" size={16}/> DETALLES TÉCNICOS ADICIONALES</span>
-                                    <Icon name="chevron-down" size={16} className="group-open:rotate-180 transition-transform"/>
+                            <details className="mt-8 group border border-slate-200 rounded-xl overflow-hidden bg-white">
+                                <summary className="bg-slate-50 p-4 font-bold text-slate-600 cursor-pointer flex justify-between items-center hover:bg-slate-100 transition-colors select-none">
+                                    <span className="flex items-center gap-2 text-xs uppercase tracking-wider"><Icon name="sliders" size={16}/> Ver Ficha Técnica Detallada (+)</span>
+                                    <Icon name="chevron-down" size={16} className="group-open:rotate-180 transition-transform text-slate-400"/>
                                 </summary>
-                                <div className="p-6 grid grid-cols-12 gap-x-6 gap-y-6 bg-white">
+                                <div className="p-6 grid grid-cols-12 gap-x-6 gap-y-6 bg-slate-50/50 border-t border-slate-100">
                                     {technicalFields.map(renderField)}
                                 </div>
                             </details>
@@ -850,10 +823,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                                         <h4 className={`font-black text-sm uppercase mb-1 ${newProduct.coldChainStatus === 'INCUMPLE' ? 'text-red-700' : 'text-sky-800'}`}>
                                             CONTROL DE CADENA DE FRÍO (Decreto 1782)
                                         </h4>
-                                        <p className="text-xs font-medium text-slate-600 mb-4">
-                                            Registre la temperatura actual del refrigerador. Rango permitido: 2.0°C a 8.0°C.
-                                        </p>
-                                        <div className="flex gap-4 items-end">
+                                        <div className="flex gap-4 items-end mt-4">
                                             <div className="w-40">
                                                 <label className="text-[10px] font-bold text-sky-700 uppercase mb-1 block">Temperatura (°C)</label>
                                                 <Input type="number" step="0.1" value={newProduct.storageTemp || ''} onChange={e => setNewProduct({...newProduct, storageTemp: e.target.value})} placeholder="Ej: 4.5" className={`font-bold text-lg h-12 text-center ${newProduct.coldChainStatus === 'INCUMPLE' ? 'border-red-300 bg-red-50 text-red-700' : 'border-sky-300'}`} />
@@ -882,16 +852,16 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                                     <button onClick={() => handleAddProduct(true)} disabled={cumValidationState === 'EXPIRED'} className={`px-8 py-4 rounded-xl font-bold shadow-xl flex items-center gap-3 text-white transition-all transform hover:scale-[1.02] ${cumValidationState === 'EXPIRED' || (needsColdChain && newProduct.coldChainStatus === 'INCUMPLE') ? 'bg-slate-300 cursor-not-allowed' : 'bg-slate-900 hover:bg-slate-800'}`}><Icon name="check-circle" size={20}/> REGISTRAR CONFORME</button>
                                 </>
                             ) : (
-                                <div className="w-full bg-red-50 p-6 rounded-2xl border border-red-100 animate-in slide-in-from-bottom-4">
+                                <div className="w-full bg-red-50 p-6 rounded-2xl border border-red-100 animate-in slide-in-from-bottom-4 shadow-xl shadow-red-50/50">
                                     <div className="flex items-center gap-3 mb-6 pb-4 border-b border-red-200/50">
                                         <div className="p-2 bg-red-100 text-red-600 rounded-lg"><Icon name="shield-off" size={24}/></div>
                                         <div><h4 className="font-black text-red-900 uppercase">Panel de Medidas Sanitarias</h4><p className="text-xs text-red-700">Configure la causal y la medida a aplicar.</p></div>
                                     </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-6">
                                         <div>
-                                            <label className="text-xs font-bold text-red-800 uppercase mb-2 block">Causales del Riesgo (Selección Múltiple)</label>
+                                            <label className="text-xs font-bold text-red-800 uppercase mb-3 block tracking-wide">Causales del Riesgo (Selección Múltiple)</label>
 
-                                            {/* [NEW] CHIPS SELECTOR FOR RISKS */}
+                                            {/* [NEW] PILLS SELECTOR (Clean UI) */}
                                             <div className="flex flex-wrap gap-2">
                                                 {['VENCIDO', 'SIN_REGISTRO', 'ALTERADO', 'USO_INSTITUCIONAL', 'MUESTRA_MEDICA', 'MAL_ALMACENAMIENTO', 'FRAUDULENTO'].map((risk) => {
                                                     const isSelected = (newProduct.riskFactors || []).includes(risk as RiskFactor);
@@ -910,7 +880,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                                                                     };
                                                                 });
                                                             }}
-                                                            className={`px-3 py-1.5 rounded-full border text-[10px] font-bold transition-all flex items-center gap-1.5 ${isSelected ? 'bg-red-600 text-white border-red-700 shadow-sm' : 'bg-white text-red-800 border-red-200 hover:bg-red-50'}`}
+                                                            className={`px-4 py-2 rounded-full text-[10px] font-black tracking-wide transition-all flex items-center gap-2 transform active:scale-95 ${isSelected ? 'bg-red-600 text-white shadow-md shadow-red-200 ring-2 ring-red-400 ring-offset-1' : 'bg-white text-red-800 border border-red-200 hover:bg-red-50 hover:border-red-300'}`}
                                                         >
                                                             {isSelected && <Icon name="check" size={10}/>}
                                                             {risk.replace(/_/g, ' ')}
@@ -921,23 +891,30 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
 
                                         </div>
                                         <div>
-                                            <label className="text-xs font-bold text-red-800 uppercase mb-2 block">Medida a Aplicar</label>
-                                            <select className="w-full h-12 border-2 border-red-200 rounded-xl text-red-900 font-bold bg-white px-3 focus:ring-4 focus:ring-red-100 outline-none" value={newProduct.seizureType} onChange={e=>setNewProduct({...newProduct, seizureType: e.target.value as SeizureType})}><option value="NINGUNO">Seleccione...</option><option value="DECOMISO">DECOMISO (Incautación)</option><option value="CONGELAMIENTO">CONGELAMIENTO</option><option value="DESNATURALIZACION">DESTRUCCIÓN IN SITU</option></select>
-
-                                            <div className="mt-4 p-4 bg-red-100 rounded-xl">
-                                                <h5 className="text-[10px] font-bold text-red-800 uppercase mb-1">Resumen de Hallazgos</h5>
-                                                {(newProduct.riskFactors || []).length > 0 ? (
-                                                    <div className="flex flex-wrap gap-1">
-                                                        {(newProduct.riskFactors || []).map(r => (
-                                                            <span key={r} className="text-[9px] font-black uppercase text-white bg-red-400 px-1.5 py-0.5 rounded">{r.replace(/_/g, ' ')}</span>
-                                                        ))}
-                                                    </div>
-                                                ) : <p className="text-xs text-red-400 italic">Ningún riesgo seleccionado.</p>}
+                                            <label className="text-xs font-bold text-red-800 uppercase mb-3 block tracking-wide">Medida a Aplicar</label>
+                                            <div className="relative">
+                                                <select className="w-full h-12 pl-4 pr-10 border-2 border-red-200 rounded-xl text-red-900 font-bold bg-white focus:border-red-500 focus:ring-4 focus:ring-red-100 outline-none appearance-none transition-all cursor-pointer" value={newProduct.seizureType} onChange={e=>setNewProduct({...newProduct, seizureType: e.target.value as SeizureType})}>
+                                                    <option value="NINGUNO">SOLO HALLAZGO (Sin Medida)</option>
+                                                    <option value="DECOMISO">DECOMISO (Incautación)</option>
+                                                    <option value="CONGELAMIENTO">CONGELAMIENTO</option>
+                                                    <option value="DESNATURALIZACION">DESTRUCCIÓN IN SITU</option>
+                                                </select>
+                                                <div className="absolute right-4 top-3.5 text-red-400 pointer-events-none"><Icon name="chevron-down" size={16}/></div>
                                             </div>
+
+                                            {/* JUST-IN-TIME CALCULATOR */}
+                                            {newProduct.seizureType !== 'NINGUNO' && (
+                                                <div className="mt-4 animate-in fade-in slide-in-from-top-2">
+                                                    <SeizureCalculator onCalculate={handleCalculatorUpdate} cum={newProduct.cum} presentation={newProduct.presentation} pharmaceuticalForm={newProduct.pharmaceuticalForm} isVerified={cumSearchStatus === 'FOUND'} />
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
-                                    {newProduct.seizureType !== 'NINGUNO' && (<div className="mb-6"><SeizureCalculator onCalculate={handleCalculatorUpdate} cum={newProduct.cum} presentation={newProduct.presentation} pharmaceuticalForm={newProduct.pharmaceuticalForm} isVerified={cumSearchStatus === 'FOUND'} /></div>)}
-                                    <div className="flex justify-end gap-4"><button onClick={() => setIsReportingIssue(false)} className="px-6 py-3 text-slate-500 font-bold hover:text-slate-800 transition-colors">Cancelar</button><button onClick={() => handleAddProduct(false)} className="px-8 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold shadow-lg shadow-red-200 flex items-center gap-2"><Icon name="alert-octagon" size={18}/> CONFIRMAR HALLAZGO</button></div>
+
+                                    <div className="flex justify-end gap-4 border-t border-red-200 pt-6">
+                                        <button onClick={() => setIsReportingIssue(false)} className="px-6 py-3 text-slate-500 font-bold hover:text-slate-800 transition-colors">Cancelar</button>
+                                        <button onClick={() => handleAddProduct(false)} className="px-8 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold shadow-lg shadow-red-200 flex items-center gap-2 transform hover:scale-[1.02] transition-all"><Icon name="alert-octagon" size={18}/> CONFIRMAR HALLAZGO</button>
+                                    </div>
                                 </div>
                             )}
                         </div>
