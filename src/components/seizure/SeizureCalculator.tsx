@@ -48,9 +48,8 @@ export const SeizureCalculator: React.FC<SeizureCalculatorProps> = ({
       let displayVolume = 0;
       let displayUnit = model.contentUnit;
 
+      // Strict Check: Only calculate volume if NOT Discrete and contentNet is valid
       if (mode !== 'DISCRETE' && contentNet > 0) {
-          // Fórmula: (Cajas * Factor * ContenidoNeto) + (Sueltos * ContenidoNeto)
-          // Simplificada: totalLegalUnits * contentNet
           logisticVolume = totalLegalUnits * contentNet;
           displayVolume = logisticVolume;
           
@@ -61,6 +60,9 @@ export const SeizureCalculator: React.FC<SeizureCalculatorProps> = ({
               displayVolume /= 1000;
               displayUnit = 'g';
           }
+      } else {
+          // Explicitly zero out volume for Discrete items
+          displayVolume = 0;
       }
 
       const logistics: SeizureLogistics = {
@@ -156,6 +158,7 @@ export const SeizureCalculator: React.FC<SeizureCalculatorProps> = ({
                 </p>
             </div>
 
+            {/* Strict Condition for Volume Display */}
             {model.mode !== 'DISCRETE' && model.contentNet > 0 && (
                 <div className="text-right border-l border-slate-200 pl-4">
                     <p className={`text-[9px] font-black text-${theme}-600 uppercase`}>

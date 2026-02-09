@@ -19,7 +19,16 @@ interface AuthState {
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
-      user: null,
+      // MOCK USER FOR VERIFICATION
+      user: {
+          id: 'mock-user-id',
+          name: 'Jules Tester',
+          username: 'TESTER',
+          role: 'INSPECTOR',
+          status: 'ACTIVO',
+          contractDateEnd: '2030-12-31',
+          pin: 'mock-pin'
+      } as User,
 
       login: async (username: string, pin: string): Promise<LoginResponse> => {
         try {

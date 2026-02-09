@@ -39,7 +39,6 @@ import type {
 // 1. EXTENSIONES DE TIPO Y UTILIDADES LOCALES
 // =============================================================================
 
-// Props del Componente Principal
 interface InspectionFormProps {
   contextData?: {
     actId: string;
@@ -55,33 +54,25 @@ interface InspectionFormProps {
   };
 }
 
-// Extensión del Hallazgo para manejo en UI
 interface LocalProductFinding extends ProductFinding {
-    // Control de UI
     isExpanded?: boolean;
     hasEvidence?: boolean;
     containerId?: string; 
-    
-    // Auditoría de Datos (ALCOA+)
-    originalCumData?: Partial<ProductFinding>; // Snapshot de la BD al momento de la selección
-    originalInput?: { packs: number; loose: number }; // Inputs crudos del usuario
-    
-    // Metadatos de Validación
+    originalCumData?: Partial<ProductFinding>;
+    originalInput?: { packs: number; loose: number };
     validationStatus?: 'VALID' | 'WARNING' | 'ERROR';
     validationMessage?: string;
 }
 
-// Estructura de Contenedor de Custodia
 interface EvidenceContainer {
     id: string;
     type: 'BOLSA_SEGURIDAD' | 'CAJA_SELLADA' | 'NEVERA_PORTATIL' | 'SOBRE_MANILA';
     code: string; 
-    items: string[]; // IDs de productos
+    items: string[];
     weight?: number;
     sealedAt?: string;
 }
 
-// Soporte para Web Speech API
 declare global {
     interface Window {
         webkitSpeechRecognition: any;
@@ -89,10 +80,8 @@ declare global {
     }
 }
 
-// Helpers de Formateo
 const formatEnum = (text: string | undefined) => text ? text.replace(/_/g, ' ') : '';
 
-// Helper de Grilla Estricta (12 Columnas)
 const getColSpanClass = (field: FieldConfig) => {
     const colSpans: Record<number, string> = {
         1: 'md:col-span-1', 2: 'md:col-span-2', 3: 'md:col-span-3',
@@ -104,34 +93,27 @@ const getColSpanClass = (field: FieldConfig) => {
 };
 
 // =============================================================================
-// 2. COMPONENTE PRINCIPAL (MONOLITO LÓGICO)
+// 2. COMPONENTE PRINCIPAL
 // =============================================================================
 
 export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) => {
-  // --- HOOKS DE RUTEO Y CONTEXTO ---
   const { establishmentId } = useParams();
   const navigate = useNavigate();
   const { showToast } = useToast();
-  
-  // --- REFERENCIAS ---
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // --- ESTADOS DE LA MÁQUINA DE INSPECCIÓN ---
+  // --- ESTADOS ---
   const [loading, setLoading] = useState(false);
   const [currentTab, setCurrentTab] = useState<'DIAGNOSTICO' | 'PRODUCTOS' | 'CUSTODIA' | 'CIERRE'>('DIAGNOSTICO');
-
-  // --- ESTADOS DE DIAGNÓSTICO (MATRIZ) ---
   const [inspectionItems, setInspectionItems] = useState<InspectionItem[]>([]);
   const [checklistResponses, setChecklistResponses] = useState<Record<string, any>>({});
   const [score, setScore] = useState<number>(100);
   const [concept, setConcept] = useState<ConceptType>('PENDIENTE');
 
-  // --- ESTADOS DE INVENTARIO Y PRODUCTOS ---
   const [products, setProducts] = useState<LocalProductFinding[]>([]);
   const [containers, setContainers] = useState<EvidenceContainer[]>([]); 
   const [newContainer, setNewContainer] = useState<{type: string, code: string}>({ type: 'BOLSA_SEGURIDAD', code: '' }); 
   
-  // --- ESTADOS DE FORMULARIO DE PRODUCTO ---
   const [formError, setFormError] = useState<string | null>(null); 
   const [isReportingIssue, setIsReportingIssue] = useState(false);
   const [evidenceTemp, setEvidenceTemp] = useState(false); 
@@ -139,60 +121,38 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
   const [looseInput, setLooseInput] = useState<number>(0);
   const [interpretedQty, setInterpretedQty] = useState<string>('');
 
-  // --- ESTADOS DE BÚSQUEDA CUM (MOTOR HÍBRIDO) ---
   const [isSearchingCum, setIsSearchingCum] = useState(false);
   const [cumSearchStatus, setCumSearchStatus] = useState<'IDLE' | 'FOUND' | 'NOT_FOUND'>('IDLE');
   const [cumValidationState, setCumValidationState] = useState<'VALID' | 'EXPIRED' | 'SUSPENDED' | 'REVOKED' | null>(null);
   const [cumQuery, setCumQuery] = useState('');
   const [cumResults, setCumResults] = useState<ExtendedCumRecord[]>([]);
   
-  // --- ESTADOS DE CUSTODIA Y LOGÍSTICA ---
   const [custodyData, setCustodyData] = useState<Partial<CustodyChain> & { transportType?: string }>({
-    depositLocation: '', 
-    transportType: 'INSTITUCIONAL', 
-    transportCompany: '', 
-    transportPlate: '', 
-    driverName: ''
+    depositLocation: '', transportType: 'INSTITUCIONAL', transportCompany: '', transportPlate: '', driverName: ''
   });
 
-  // --- ESTADOS DE CIERRE Y LEGAL ---
   const [attendees, setAttendees] = useState<InspectionAttendee[]>([]);
   const [citizenObservation, setCitizenObservation] = useState('');
   const [inspectionNarrative, setInspectionNarrative] = useState(''); 
   const [legalBasis, setLegalBasis] = useState(''); 
   const [isListening, setIsListening] = useState<string | null>(null); 
 
-  // --- GESTIÓN DE FIRMANTES ---
   const addAttendee = (role: InspectionAttendee['role']) => {
-      setAttendees(prev => [...prev, {
-          id: crypto.randomUUID(),
-          name: '',
-          idNumber: '',
-          role,
-          signature: null
-      }]);
+      setAttendees(prev => [...prev, { id: crypto.randomUUID(), name: '', idNumber: '', role, signature: null }]);
   };
-
   const updateAttendee = (id: string, field: keyof InspectionAttendee, value: any) => {
       setAttendees(prev => prev.map(a => a.id === id ? { ...a, [field]: value } : a));
   };
-
-  const removeAttendee = (id: string) => {
-      setAttendees(prev => prev.filter(a => a.id !== id));
-  };
+  const removeAttendee = (id: string) => { setAttendees(prev => prev.filter(a => a.id !== id)); };
   
-  // --- ESTADOS DE MODALES ---
   const [showCumModal, setShowCumModal] = useState(false);
   const [showEvidenceModal, setShowEvidenceModal] = useState(false);
   const [showBlockModal, setShowBlockModal] = useState(false);
   const [showDraftModal, setShowDraftModal] = useState(false);
   const [pendingEvidenceId, setPendingEvidenceId] = useState<string | null>(null);
-  
-  // --- ESTADOS DE PDF ---
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | undefined>(undefined);
   const [pendingReportData, setPendingReportData] = useState<Partial<Report> | null>(null);
 
-  // --- ESTADO OBJETO PRODUCTO (WORK IN PROGRESS) ---
   const [newProduct, setNewProduct] = useState<Partial<ProductFinding> & { 
       coldChainStatus?: string; 
       pharmaceuticalForm?: string;
@@ -213,10 +173,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
     packLabel: '', logistics: undefined, calibrationStatus: ''
   });
 
-  // --- QUERIES DE BASE DE DATOS (DEXIE) ---
   const establishment = useLiveQuery(() => (establishmentId ? db.establishments.get(Number(establishmentId)) : undefined), [establishmentId]);
-  
-  // --- VARIABLES DERIVADAS ---
   const hasSeizures = useMemo(() => products.some(p => p.seizureType !== 'NINGUNO'), [products]);
   
   const INSPECTION_STEPS: StepItem[] = [
@@ -230,7 +187,6 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
   // 3. LOGICA DE NEGOCIO Y EFECTOS
   // ===========================================================================
 
-  // --- INICIALIZACIÓN ---
   useEffect(() => { 
       if (establishment) {
           const items = inspectionEngine.generate(establishment);
@@ -238,29 +194,22 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       }
   }, [establishment]);
 
-  // --- CÁLCULO DE RIESGO EN TIEMPO REAL ---
   useEffect(() => { 
       if (inspectionItems.length === 0) return; 
-      
       const simpleResponses: Record<string, string> = {}; 
       Object.keys(checklistResponses).forEach(key => simpleResponses[key] = checklistResponses[key].status); 
-      
       const engineScore = inspectionEngine.calculateRisk(inspectionItems, simpleResponses); 
       const hasCriticalProductFindings = products.some(p => p.riskFactors && p.riskFactors.length > 0);
-      
       const finalScore = hasCriticalProductFindings ? Math.min(engineScore, 59) : engineScore;
-      
       setScore(finalScore); 
       setConcept(inspectionEngine.getConcept(finalScore, hasCriticalProductFindings)); 
   }, [checklistResponses, products, inspectionItems]);
 
-  // --- PARSER DE CANTIDADES (FEEDBACK VISUAL) ---
   const parsedModel = useMemo(() => parsePresentation(newProduct.pharmaceuticalForm, newProduct.presentation), [newProduct.pharmaceuticalForm, newProduct.presentation]);
 
   useEffect(() => {
       if (newProduct.presentation && newProduct.pharmaceuticalForm && (packsInput > 0 || looseInput > 0) && !isReportingIssue) {
           const totalUnits = (packsInput * parsedModel.packFactor) + looseInput;
-          
           if (packsInput > 0) {
               setInterpretedQty(`Total Legal: ${totalUnits} ${parsedModel.containerType}s (${packsInput} ${parsedModel.packType}s x ${parsedModel.packFactor} + ${looseInput})`);
           } else {
@@ -271,13 +220,12 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       }
   }, [newProduct.presentation, newProduct.pharmaceuticalForm, packsInput, looseInput, isReportingIssue, parsedModel]);
 
-  // --- MONITOR DE VENCIMIENTO MANUAL (LÓGICA REACTIVA 2.1) ---
+  // --- MONITOR DE VENCIMIENTO ---
   useEffect(() => {
     if (newProduct.expirationDate && !isReportingIssue) {
         const expDate = new Date(newProduct.expirationDate);
         const today = new Date();
-        today.setHours(0, 0, 0, 0); // Normalizar hoy a medianoche
-
+        today.setHours(0, 0, 0, 0);
         if (expDate < today) {
             setIsReportingIssue(true);
             setNewProduct(prev => ({
@@ -286,16 +234,11 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                 seizureType: 'DECOMISO'
             }));
             showToast("⚠️ ALERTA: La fecha indica que el producto está VENCIDO.", "warning");
-        } else {
-            setNewProduct(prev => ({
-                ...prev,
-                riskFactors: (prev.riskFactors || []).filter(r => r !== 'VENCIDO')
-            }));
         }
     }
   }, [newProduct.expirationDate, isReportingIssue, showToast]);
 
-  // --- MONITOR DE CADENA DE FRÍO (LÓGICA REACTIVA 2.3) ---
+  // --- MONITOR CADENA DE FRÍO (FIX: Appending Risk) ---
   const needsColdChain = useMemo(() =>
       newProduct.type === 'MEDICAMENTO' &&
       ['BIOLOGICO', 'BIOTECNOLOGICO', 'REACTIVO_INVITRO'].includes(newProduct.subtype as string),
@@ -310,6 +253,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                       setNewProduct(prev => ({
                           ...prev,
                           coldChainStatus: 'INCUMPLE',
+                          // Append 'MAL_ALMACENAMIENTO' without overwriting existing risks
                           riskFactors: Array.from(new Set([...(prev.riskFactors || []), 'MAL_ALMACENAMIENTO'] as RiskFactor[]))
                       }));
                       showToast("⛔ ALERTA CRÍTICA: Ruptura de Cadena de Frío detected (Fuera de 2°C - 8°C)!", "error");
@@ -327,15 +271,10 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       }
   }, [needsColdChain, newProduct.storageTemp, showToast]);
 
-  // --- INFERENCIA DE TEXTO (LÓGICA REACTIVA 2.2) ---
+  // --- INFERENCIA DE TEXTO ---
   useEffect(() => {
       if (newProduct.presentation) {
           const text = newProduct.presentation.toUpperCase();
-
-          if (text.includes("INSTITUCIONAL") && !(newProduct.riskFactors || []).includes('USO_INSTITUCIONAL') && !isReportingIssue) {
-               showToast("💡 Sugerencia: Se detectó 'USO INSTITUCIONAL'. Verifique si está permitido su venta.", "info");
-          }
-
           if (text.includes("MUESTRA") && !(newProduct.riskFactors || []).includes('MUESTRA_MEDICA') && !isReportingIssue) {
               setIsReportingIssue(true);
               setNewProduct(prev => ({
@@ -348,161 +287,97 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       }
   }, [newProduct.presentation, isReportingIssue, newProduct.riskFactors, showToast]);
 
-
-  // --- HANDLER: DICTADO POR VOZ ---
+  // --- DICTADO POR VOZ ---
   const toggleListening = (fieldId: string, setter: React.Dispatch<React.SetStateAction<string>>) => {
     if (isListening === fieldId) { setIsListening(null); return; }
-    
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) { 
-        showToast("Navegador no compatible con dictado.", 'error'); 
-        return; 
-    }
-
+    if (!SpeechRecognition) { showToast("Navegador no compatible con dictado.", 'error'); return; }
     const recognition = new SpeechRecognition();
     recognition.lang = 'es-CO';
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
-
     setIsListening(fieldId);
     showToast("🎤 Escuchando... hable claro.", 'info');
-
     recognition.onresult = (event: any) => {
         const transcript = event.results[0][0].transcript;
         setter(prev => prev ? `${prev} ${transcript}` : transcript); 
         setIsListening(null);
     };
-
-    recognition.onerror = (event: any) => {
-        console.warn("Error voz:", event.error);
-        setIsListening(null);
-    };
-
+    recognition.onerror = (event: any) => { setIsListening(null); };
     recognition.onend = () => setIsListening(null);
     recognition.start();
   };
 
-  // --- LOGÍSTICA: GESTIÓN DE CUSTODIA ---
+  // --- LOGÍSTICA ---
   const addContainer = () => { 
       if (!newContainer.code) { showToast("⚠️ Código de precinto requerido.", 'warning'); return; } 
       const newId = crypto.randomUUID(); 
-      setContainers(prev => [...prev, { 
-          id: newId, 
-          type: newContainer.type as any, 
-          code: newContainer.code, 
-          items: [] 
-      }]); 
+      setContainers(prev => [...prev, { id: newId, type: newContainer.type as any, code: newContainer.code, items: [] }]);
       setNewContainer({ ...newContainer, code: '' }); 
       showToast("Contenedor creado.", 'success');
   };
-  
   const removeContainer = (containerId: string) => { 
-      // Liberar items
       setProducts(prev => prev.map(p => p.containerId === containerId ? { ...p, containerId: undefined } : p)); 
       setContainers(prev => prev.filter(c => c.id !== containerId)); 
       showToast("Contenedor eliminado.", 'info');
   };
-  
-  const assignItemToContainer = (productId: string, containerId: string) => { 
-      setProducts(prev => prev.map(p => p.id === productId ? { ...p, containerId } : p)); 
-  };
-  
-  const unassignItem = (productId: string) => { 
-      setProducts(prev => prev.map(p => p.id === productId ? { ...p, containerId: undefined } : p)); 
-  };
+  const assignItemToContainer = (productId: string, containerId: string) => { setProducts(prev => prev.map(p => p.id === productId ? { ...p, containerId } : p)); };
+  const unassignItem = (productId: string) => { setProducts(prev => prev.map(p => p.id === productId ? { ...p, containerId: undefined } : p)); };
 
-  // --- EVIDENCIA FOTOGRÁFICA ---
+  // --- EVIDENCIA ---
   const handlePhotoClick = () => { fileInputRef.current?.click(); };
-  
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { 
       if (e.target.files && e.target.files[0]) { 
           const fakeUrl = URL.createObjectURL(e.target.files[0]); 
-          
           if (pendingEvidenceId) { 
-              // Flujo de Corrección (Lista)
               setProducts(prev => prev.map(p => p.id === pendingEvidenceId ? { ...p, hasEvidence: true, photoUrl: fakeUrl } : p)); 
               setPendingEvidenceId(null); 
               showToast("Evidencia vinculada.", 'success'); 
           } else { 
-              // Flujo de Creación
               setEvidenceTemp(true); 
               setShowEvidenceModal(false); 
           } 
           e.target.value = ''; 
       } 
   };
-  
-  const triggerEvidenceCheck = (id: string) => { 
-      setPendingEvidenceId(id); 
-      fileInputRef.current?.click(); 
-  };
+  const triggerEvidenceCheck = (id: string) => { setPendingEvidenceId(id); fileInputRef.current?.click(); };
 
-  // --- MOTOR DE BÚSQUEDA CUM (CORE) ---
+  // --- BÚSQUEDA CUM (STRICT MAPPING) ---
   const searchCum = async (query: string) => {
       setIsSearchingCum(true);
       const cleanQuery = query.trim().toUpperCase();
       let results: ExtendedCumRecord[] = [];
-
       try {
-          if (!cleanQuery) {
-              setCumResults([]);
-              setIsSearchingCum(false);
-              return;
-          }
-
-          // Estrategia de Búsqueda
+          if (!cleanQuery) { setCumResults([]); setIsSearchingCum(false); return; }
           if (/^\d+/.test(cleanQuery)) {
-              // Numérica: Expediente
-              results = await db.cums
-                  .where('expediente')
-                  .startsWith(cleanQuery)
-                  .limit(20)
-                  .toArray() as unknown as ExtendedCumRecord[];
+              results = await db.cums.where('expediente').startsWith(cleanQuery).limit(20).toArray() as unknown as ExtendedCumRecord[];
           } else {
-              // Texto: Producto o Principio
-              const byProduct = await db.cums
-                  .where('producto')
-                  .startsWithIgnoreCase(cleanQuery)
-                  .limit(15)
-                  .toArray();
-                  
-              const byActive = await db.cums
-                  .where('principioactivo')
-                  .startsWithIgnoreCase(cleanQuery)
-                  .limit(10)
-                  .toArray();
-
-              // Merge Único
+              const byProduct = await db.cums.where('producto').startsWithIgnoreCase(cleanQuery).limit(15).toArray();
+              const byActive = await db.cums.where('principioactivo').startsWithIgnoreCase(cleanQuery).limit(10).toArray();
               const combined = [...byProduct, ...byActive];
               const unique = new Map();
               combined.forEach(item => unique.set(item.expediente, item));
               results = Array.from(unique.values()) as unknown as ExtendedCumRecord[];
           }
-      } catch (e) {
-          console.error("Error CUM:", e);
-      } finally {
+      } catch (e) { console.error("Error CUM:", e); }
+      finally {
           setCumResults(results);
           setIsSearchingCum(false);
           setCumSearchStatus(results.length > 0 ? 'FOUND' : 'NOT_FOUND');
       }
   };
 
-  // Debounce para input en modal
   useEffect(() => {
       if (!showCumModal) return; 
-      const timer = setTimeout(() => {
-          if (cumQuery.length > 2) searchCum(cumQuery);
-      }, 400); 
+      const timer = setTimeout(() => { if (cumQuery.length > 2) searchCum(cumQuery); }, 400);
       return () => clearTimeout(timer);
   }, [cumQuery, showCumModal]);
 
   const selectFromModal = (record: ExtendedCumRecord) => {
       let validation: 'VALID' | 'EXPIRED' | 'SUSPENDED' | 'REVOKED' = 'VALID';
       const status = record.estadoregistro ? record.estadoregistro.toUpperCase() : '';
-      
-      if (status.includes('VENCID') || status.includes('CANCELAD') || status.includes('REVOCAD')) {
-          validation = 'EXPIRED';
-      } else if (record.fechavencimiento) {
+      if (status.includes('VENCID') || status.includes('CANCELAD') || status.includes('REVOCAD')) { validation = 'EXPIRED'; }
+      else if (record.fechavencimiento) {
           const expiration = new Date(record.fechavencimiento);
           if (expiration < new Date()) validation = 'EXPIRED';
       }
@@ -513,33 +388,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
           showToast("⚠️ ALERTA: Registro Sanitario NO VIGENTE en BD.", "warning");
       }
 
-      // Helper de Limpieza de datos (Data Governance)
-      const cleanVal = (val: string | undefined) => {
-          if (!val) return '';
-          const trimmed = val.trim();
-          // Eliminar basura: ".", "-", "null", o letras sueltas (A, B) sin números
-          if (['.', '-', 'null', 'undefined'].includes(trimmed.toLowerCase())) return '';
-          if (trimmed.length <= 1 && !/\d/.test(trimmed)) return ''; // Elimina 'A', 'F' pero mantiene '5'
-          return trimmed;
-      };
-
-      // Lógica de Extracción Fallback (Si CUM no tiene datos explícitos)
-      let extractedConc = cleanVal(record.concentracion);
-      let extractedUnit = cleanVal(record.unidadmedida);
-
-      if (!extractedConc) {
-          // Intentar extraer de Nombre o Descripción
-          const combinedText = ((record.producto || '') + ' ' + (record.descripcioncomercial || '')).toUpperCase();
-          // Regex prioridad: MG, G, MCG, UI, IU
-          const match = combinedText.match(/(\d+[\.,]?\d*)\s*(MG|MCG|G|UI|IU)/);
-          if (match) {
-              extractedConc = match[1].replace(',', '.');
-              // Solo asignar unidad si no existía, para respetar la oficial si la hubiera (raro)
-              if (!extractedUnit) extractedUnit = match[2].replace('IU', 'UI');
-          }
-      }
-
-      // Mapeo Automático
+      // FIX: Direct Mapping (No aggressive cleaning)
       const mappedProduct: Partial<ProductFinding> = {
           cum: record.expediente + (record.consecutivocum ? `-${record.consecutivocum}` : ''), 
           name: record.producto,
@@ -548,8 +397,8 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
           presentation: record.descripcioncomercial, 
           pharmaceuticalForm: record.formafarmaceutica,
           activePrinciple: record.principioactivo,
-          concentration: extractedConc,
-          unit: extractedUnit,
+          concentration: record.concentracion, // Direct map
+          unit: record.unidadmedida, // Direct map
           viaAdministration: record.viaadministracion,
           atcCode: record.atc,
           riskFactors: validation !== 'VALID' ? [(validation === 'EXPIRED' ? 'VENCIDO' : 'SIN_REGISTRO')] : []
@@ -560,7 +409,6 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       setCumQuery('');
   };
 
-  // --- CALCULADORA DE VOLUMEN (CALLBACK) ---
   const handleCalculatorUpdate = useCallback((total: number, label: string, logistics: SeizureLogistics) => {
       setNewProduct(prev => {
           if (prev.quantity === total && prev.packLabel === label) return prev; 
@@ -568,34 +416,23 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       });
   }, []);
 
-  // --- AGREGAR PRODUCTO (COMMIT) ---
   const commitProduct = (overrideEvidence: boolean) => {
       const currentRisks = newProduct.riskFactors || [];
       let finalQuantity = 0;
       let smartLabel = '';
       let currentLogistics = newProduct.logistics;
 
-      // Cálculo de Inventario
       if (!isReportingIssue && newProduct.presentation && newProduct.pharmaceuticalForm) {
           finalQuantity = (packsInput * parsedModel.packFactor) + looseInput;
-          
-          if (packsInput > 0 && looseInput > 0) {
-              smartLabel = `${packsInput} ${parsedModel.packType}s + ${looseInput} ${parsedModel.containerType}s`;
-          } else if (packsInput > 0) {
-              smartLabel = `${packsInput} ${parsedModel.packType}s`;
-          } else {
-              smartLabel = `${looseInput} ${parsedModel.containerType}s`;
-          }
+          if (packsInput > 0 && looseInput > 0) smartLabel = `${packsInput} ${parsedModel.packType}s + ${looseInput} ${parsedModel.containerType}s`;
+          else if (packsInput > 0) smartLabel = `${packsInput} ${parsedModel.packType}s`;
+          else smartLabel = `${looseInput} ${parsedModel.containerType}s`;
 
           if (!currentLogistics) {
               currentLogistics = {
                   presentation: parsedModel,
                   inputs: { packs: packsInput, loose: looseInput },
-                  totals: { 
-                      legalUnits: finalQuantity, 
-                      logisticVolume: (finalQuantity * parsedModel.contentNet),
-                      logisticUnit: parsedModel.contentUnit || 'Unid'
-                  },
+                  totals: { legalUnits: finalQuantity, logisticVolume: (finalQuantity * parsedModel.contentNet), logisticUnit: parsedModel.contentUnit || 'Unid' },
                   calculationMethod: 'AUTO_CUM'
               };
           }
@@ -604,10 +441,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
           smartLabel = newProduct.packLabel || `${finalQuantity} Unidades`;
       }
 
-      if (finalQuantity <= 0) {
-          setFormError("La cantidad debe ser mayor a cero.");
-          return;
-      }
+      if (finalQuantity <= 0) { setFormError("La cantidad debe ser mayor a cero."); return; }
 
       const finding: LocalProductFinding = {
         ...(newProduct as LocalProductFinding), 
@@ -624,7 +458,6 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
 
       setProducts(prev => [finding, ...prev]);
       
-      // Reset Form
       setNewProduct({ 
         type: newProduct.type, subtype: newProduct.subtype,
         name: '', manufacturer: '', riskFactors: [], seizureType: 'NINGUNO', quantity: 0,
@@ -632,165 +465,74 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
         pharmaceuticalForm: '', activePrinciple: '', concentration: '', unit: '', viaAdministration: '', atcCode: '',
         packLabel: '', logistics: undefined, originalCumData: undefined, calibrationStatus: ''
       });
-      setPacksInput(0);
-      setLooseInput(0);
-      setCumSearchStatus('IDLE'); 
-      setCumValidationState(null); 
-      setIsReportingIssue(false); 
-      setEvidenceTemp(false); 
-      setShowEvidenceModal(false);
+      setPacksInput(0); setLooseInput(0);
+      setCumSearchStatus('IDLE'); setCumValidationState(null); setIsReportingIssue(false);
+      setEvidenceTemp(false); setShowEvidenceModal(false);
   };
 
   const handleAddProduct = (isConform: boolean) => {
     setFormError(null); 
-    
-    // 1. VALIDACIÓN BÁSICA
     if (!newProduct.name) { setFormError("El nombre del producto es obligatorio."); return; }
     
-    // 2. VALIDACIÓN MOTOR DE REGLAS (NUEVO)
     const effectiveRisks = isConform ? [] : (newProduct.riskFactors || []);
     const validation = inspectionEngine.validateProduct({ ...newProduct, riskFactors: effectiveRisks } as ProductFinding);
     
     if (!validation.isValid) {
         const violationsText = validation.violations.map(v => `${v.id}: ${v.description}`).join(' | ');
-        
-        // Bloqueo duro si hay regla CRITICA y se intenta pasar como CONFORME
         const isCritical = validation.violations.some(v => v.riskLevel === 'CRITICO');
-        if (isConform && isCritical) {
-             setFormError(`⛔ BLOQUEO REGULATORIO: ${violationsText}`);
-             return;
-        }
-        
-        // Alerta si es no conforme pero se permite guardar
-        if (!isConform) {
-            showToast(`⚠️ Alerta Regulatoria: ${violationsText}`, 'warning');
-        }
+        if (isConform && isCritical) { setFormError(`⛔ BLOQUEO REGULATORIO: ${violationsText}`); return; }
+        if (!isConform) { showToast(`⚠️ Alerta Regulatoria: ${violationsText}`, 'warning'); }
     }
 
-    // 2.1 BLOQUEO CADENA DE FRIO
-    if (needsColdChain && newProduct.coldChainStatus === 'INCUMPLE' && isConform) {
-        setFormError("⛔ BLOQUEO TÉCNICO: Ruptura de Cadena de Frío. Debe reportar como hallazgo.");
-        return;
-    }
-
-    // 3. SEMÁFORO CUM (Backup)
-    if (isConform && (cumValidationState === 'EXPIRED' || cumValidationState === 'SUSPENDED' || cumValidationState === 'REVOKED')) {
-        setFormError("⛔ BLOQUEO: Registro Vencido/Cancelado. Debe reportarlo como Hallazgo.");
-        return;
-    }
-
+    if (needsColdChain && newProduct.coldChainStatus === 'INCUMPLE' && isConform) { setFormError("⛔ BLOQUEO TÉCNICO: Ruptura de Cadena de Frío. Debe reportar como hallazgo."); return; }
+    if (isConform && (cumValidationState === 'EXPIRED' || cumValidationState === 'SUSPENDED' || cumValidationState === 'REVOKED')) { setFormError("⛔ BLOQUEO: Registro Vencido/Cancelado. Debe reportarlo como Hallazgo."); return; }
     if (isConform && effectiveRisks.length > 0) { setFormError("Inconsistencia: No puede ser Conforme si ha seleccionado Factores de Riesgo."); return; }
+    if (!isConform && effectiveRisks.length > 0 && !evidenceTemp) { setShowEvidenceModal(true); return; }
     
-    // 4. EVIDENCIA OBLIGATORIA
-    if (!isConform && effectiveRisks.length > 0 && !evidenceTemp) {
-        setShowEvidenceModal(true); 
-        return; 
-    }
-    
-    // 5. REGISTRAR REGLA VIOLADA
-    if (!validation.isValid && validation.violations.length > 0) {
-        newProduct.regRuleRef = validation.violations[0].id;
-    }
-
+    if (!validation.isValid && validation.violations.length > 0) { newProduct.regRuleRef = validation.violations[0].id; }
     commitProduct(evidenceTemp || isConform);
   };
 
-  const removeProduct = (id: string) => {
-      setProducts(prev => prev.filter(p => p.id !== id));
-  };
+  const removeProduct = (id: string) => { setProducts(prev => prev.filter(p => p.id !== id)); };
 
-  // --- ASISTENTE LEGAL IA ---
   const handleAutoGenerate = () => {
       if (!establishment) return;
       const { narrativeSuggestion, legalBasisSuggestion, violatedNorms } = inspectionEngine.generateLegalContext(checklistResponses, products, establishment);
-
-      setInspectionNarrative(prev => {
-          const cleanPrev = prev.trim();
-          return cleanPrev ? cleanPrev + "\n\n" + narrativeSuggestion : narrativeSuggestion;
-      });
-      setLegalBasis(prev => {
-          const cleanPrev = prev.trim();
-          return cleanPrev ? cleanPrev + "\n\n" + legalBasisSuggestion : legalBasisSuggestion;
-      });
-
-      if (violatedNorms.length > 0) {
-          showToast(`Se detectaron ${violatedNorms.length} normas incumplidas.`, 'info');
-      } else {
-          showToast("Narrativa base generada con éxito.", 'success');
-      }
+      setInspectionNarrative(prev => (prev.trim() ? prev.trim() + "\n\n" + narrativeSuggestion : narrativeSuggestion));
+      setLegalBasis(prev => (prev.trim() ? prev.trim() + "\n\n" + legalBasisSuggestion : legalBasisSuggestion));
+      showToast(violatedNorms.length > 0 ? `Se detectaron ${violatedNorms.length} normas incumplidas.` : "Narrativa base generada con éxito.", 'info');
   };
 
-  // --- CIERRE Y PDF (LÓGICA FINAL) ---
   const handleReviewDraft = async () => {
     if (!establishment || !establishmentId) return;
     if (!inspectionNarrative) { showToast("⚠️ Debe completar la narrativa de los hechos.", 'error'); return; }
-    
-    // Validación de Bloqueo por Falta de Evidencia
     const pendingEvidence = products.some(p => p.riskFactors && p.riskFactors.length > 0 && !p.hasEvidence);
-    if (pendingEvidence) { 
-        setShowBlockModal(true); 
-        return; 
-    }
+    if (pendingEvidence) { setShowBlockModal(true); return; }
 
     setLoading(true);
     try {
       let seizureRecord: CustodyChain | undefined = undefined;
       if (products.some(p => p.seizureType !== 'NINGUNO')) {
         seizureRecord = { 
-            id: crypto.randomUUID(), 
-            visitId: 0, 
-            items: products.filter(p => p.seizureType !== 'NINGUNO'), 
-            status: 'EN_CUSTODIA', 
-            seizedBy: contextData?.actId || 'INSPECTOR', 
-            seizedAt: new Date().toISOString(), 
-            depositLocation: custodyData.depositLocation || '', 
-            transportCompany: custodyData.transportCompany, 
-            transportPlate: custodyData.transportPlate, 
-            driverName: custodyData.driverName 
+            id: crypto.randomUUID(), visitId: 0, items: products.filter(p => p.seizureType !== 'NINGUNO'), status: 'EN_CUSTODIA',
+            seizedBy: contextData?.actId || 'INSPECTOR', seizedAt: new Date().toISOString(), depositLocation: custodyData.depositLocation || '',
+            transportCompany: custodyData.transportCompany, transportPlate: custodyData.transportPlate, driverName: custodyData.driverName
         };
       }
-      
       const reportDraft: Partial<Report> = {
-        date: new Date().toISOString(), 
-        establishment_id: establishmentId, 
-        est: establishment.name, 
-        category: establishment.category, 
-        nit: establishment.nit, 
-        address: establishment.address, 
-        concept: concept, 
-        riskScore: score, 
-        riskLevel: score < 60 ? 'CRITICO' : 'BAJO', 
-        func: "INSPECTOR VIGISALUD",
-        data: { 
-            actId: contextData?.actId || '', 
-            motive: contextData?.motive || '', 
-            status: 'ATENDIDA', 
-            attendedBy: contextData?.attendedBy || '', 
-            attendedId: contextData?.attendedId, 
-            attendedRole: contextData?.attendedRole, 
-            gpsBypass: false, 
-            attendees: attendees,
-            inspectionNarrative, 
-            legalBasis, 
-            city: establishment.city 
-        },
-        findings: checklistResponses, 
-        products: products, 
-        seizure: seizureRecord, 
-        signature: null,
-        citizenFeedback: { text: citizenObservation, signature: '', agreed: true }
+        date: new Date().toISOString(), establishment_id: establishmentId, est: establishment.name, category: establishment.category,
+        nit: establishment.nit, address: establishment.address, concept: concept, riskScore: score, riskLevel: score < 60 ? 'CRITICO' : 'BAJO',
+        func: "INSPECTOR VIGISALUD", data: { actId: contextData?.actId || '', motive: contextData?.motive || '', status: 'ATENDIDA',
+            attendedBy: contextData?.attendedBy || '', attendedId: contextData?.attendedId, attendedRole: contextData?.attendedRole, gpsBypass: false,
+            attendees: attendees, inspectionNarrative, legalBasis, city: establishment.city }, findings: checklistResponses, products: products,
+        seizure: seizureRecord, signature: null, citizenFeedback: { text: citizenObservation, signature: '', agreed: true }
       };
-      
       setPendingReportData(reportDraft); 
       const blob = await generateInspectionPDF(reportDraft as Report, true); 
       setPdfBlobUrl(URL.createObjectURL(blob));
       setShowDraftModal(true);
-    } catch (e) { 
-        console.error(e); 
-        showToast("Error generando el PDF del acta.", 'error'); 
-    } finally { 
-        setLoading(false); 
-    }
+    } catch (e) { console.error(e); showToast("Error generando el PDF del acta.", 'error'); }
+    finally { setLoading(false); }
   };
 
   const handleFinalizeInspection = async () => {
@@ -802,13 +544,8 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
           await db.inspections.add(pendingReportData as Report);
           showToast(`✅ Acta N° ${pendingReportData.data?.actId} cerrada correctamente.`, 'success');
           navigate('/dashboard/inspections');
-      } catch (e) { 
-          console.error(e); 
-          showToast("Error guardando en base de datos local.", 'error'); 
-      } finally { 
-          setLoading(false); 
-          setShowDraftModal(false); 
-      }
+      } catch (e) { console.error(e); showToast("Error guardando en base de datos local.", 'error'); }
+      finally { setLoading(false); setShowDraftModal(false); }
   };
 
   // --- HANDLERS MATRIZ ---
@@ -823,7 +560,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
   };
 
   // ===========================================================================
-  // 4. RENDERIZADO DINÁMICO DE CAMPOS (UI PROFESIONAL)
+  // 4. RENDERIZADO DINÁMICO (UI UPDATE: READ-ONLY & PROGRESSIVE)
   // ===========================================================================
 
   const renderField = (field: FieldConfig) => {
@@ -836,6 +573,24 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       const originalValue = newProduct.originalCumData ? newProduct.originalCumData[field.key as keyof ProductFinding] : undefined;
       const currentValue = newProduct[field.key as keyof ProductFinding];
       const isDiscrepant = originalValue && currentValue && originalValue !== currentValue;
+
+      // --- [NEW] UI: READ ONLY CARD FOR CUM FIELDS ---
+      // If we have CUM data loaded, fields like Name, Reg, Manufacturer are READ ONLY.
+      const isLockedByCum = newProduct.originalCumData && ['name', 'invimaReg', 'manufacturer', 'presentation', 'activePrinciple'].includes(field.key);
+
+      if (isLockedByCum) {
+          return (
+              <div className={colClass} key={field.key}>
+                   <div className="flex justify-between items-end mb-1.5">
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">{field.label}</label>
+                      <Icon name="lock" size={12} className="text-slate-300"/>
+                  </div>
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-700 font-bold text-sm shadow-inner truncate">
+                      {currentValue as string || '---'}
+                  </div>
+              </div>
+          );
+      }
 
       // CAMPO CUM (Input Libre + Botón)
       if (field.key === 'cum') {
@@ -852,22 +607,18 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                               onChange={e => {
                                   const val = e.target.value;
                                   setNewProduct(prev => {
-                                      // 2.1. AUTO-CLEAR: Si el usuario borra el CUM, limpiar todo
                                       if (val === '') {
                                           return {
-                                              ...prev,
-                                              cum: '',
-                                              name: '', invimaReg: '', lot: '', serial: '',
+                                              ...prev, cum: '', name: '', invimaReg: '', lot: '', serial: '',
                                               expirationDate: '', presentation: '', pharmaceuticalForm: '',
-                                              activePrinciple: '', concentration: '', unit: '',
-                                              originalCumData: undefined
+                                              activePrinciple: '', concentration: '', unit: '', originalCumData: undefined
                                           };
                                       }
                                       return { ...prev, cum: val };
                                   });
                               }}
                               placeholder={field.placeholder || "Digite..."}
-                              className="font-bold text-sm h-11" // UI Standardized
+                              className="font-bold text-sm h-11"
                           />
                       </div>
                       <button 
@@ -883,9 +634,26 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
           );
       }
 
-      // CAMPO CONCENTRACIÓN + UNIDAD (Hybrid - Manual Técnico)
+      // CAMPO CONCENTRACIÓN + UNIDAD
       if (field.key === 'concentration') {
            const disableConcentration = newProduct.unit === 'NO_APLICA' || parsedModel.isConcentrationIrrelevant;
+           // If loaded from CUM, these are also locked, but handled by isLockedByCum logic above if strictly mapped?
+           // No, concentration/unit logic is complex. Let's lock if present in CUM.
+           const isConcLocked = newProduct.originalCumData?.concentration;
+
+           if (isConcLocked) {
+               return (
+                  <div className={colClass} key={field.key}>
+                      <div className="flex justify-between items-end mb-1.5">
+                          <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">{field.label}</label>
+                          <Icon name="lock" size={12} className="text-slate-300"/>
+                      </div>
+                      <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-700 font-bold text-sm shadow-inner truncate">
+                          {newProduct.concentration} {newProduct.unit}
+                      </div>
+                  </div>
+               );
+           }
 
            return (
               <div className={colClass} key={field.key}>
@@ -906,7 +674,6 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                           />
                       </div>
                       <div className="w-1/3">
-                          {/* 2.2. SELECTOR DE UNIDADES */}
                           <div className="relative">
                               <select
                                   value={newProduct.unit || ''}
@@ -934,24 +701,12 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                       <div className="flex items-end gap-3">
                           <div className="flex-1">
                               <label className="text-[10px] font-bold text-slate-400 mb-1.5 block uppercase">Cajas/Empaques</label>
-                              <Input 
-                                  type="number" 
-                                  value={packsInput || ''} 
-                                  onChange={e => setPacksInput(Math.max(0, parseInt(e.target.value) || 0))} 
-                                  placeholder="0" 
-                                  className="text-center font-bold text-lg h-12 border-slate-300" // Aligned height
-                              />
+                              <Input type="number" value={packsInput || ''} onChange={e => setPacksInput(Math.max(0, parseInt(e.target.value) || 0))} placeholder="0" className="text-center font-bold text-lg h-12 border-slate-300" />
                           </div>
                           <div className="pb-3 text-slate-300"><Icon name="plus" size={24}/></div>
                           <div className="flex-1">
                               <label className="text-[10px] font-bold text-slate-400 mb-1.5 block uppercase">Unidades Sueltas</label>
-                              <Input 
-                                  type="number" 
-                                  value={looseInput || ''} 
-                                  onChange={e => setLooseInput(Math.max(0, parseInt(e.target.value) || 0))} 
-                                  placeholder="0" 
-                                  className="text-center font-bold text-lg h-12 border-slate-300" // Aligned height
-                              />
+                              <Input type="number" value={looseInput || ''} onChange={e => setLooseInput(Math.max(0, parseInt(e.target.value) || 0))} placeholder="0" className="text-center font-bold text-lg h-12 border-slate-300" />
                           </div>
                       </div>
                       {interpretedQty && !isReportingIssue && (
@@ -996,7 +751,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                       onChange={e => setNewProduct({...newProduct, [field.key]: e.target.value})} 
                       placeholder={field.placeholder} 
                       disabled={field.disabled}
-                      className={`h-11 shadow-sm font-bold text-sm ${isDiscrepant ? 'border-amber-300 bg-amber-50/20' : ''}`} // Standardized
+                      className={`h-11 shadow-sm font-bold text-sm ${isDiscrepant ? 'border-amber-300 bg-amber-50/20' : ''}`}
                   />
               )}
           </div>
@@ -1005,6 +760,10 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
 
   if (!establishment) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="text-center"><Icon name="loader" className="animate-spin text-blue-600 mx-auto mb-4" size={40}/><h2 className="text-slate-600 font-bold">Cargando Expediente...</h2></div></div>;
   const currentSchema = PRODUCT_SCHEMAS[newProduct.type as string] || PRODUCT_SCHEMAS['OTRO'];
+
+  // --- [NEW] SEPARAR CAMPOS TÉCNICOS ---
+  const mainFields = currentSchema.fields.filter(f => !['atcCode', 'viaAdministration', 'pharmaceuticalForm'].includes(f.key));
+  const technicalFields = currentSchema.fields.filter(f => ['atcCode', 'viaAdministration', 'pharmaceuticalForm'].includes(f.key));
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-24 animate-in fade-in relative">
@@ -1038,7 +797,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                 </div>
             )}
 
-            {/* PESTAÑA 2: PRODUCTOS (REDISEÑADA) */}
+            {/* PESTAÑA 2: PRODUCTOS */}
             {currentTab === 'PRODUCTOS' && (
             <div className="space-y-8 animate-in slide-in-from-right-4 duration-300">
                 <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 border border-slate-200 overflow-hidden">
@@ -1063,58 +822,57 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                     </div>
 
                     <div className="p-8">
+                        {/* MAIN FIELDS GRID */}
                         <div className="grid grid-cols-12 gap-x-6 gap-y-8">
-                            {currentSchema.fields.map(renderField)}
+                            {mainFields.map(renderField)}
+                        </div>
 
-                            {/* 2.3 PANEL DE CADENA DE FRÍO (REACTIVO) */}
-                            {needsColdChain && (
-                                <div className="col-span-12 p-5 bg-sky-50 border-2 border-sky-200 rounded-xl animate-in slide-in-from-top-2">
-                                    <div className="flex items-start gap-4">
-                                        <div className={`p-3 rounded-xl ${newProduct.coldChainStatus === 'INCUMPLE' ? 'bg-red-100 text-red-600' : 'bg-sky-100 text-sky-600'}`}>
-                                            <Icon name="snowflake" size={24}/>
-                                        </div>
-                                        <div className="flex-1">
-                                            <h4 className={`font-black text-sm uppercase mb-1 ${newProduct.coldChainStatus === 'INCUMPLE' ? 'text-red-700' : 'text-sky-800'}`}>
-                                                CONTROL DE CADENA DE FRÍO (Decreto 1782)
-                                            </h4>
-                                            <p className="text-xs font-medium text-slate-600 mb-4">
-                                                Registre la temperatura actual del refrigerador. Rango permitido: 2.0°C a 8.0°C.
-                                            </p>
-                                            <div className="flex gap-4 items-end">
-                                                <div className="w-40">
-                                                    <label className="text-[10px] font-bold text-sky-700 uppercase mb-1 block">Temperatura (°C)</label>
-                                                    <Input
-                                                        type="number"
-                                                        step="0.1"
-                                                        value={newProduct.storageTemp || ''}
-                                                        onChange={e => setNewProduct({...newProduct, storageTemp: e.target.value})}
-                                                        placeholder="Ej: 4.5"
-                                                        className={`font-bold text-lg h-12 text-center ${newProduct.coldChainStatus === 'INCUMPLE' ? 'border-red-300 bg-red-50 text-red-700' : 'border-sky-300'}`}
-                                                    />
-                                                </div>
-                                                <div className="flex-1 pb-1">
-                                                    {newProduct.coldChainStatus === 'INCUMPLE' ? (
-                                                        <div className="flex items-center gap-2 text-red-600 font-bold bg-red-100 px-3 py-2 rounded-lg">
-                                                            <Icon name="alert-triangle" size={18}/> RUPTURA DETECTADA - INMOVILIZACIÓN REQUERIDA
-                                                        </div>
-                                                    ) : newProduct.storageTemp ? (
-                                                        <div className="flex items-center gap-2 text-emerald-600 font-bold bg-emerald-100 px-3 py-2 rounded-lg">
-                                                            <Icon name="check-circle" size={18}/> TEMPERATURA CONFORME
-                                                        </div>
-                                                    ) : null}
-                                                </div>
+                        {/* [NEW] COLLAPSIBLE TECHNICAL FIELDS (Progressive Disclosure) */}
+                        {technicalFields.length > 0 && (
+                            <details className="mt-8 group border border-slate-200 rounded-xl overflow-hidden">
+                                <summary className="bg-slate-50 p-4 font-bold text-slate-600 cursor-pointer flex justify-between items-center hover:bg-slate-100 transition-colors">
+                                    <span className="flex items-center gap-2"><Icon name="sliders" size={16}/> DETALLES TÉCNICOS ADICIONALES</span>
+                                    <Icon name="chevron-down" size={16} className="group-open:rotate-180 transition-transform"/>
+                                </summary>
+                                <div className="p-6 grid grid-cols-12 gap-x-6 gap-y-6 bg-white">
+                                    {technicalFields.map(renderField)}
+                                </div>
+                            </details>
+                        )}
+
+                        {needsColdChain && (
+                            <div className="col-span-12 mt-8 p-5 bg-sky-50 border-2 border-sky-200 rounded-xl animate-in slide-in-from-top-2">
+                                <div className="flex items-start gap-4">
+                                    <div className={`p-3 rounded-xl ${newProduct.coldChainStatus === 'INCUMPLE' ? 'bg-red-100 text-red-600' : 'bg-sky-100 text-sky-600'}`}>
+                                        <Icon name="snowflake" size={24}/>
+                                    </div>
+                                    <div className="flex-1">
+                                        <h4 className={`font-black text-sm uppercase mb-1 ${newProduct.coldChainStatus === 'INCUMPLE' ? 'text-red-700' : 'text-sky-800'}`}>
+                                            CONTROL DE CADENA DE FRÍO (Decreto 1782)
+                                        </h4>
+                                        <p className="text-xs font-medium text-slate-600 mb-4">
+                                            Registre la temperatura actual del refrigerador. Rango permitido: 2.0°C a 8.0°C.
+                                        </p>
+                                        <div className="flex gap-4 items-end">
+                                            <div className="w-40">
+                                                <label className="text-[10px] font-bold text-sky-700 uppercase mb-1 block">Temperatura (°C)</label>
+                                                <Input type="number" step="0.1" value={newProduct.storageTemp || ''} onChange={e => setNewProduct({...newProduct, storageTemp: e.target.value})} placeholder="Ej: 4.5" className={`font-bold text-lg h-12 text-center ${newProduct.coldChainStatus === 'INCUMPLE' ? 'border-red-300 bg-red-50 text-red-700' : 'border-sky-300'}`} />
+                                            </div>
+                                            <div className="flex-1 pb-1">
+                                                {newProduct.coldChainStatus === 'INCUMPLE' ? (
+                                                    <div className="flex items-center gap-2 text-red-600 font-bold bg-red-100 px-3 py-2 rounded-lg"><Icon name="alert-triangle" size={18}/> RUPTURA DETECTADA - INMOVILIZACIÓN REQUERIDA</div>
+                                                ) : newProduct.storageTemp ? (
+                                                    <div className="flex items-center gap-2 text-emerald-600 font-bold bg-emerald-100 px-3 py-2 rounded-lg"><Icon name="check-circle" size={18}/> TEMPERATURA CONFORME</div>
+                                                ) : null}
                                             </div>
                                         </div>
                                     </div>
                                 </div>
-                            )}
-                        </div>
-                        
-                        {formError && (
-                            <div className="mt-8 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3 text-red-700 animate-shake">
-                                <Icon name="alert-circle" size={24}/>
-                                <span className="font-bold text-sm">{formError}</span>
                             </div>
+                        )}
+
+                        {formError && (
+                            <div className="mt-8 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3 text-red-700 animate-shake"><Icon name="alert-circle" size={24}/><span className="font-bold text-sm">{formError}</span></div>
                         )}
 
                         <div className="flex flex-col md:flex-row gap-4 justify-end mt-10 pt-8 border-t border-slate-100">
@@ -1132,7 +890,9 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                                         <div>
                                             <label className="text-xs font-bold text-red-800 uppercase mb-2 block">Causales del Riesgo (Selección Múltiple)</label>
-                                            <div className="grid grid-cols-2 gap-2">
+
+                                            {/* [NEW] CHIPS SELECTOR FOR RISKS */}
+                                            <div className="flex flex-wrap gap-2">
                                                 {['VENCIDO', 'SIN_REGISTRO', 'ALTERADO', 'USO_INSTITUCIONAL', 'MUESTRA_MEDICA', 'MAL_ALMACENAMIENTO', 'FRAUDULENTO'].map((risk) => {
                                                     const isSelected = (newProduct.riskFactors || []).includes(risk as RiskFactor);
                                                     return (
@@ -1150,13 +910,15 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                                                                     };
                                                                 });
                                                             }}
-                                                            className={`px-2 py-3 rounded-lg border text-[10px] font-bold transition-all flex items-center justify-center text-center leading-tight h-14 ${isSelected ? 'bg-red-600 text-white border-red-700 shadow-md transform scale-[1.02]' : 'bg-white text-red-800 border-red-200 hover:bg-red-50'}`}
+                                                            className={`px-3 py-1.5 rounded-full border text-[10px] font-bold transition-all flex items-center gap-1.5 ${isSelected ? 'bg-red-600 text-white border-red-700 shadow-sm' : 'bg-white text-red-800 border-red-200 hover:bg-red-50'}`}
                                                         >
+                                                            {isSelected && <Icon name="check" size={10}/>}
                                                             {risk.replace(/_/g, ' ')}
                                                         </button>
                                                     );
                                                 })}
                                             </div>
+
                                         </div>
                                         <div>
                                             <label className="text-xs font-bold text-red-800 uppercase mb-2 block">Medida a Aplicar</label>
@@ -1165,9 +927,11 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                                             <div className="mt-4 p-4 bg-red-100 rounded-xl">
                                                 <h5 className="text-[10px] font-bold text-red-800 uppercase mb-1">Resumen de Hallazgos</h5>
                                                 {(newProduct.riskFactors || []).length > 0 ? (
-                                                    <ul className="list-disc pl-4 text-xs text-red-900 font-medium">
-                                                        {(newProduct.riskFactors || []).map(r => <li key={r}>{r.replace(/_/g, ' ')}</li>)}
-                                                    </ul>
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {(newProduct.riskFactors || []).map(r => (
+                                                            <span key={r} className="text-[9px] font-black uppercase text-white bg-red-400 px-1.5 py-0.5 rounded">{r.replace(/_/g, ' ')}</span>
+                                                        ))}
+                                                    </div>
                                                 ) : <p className="text-xs text-red-400 italic">Ningún riesgo seleccionado.</p>}
                                             </div>
                                         </div>
@@ -1218,10 +982,10 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
             </div>
             )}
 
-            {/* PESTAÑA 3: CUSTODIA (LOGÍSTICA) */}
+            {/* PESTAÑA 3: CUSTODIA (Rest unchanged) */}
             {currentTab === 'CUSTODIA' && hasSeizures && (
                 <div className="animate-in slide-in-from-right-4 duration-300 space-y-8">
-                    <div className="bg-orange-50 border-l-4 border-orange-500 p-6 rounded-r-2xl shadow-sm flex gap-4">
+                     <div className="bg-orange-50 border-l-4 border-orange-500 p-6 rounded-r-2xl shadow-sm flex gap-4">
                         <div className="bg-orange-100 p-3 rounded-xl text-orange-600 h-fit"><Icon name="shield-alert" size={32}/></div>
                         <div><h3 className="font-black text-orange-900 text-lg uppercase tracking-tight">Protocolo de Cadena de Custodia</h3><p className="text-sm text-orange-800 mt-2 leading-relaxed opacity-90">Se han generado medidas sanitarias que requieren aseguramiento físico. Diligencie la información de embalaje y transporte conforme a la Resolución 1234.</p></div>
                     </div>
@@ -1302,10 +1066,10 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                 </div>
             )}
 
-            {/* 4. CIERRE */}
+            {/* PESTAÑA 4: CIERRE (Rest unchanged) */}
             {currentTab === 'CIERRE' && (
                 <div className="animate-in fade-in zoom-in-95 space-y-8">
-                    <div className={`p-8 rounded-2xl shadow-xl border text-center text-white relative overflow-hidden ${score < 60 ? 'bg-gradient-to-br from-red-600 to-red-800 border-red-500' : 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700'}`}>
+                     <div className={`p-8 rounded-2xl shadow-xl border text-center text-white relative overflow-hidden ${score < 60 ? 'bg-gradient-to-br from-red-600 to-red-800 border-red-500' : 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700'}`}>
                         <div className="relative z-10">
                             <div className="text-xs uppercase tracking-[0.3em] opacity-80 mb-2 font-bold">Concepto Técnico Emitido</div>
                             <div className="text-5xl font-black mb-6 tracking-tight">{concept.replace('_', ' ')}</div>
@@ -1452,9 +1216,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
             )}
         </div>
 
-      {/* --- MODALES --- */}
-
-      {/* MODAL CUM (PRO SEARCH) */}
+      {/* MODALES (Rest unchanged) */}
       {showCumModal && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-200">
             <div className="absolute inset-0" onClick={() => setShowCumModal(false)}></div>
@@ -1518,7 +1280,6 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
         </div>, document.body
       )}
 
-      {/* MODAL EVIDENCIA */}
       {showEvidenceModal && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md animate-in fade-in zoom-in-95">
             <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl border-2 border-amber-200 overflow-hidden">
@@ -1537,7 +1298,6 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
         </div>, document.body
       )}
 
-      {/* MODAL BLOQUEO CIERRE */}
       {showBlockModal && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-red-900/50 backdrop-blur-md animate-in fade-in zoom-in-95">
             <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl border-4 border-red-500 overflow-hidden">

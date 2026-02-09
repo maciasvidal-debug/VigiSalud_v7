@@ -38,17 +38,37 @@ const RULE_DESCRIPTIONS: Record<string, string> = {
     'REG-D008': 'Res 333/11: Suplemento sin tabla nutricional.'
 };
 
+// [NEW] Mapeo de Riesgos a Texto Legal
+const RISK_LEGAL_TEXT: Record<string, string> = {
+    'VENCIDO': 'VENCIDO (Res 1403/07)',
+    'SIN_REGISTRO': 'SIN REGISTRO SANITARIO (Dec 677/95)',
+    'ALTERADO': 'ALTERADO / FRAUDULENTO (Ley 9/79)',
+    'USO_INSTITUCIONAL': 'USO INSTITUCIONAL (Prohibida venta comercial)',
+    'MUESTRA_MEDICA': 'MUESTRA MÉDICA (Prohibida venta)',
+    'MAL_ALMACENAMIENTO': 'CADENA DE FRÍO / ALMACENAMIENTO (Dec 1782)',
+    'FRAUDULENTO': 'FRAUDULENTO (Ley 9/79)',
+};
+
 const getFindingDescription = (product: ProductFinding) => {
+    // 1. Prioridad: Lista explícita de factores de riesgo (Manual Selection)
+    if (product.riskFactors && product.riskFactors.length > 0) {
+        // Map each risk to its legal text or fallback to readable enum
+        const riskDescriptions = product.riskFactors.map(r => {
+             return RISK_LEGAL_TEXT[r] || r.replace(/_/g, ' ');
+        });
+        return riskDescriptions.join('\n'); // Use newline for distinct listing
+    }
+
+    // 2. Fallback: Regla de Motor (Engine Auto-Validation)
     if (product.regRuleRef && RULE_DESCRIPTIONS[product.regRuleRef]) {
         return RULE_DESCRIPTIONS[product.regRuleRef];
     }
-    if (product.riskFactors && product.riskFactors.length > 0) {
-        const risks = product.riskFactors.map(r => r.replace(/_/g, ' ')).join(', ');
-        return `Riesgos Detectados: ${risks}`;
-    }
+
+    // 3. Fallback: Observaciones manuales
     if (product.observations) {
         return `Obs: ${product.observations}`;
     }
+
     return 'CUMPLE NORMATIVIDAD';
 };
 
@@ -242,7 +262,7 @@ export const generateInspectionPDF = async (report: Report, isDraft: boolean = f
       doc.setTextColor(0);
       
       items.forEach(p => {
-          // Cálculo de altura dinámica para descripción
+          // Cálculo de altura dinámica para descripción (Iterative Multiline)
           const descText = getFindingDescription(p);
           const splitDesc = doc.splitTextToSize(descText, cols[3].width - 2);
           const rowHeight = Math.max(10, splitDesc.length * 3 + 4);
@@ -271,7 +291,7 @@ export const generateInspectionPDF = async (report: Report, isDraft: boolean = f
           doc.text(qtyText, x, y);
           x += cols[2].width;
 
-          // Col 4: Hallazgo (Split Text)
+          // Col 4: Hallazgo (Split Text & Color)
           const isRisk = p.riskFactors && p.riskFactors.length > 0;
           if (isRisk) doc.setTextColor(COLORS.danger[0], COLORS.danger[1], COLORS.danger[2]);
           doc.text(splitDesc, x, y);
