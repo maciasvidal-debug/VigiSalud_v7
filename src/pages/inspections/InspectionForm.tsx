@@ -508,6 +508,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
     const pendingEvidence = products.some(p => p.riskFactors && p.riskFactors.length > 0 && !p.hasEvidence);
     if (pendingEvidence) { setShowBlockModal(true); return; }
 
+
     setLoading(true);
     try {
       let seizureRecord: CustodyChain | undefined = undefined;
