@@ -216,6 +216,27 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       }
   }, [newProduct.presentation, newProduct.pharmaceuticalForm, packsInput, looseInput, isReportingIssue, parsedModel]);
 
+  // --- SMART REGEX PARSER: CONCENTRACIÓN (UX INTELIGENTE) ---
+  useEffect(() => {
+    // Solo actuar si hay datos maestros y no estamos en modo edición manual
+    if (newProduct.originalCumData?.concentration && !isEditingMasterData) {
+        const raw = newProduct.originalCumData.concentration.trim();
+        // REGEX: Captura grupo 1 (Números/Puntos) y grupo 2 (Texto restante)
+        const match = raw.match(/^([0-9.,]+)\s*([a-zA-Z%µ./]+.*)$/);
+
+        if (match) {
+            setNewProduct(prev => ({
+                ...prev,
+                concentration: match[1], // Ej: 500
+                unit: match[2]           // Ej: MG
+            }));
+        } else {
+             // Fallback si no tiene formato estándar
+             setNewProduct(prev => ({ ...prev, concentration: raw, unit: '' }));
+        }
+    }
+  }, [newProduct.originalCumData, isEditingMasterData]);
+
   // --- MONITOR DE VENCIMIENTO ---
   useEffect(() => {
     if (newProduct.expirationDate && !isReportingIssue) {
@@ -492,70 +513,85 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
   };
 
   const handleAddProduct = (isConform: boolean) => {
-    if (isAddingProduct) return; // Prevent double-submission
-    setIsAddingProduct(true);
+    if (isAddingProduct) return;
+    setIsAddingProduct(true); // 🔴 LOCK
 
     setFormError(null); 
 
-    // Safety check: Release lock if validation fails early
-    const releaseLock = () => setTimeout(() => setIsAddingProduct(false), 500);
+    // Función helper para liberar siempre
+    const releaseLock = () => setTimeout(() => setIsAddingProduct(false), 300);
 
-    if (!newProduct.name) { setFormError("El nombre del producto es obligatorio."); releaseLock(); return; }
-    
-    const effectiveRisks = isConform ? [] : (newProduct.riskFactors || []);
-    const validation = inspectionEngine.validateProduct({ ...newProduct, riskFactors: effectiveRisks } as ProductFinding);
-    
-    if (!validation.isValid) {
-        const violationsText = validation.violations.map(v => `${v.id}: ${v.description}`).join(' | ');
-        const isCritical = validation.violations.some(v => v.riskLevel === 'CRITICO');
-        if (isConform && isCritical) { setFormError(`⛔ BLOQUEO REGULATORIO: ${violationsText}`); releaseLock(); return; }
-        if (!isConform) { showToast(`⚠️ Alerta Regulatoria: ${violationsText}`, 'warning'); }
-    }
+    try {
+        if (!newProduct.name) { throw new Error("El nombre del producto es obligatorio."); }
 
-    // --- VALIDACIONES ESPECIALIZADAS (LOGIC ENGINE V2) ---
-    const coldChainVal = validateColdChain(newProduct as ProductFinding);
-    if (!coldChainVal.isValid) {
-        if (isConform) { setFormError(`⛔ ${coldChainVal.message}`); releaseLock(); return; }
-        // Auto-tagging si es hallazgo
-        if (!effectiveRisks.includes('MAL_ALMACENAMIENTO')) {
-             effectiveRisks.push('MAL_ALMACENAMIENTO');
-             newProduct.coldChainStatus = 'INCUMPLE';
+        // 1. Validaciones Regulatorias (Inspection Engine)
+        const effectiveRisks = isConform ? [] : (newProduct.riskFactors || []);
+        const validation = inspectionEngine.validateProduct({ ...newProduct, riskFactors: effectiveRisks } as ProductFinding);
+
+        if (!validation.isValid) {
+            const violationsText = validation.violations.map(v => `${v.id}: ${v.description}`).join(' | ');
+            const isCritical = validation.violations.some(v => v.riskLevel === 'CRITICO');
+
+            if (isConform && isCritical) {
+                throw new Error(`⛔ BLOQUEO REGULATORIO: ${violationsText}`);
+            }
+            if (!isConform) { showToast(`⚠️ Alerta Regulatoria: ${violationsText}`, 'warning'); }
         }
+
+        // 2. Validaciones Especializadas (Logic Engine V2 - NO BORRAR)
+        const coldChainVal = validateColdChain(newProduct as ProductFinding);
+        if (!coldChainVal.isValid) {
+            if (isConform) throw new Error(`⛔ ${coldChainVal.message}`);
+            if (!effectiveRisks.includes('MAL_ALMACENAMIENTO')) {
+                 effectiveRisks.push('MAL_ALMACENAMIENTO');
+                 newProduct.coldChainStatus = 'INCUMPLE';
+            }
+        }
+
+        const expVal = validateExpiration(newProduct as ProductFinding);
+        if (!expVal.isValid) {
+            if (isConform) throw new Error(`⛔ ${expVal.message}`);
+            if (!effectiveRisks.includes('VENCIDO')) effectiveRisks.push('VENCIDO');
+        }
+
+        const instVal = validateInstitucional(newProduct as ProductFinding);
+        if (!instVal.isValid) {
+            if (isConform) throw new Error(`⛔ ${instVal.message}`);
+            if (!effectiveRisks.includes('USO_INSTITUCIONAL')) effectiveRisks.push('USO_INSTITUCIONAL');
+        }
+
+        // 3. Reglas de Negocio Específicas
+        if (needsColdChain && newProduct.coldChainStatus === 'INCUMPLE' && isConform) {
+            throw new Error("⛔ BLOQUEO TÉCNICO: Ruptura de Cadena de Frío. Debe reportar como hallazgo.");
+        }
+
+        if (isConform && (cumValidationState === 'EXPIRED' || cumValidationState === 'SUSPENDED' || cumValidationState === 'REVOKED')) {
+            throw new Error("⛔ BLOQUEO: Registro Vencido/Cancelado. Debe reportarlo como Hallazgo.");
+        }
+
+        if (isConform && effectiveRisks.length > 0) {
+            throw new Error("Inconsistencia: No puede ser Conforme si ha seleccionado Factores de Riesgo.");
+        }
+
+        // 4. Manejo de Modal de Evidencia (PUNTO DE FALLA ANTERIOR CORREGIDO)
+        if (!isConform && effectiveRisks.length > 0 && !evidenceTemp) {
+            setShowEvidenceModal(true);
+            releaseLock(); // ✅ LIBERAMOS EL LOCK ANTES DE SALIR
+            return;
+        }
+
+        // 5. Commit Final
+        if (!validation.isValid && validation.violations.length > 0) { newProduct.regRuleRef = validation.violations[0].id; }
+
+        commitProduct(evidenceTemp || isConform);
+
+    } catch (error: any) {
+        console.error(error);
+        setFormError(error.message);
+        showToast(error.message, 'error');
+    } finally {
+        releaseLock(); // 🟢 GARANTÍA DE DESBLOQUEO SIEMPRE
     }
-
-    const expVal = validateExpiration(newProduct as ProductFinding);
-    if (!expVal.isValid) {
-        if (isConform) { setFormError(`⛔ ${expVal.message}`); releaseLock(); return; }
-        if (!effectiveRisks.includes('VENCIDO')) effectiveRisks.push('VENCIDO');
-    }
-
-    const instVal = validateInstitucional(newProduct as ProductFinding);
-    if (!instVal.isValid) {
-        if (isConform) { setFormError(`⛔ ${instVal.message}`); releaseLock(); return; }
-        if (!effectiveRisks.includes('USO_INSTITUCIONAL')) effectiveRisks.push('USO_INSTITUCIONAL');
-    }
-
-    if (needsColdChain && newProduct.coldChainStatus === 'INCUMPLE' && isConform) { setFormError("⛔ BLOQUEO TÉCNICO: Ruptura de Cadena de Frío. Debe reportar como hallazgo."); releaseLock(); return; }
-    if (isConform && (cumValidationState === 'EXPIRED' || cumValidationState === 'SUSPENDED' || cumValidationState === 'REVOKED')) { setFormError("⛔ BLOQUEO: Registro Vencido/Cancelado. Debe reportarlo como Hallazgo."); releaseLock(); return; }
-    if (isConform && effectiveRisks.length > 0) { setFormError("Inconsistencia: No puede ser Conforme si ha seleccionado Factores de Riesgo."); releaseLock(); return; }
-    if (!isConform && effectiveRisks.length > 0 && !evidenceTemp) { setShowEvidenceModal(true); return; } // Modal will handle unlock? No, modal is separate.
-    // Wait, if showEvidenceModal is true, we return and don't commit yet. The lock should be released?
-    // Or we keep it locked until modal action?
-    // Actually, if we show modal, the flow pauses. We should release lock so user can interact with modal buttons.
-    // But modal buttons call handlePhotoClick or commitProduct directly.
-    // commitProduct doesn't check isAddingProduct.
-    // Ideally commitProduct should also be shielded or we just release here.
-
-    if (!isConform && effectiveRisks.length > 0 && !evidenceTemp) {
-        setShowEvidenceModal(true);
-        releaseLock();
-        return;
-    }
-
-    if (!validation.isValid && validation.violations.length > 0) { newProduct.regRuleRef = validation.violations[0].id; }
-
-    commitProduct(evidenceTemp || isConform);
-    releaseLock();
   };
 
   const removeProduct = (id: string) => { setProducts(prev => prev.filter(p => p.id !== id)); };
@@ -737,6 +773,36 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                             isLocked={!isEditingMasterData && !!newProduct.originalCumData}
                             className="md:col-span-2"
                         />
+
+                        {/* NUEVO CAMPO DOBLE: CONCENTRACIÓN + UNIDAD */}
+                        <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="relative flex items-center">
+                                <div className="flex-1">
+                                     <label className="text-[10px] font-bold text-slate-400 uppercase mb-1.5 flex items-center gap-1">
+                                        Concentración {newProduct.originalCumData && <span className="text-[9px] text-blue-500 bg-blue-50 px-1 rounded">AUTO</span>}
+                                     </label>
+                                     <input
+                                        type="text"
+                                        value={newProduct.concentration || ''}
+                                        onChange={e => setNewProduct({...newProduct, concentration: e.target.value})}
+                                        placeholder="0"
+                                        disabled={!isEditingMasterData && !!newProduct.originalCumData}
+                                        className={`w-full h-11 pl-4 pr-16 rounded-xl border font-bold text-lg outline-none transition-all ${
+                                            (!isEditingMasterData && !!newProduct.originalCumData)
+                                            ? 'bg-blue-50/30 border-blue-200 text-slate-700'
+                                            : 'bg-white border-slate-300 focus:border-blue-500'
+                                        }`}
+                                    />
+                                </div>
+
+                                {/* ETIQUETA DE UNIDAD (SUFIJO FIJO VISUAL) */}
+                                <div className="absolute right-0 top-6 bottom-0 flex items-center justify-center bg-slate-100 border-l border-slate-200 rounded-r-xl px-3 min-w-[3.5rem] h-11">
+                                    <span className="text-xs font-black text-slate-600 uppercase">
+                                        {newProduct.unit || 'UNID'}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                      {/* Technical Accordion (Reusing existing logic somewhat) */}
@@ -936,7 +1002,8 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
   // Technical: ATC, Via, ActivePrinciple, Unit (Accordion)
   // Operational: Lot, Expiration, Quantity (Always Visible)
 
-  const technicalFieldsKeys = ['atcCode', 'viaAdministration', 'activePrinciple', 'unit', 'pharmaceuticalForm', 'concentration'];
+  // Modificado: Eliminamos 'concentration' y 'unit' porque ahora tienen UI dedicada en el bloque de identidad
+  const technicalFieldsKeys = ['atcCode', 'viaAdministration', 'activePrinciple', 'pharmaceuticalForm'];
 
   // Operational are the rest (minus Technical and Identity)
   // Technical fields definition
