@@ -50,6 +50,7 @@ export const PRODUCT_SCHEMAS: Record<string, ProductSchema> = {
       { key: 'activePrinciple', label: 'Principio Activo', type: 'text', required: true, placeholder: 'DCI', colSpan: 5, section: 'TECHNICAL' },
       { key: 'pharmaceuticalForm', label: 'Forma Farmacéutica', type: 'select', required: true, options: PHARMA_FORMS, colSpan: 4, section: 'TECHNICAL' },
       { key: 'concentration', label: 'Concentración', type: 'text', required: true, placeholder: 'Ej: 500mg', colSpan: 3, section: 'TECHNICAL' },
+      { key: 'atcCode', label: 'Código ATC', type: 'text', required: false, section: 'TECHNICAL' },
 
       // Fila 4: Fechas y Titular
       { key: 'expirationDate', label: 'Vencimiento', type: 'date', required: true, colSpan: 4, section: 'TECHNICAL' },

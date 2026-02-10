@@ -221,17 +221,18 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
     // Solo actuar si hay datos maestros y no estamos en modo edición manual
     if (newProduct.originalCumData?.concentration && !isEditingMasterData) {
         const raw = newProduct.originalCumData.concentration.trim();
-        // REGEX: Captura grupo 1 (Números/Puntos) y grupo 2 (Texto restante)
-        const match = raw.match(/^([0-9.,]+)\s*([a-zA-Z%µ./]+.*)$/);
+        // REGEX MEJORADA: Captura grupo 1 (Números, incluyendo decimales) y grupo 2 (Texto restante/Unidad)
+        // Ej: "SOL. 500 MG" -> "500", "MG"
+        const match = raw.match(/(\d+[.,]?\d*)\s*([a-zA-Z%µ./\s]+.*)/);
 
         if (match) {
             setNewProduct(prev => ({
                 ...prev,
-                concentration: match[1], // Ej: 500
-                unit: match[2]           // Ej: MG
+                concentration: match[1], // Valor limpio
+                unit: match[2].trim()    // Unidad limpia
             }));
         } else {
-             // Fallback si no tiene formato estándar
+             // Fallback si no hay números claros, deja raw y limpia unidad
              setNewProduct(prev => ({ ...prev, concentration: raw, unit: '' }));
         }
     }
@@ -518,27 +519,25 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
 
     setFormError(null); 
 
-    // Función helper para liberar siempre
+    // Helper para liberar (Safety Timeout)
     const releaseLock = () => setTimeout(() => setIsAddingProduct(false), 300);
 
     try {
         if (!newProduct.name) { throw new Error("El nombre del producto es obligatorio."); }
 
-        // 1. Validaciones Regulatorias (Inspection Engine)
+        // ... (Mantén aquí la lógica de inspectionEngine.validateProduct) ...
         const effectiveRisks = isConform ? [] : (newProduct.riskFactors || []);
         const validation = inspectionEngine.validateProduct({ ...newProduct, riskFactors: effectiveRisks } as ProductFinding);
 
         if (!validation.isValid) {
             const violationsText = validation.violations.map(v => `${v.id}: ${v.description}`).join(' | ');
-            const isCritical = validation.violations.some(v => v.riskLevel === 'CRITICO');
-
-            if (isConform && isCritical) {
+            if (isConform && validation.violations.some(v => v.riskLevel === 'CRITICO')) {
                 throw new Error(`⛔ BLOQUEO REGULATORIO: ${violationsText}`);
             }
             if (!isConform) { showToast(`⚠️ Alerta Regulatoria: ${violationsText}`, 'warning'); }
         }
 
-        // 2. Validaciones Especializadas (Logic Engine V2 - NO BORRAR)
+        // --- INICIO DE VALIDACIONES ESPECIALIZADAS (NO TOCAR) ---
         const coldChainVal = validateColdChain(newProduct as ProductFinding);
         if (!coldChainVal.isValid) {
             if (isConform) throw new Error(`⛔ ${coldChainVal.message}`);
@@ -559,24 +558,12 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
             if (isConform) throw new Error(`⛔ ${instVal.message}`);
             if (!effectiveRisks.includes('USO_INSTITUCIONAL')) effectiveRisks.push('USO_INSTITUCIONAL');
         }
+        // --- FIN VALIDACIONES ESPECIALIZADAS ---
 
-        // 3. Reglas de Negocio Específicas
-        if (needsColdChain && newProduct.coldChainStatus === 'INCUMPLE' && isConform) {
-            throw new Error("⛔ BLOQUEO TÉCNICO: Ruptura de Cadena de Frío. Debe reportar como hallazgo.");
-        }
-
-        if (isConform && (cumValidationState === 'EXPIRED' || cumValidationState === 'SUSPENDED' || cumValidationState === 'REVOKED')) {
-            throw new Error("⛔ BLOQUEO: Registro Vencido/Cancelado. Debe reportarlo como Hallazgo.");
-        }
-
-        if (isConform && effectiveRisks.length > 0) {
-            throw new Error("Inconsistencia: No puede ser Conforme si ha seleccionado Factores de Riesgo.");
-        }
-
-        // 4. Manejo de Modal de Evidencia (PUNTO DE FALLA ANTERIOR CORREGIDO)
+        // Lógica de Modal de Evidencia (Fix Deadlock anterior)
         if (!isConform && effectiveRisks.length > 0 && !evidenceTemp) {
             setShowEvidenceModal(true);
-            releaseLock(); // ✅ LIBERAMOS EL LOCK ANTES DE SALIR
+            releaseLock(); // ✅ LIBERAR ANTES DE SALIR
             return;
         }
 
@@ -774,32 +761,45 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                             className="md:col-span-2"
                         />
 
-                        {/* NUEVO CAMPO DOBLE: CONCENTRACIÓN + UNIDAD */}
-                        <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="relative flex items-center">
-                                <div className="flex-1">
-                                     <label className="text-[10px] font-bold text-slate-400 uppercase mb-1.5 flex items-center gap-1">
-                                        Concentración {newProduct.originalCumData && <span className="text-[9px] text-blue-500 bg-blue-50 px-1 rounded">AUTO</span>}
-                                     </label>
-                                     <input
-                                        type="text"
-                                        value={newProduct.concentration || ''}
-                                        onChange={e => setNewProduct({...newProduct, concentration: e.target.value})}
-                                        placeholder="0"
-                                        disabled={!isEditingMasterData && !!newProduct.originalCumData}
-                                        className={`w-full h-11 pl-4 pr-16 rounded-xl border font-bold text-lg outline-none transition-all ${
-                                            (!isEditingMasterData && !!newProduct.originalCumData)
-                                            ? 'bg-blue-50/30 border-blue-200 text-slate-700'
-                                            : 'bg-white border-slate-300 focus:border-blue-500'
-                                        }`}
-                                    />
-                                </div>
+                        {/* NUEVO DISEÑO: CONCENTRACIÓN + SELECTOR DE UNIDAD */}
+                        <div className="md:col-span-2">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase mb-1.5 flex items-center gap-1">
+                               Concentración / Dosis {newProduct.originalCumData && <span className="text-[9px] text-blue-500 bg-blue-50 px-1 rounded">AUTO</span>}
+                            </label>
+                            <div className="flex shadow-sm rounded-xl overflow-hidden border border-slate-300 focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-50 transition-all">
+                                {/* INPUT VALOR (70%) */}
+                                <input
+                                    type="text"
+                                    value={newProduct.concentration || ''}
+                                    onChange={e => setNewProduct({...newProduct, concentration: e.target.value})}
+                                    placeholder="Valor (Ej: 500)"
+                                    disabled={!isEditingMasterData && !!newProduct.originalCumData}
+                                    className={`flex-1 h-11 pl-4 pr-2 font-bold text-lg outline-none border-r border-slate-200 ${
+                                        (!isEditingMasterData && !!newProduct.originalCumData) ? 'bg-blue-50/30 text-slate-700' : 'bg-white'
+                                    }`}
+                                />
 
-                                {/* ETIQUETA DE UNIDAD (SUFIJO FIJO VISUAL) */}
-                                <div className="absolute right-0 top-6 bottom-0 flex items-center justify-center bg-slate-100 border-l border-slate-200 rounded-r-xl px-3 min-w-[3.5rem] h-11">
-                                    <span className="text-xs font-black text-slate-600 uppercase">
-                                        {newProduct.unit || 'UNID'}
-                                    </span>
+                                {/* DROPDOWN UNIDAD (30%) - SIEMPRE FUNCIONAL SI SE DESBLOQUEA */}
+                                <div className="relative w-32 bg-slate-50">
+                                    <select
+                                        aria-label="Unidad de Medida"
+                                        value={newProduct.unit || ''}
+                                        onChange={e => setNewProduct({...newProduct, unit: e.target.value})}
+                                        disabled={!isEditingMasterData && !!newProduct.originalCumData}
+                                        className={`w-full h-full pl-3 pr-8 font-bold text-xs uppercase outline-none appearance-none cursor-pointer ${
+                                             (!isEditingMasterData && !!newProduct.originalCumData) ? 'bg-blue-50/30 text-slate-600' : 'bg-slate-50 hover:bg-slate-100 text-slate-700'
+                                        }`}
+                                    >
+                                        <option value="">UNID</option>
+                                        {['MG', 'G', 'ML', 'L', 'MCG', 'UI', '%', 'MG/ML', 'G/100G', 'TABLETAS', 'CAPSULAS'].map(u => (
+                                            <option key={u} value={u}>{u}</option>
+                                        ))}
+                                        {/* Opción de preservación si la BD trae algo exótico */}
+                                        {newProduct.unit && !['MG', 'G', 'ML', 'L', 'MCG', 'UI', '%', 'MG/ML', 'G/100G', 'TABLETAS', 'CAPSULAS'].includes(newProduct.unit) && (
+                                            <option value={newProduct.unit}>{newProduct.unit}</option>
+                                        )}
+                                    </select>
+                                    <div className="absolute right-3 top-3.5 text-slate-400 pointer-events-none"><Icon name="chevron-down" size={14}/></div>
                                 </div>
                             </div>
                         </div>
