@@ -560,12 +560,20 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
 
   const removeProduct = (id: string) => { setProducts(prev => prev.filter(p => p.id !== id)); };
 
-  const handleAutoGenerate = () => {
+  const handleAutoGenerate = async () => {
       if (!establishment) return;
-      const { narrativeSuggestion, legalBasisSuggestion, violatedNorms } = inspectionEngine.generateLegalContext(checklistResponses, products, establishment);
-      setInspectionNarrative(prev => (prev.trim() ? prev.trim() + "\n\n" + narrativeSuggestion : narrativeSuggestion));
-      setLegalBasis(prev => (prev.trim() ? prev.trim() + "\n\n" + legalBasisSuggestion : legalBasisSuggestion));
-      showToast(violatedNorms.length > 0 ? `Se detectaron ${violatedNorms.length} normas incumplidas.` : "Narrativa base generada con éxito.", 'info');
+      setLoading(true);
+      try {
+          const { narrativeSuggestion, legalBasisSuggestion, violatedNorms } = await inspectionEngine.generateHybridNarrative(checklistResponses, products, establishment);
+          setInspectionNarrative(prev => (prev.trim() ? prev.trim() + "\n\n" + narrativeSuggestion : narrativeSuggestion));
+          setLegalBasis(prev => (prev.trim() ? prev.trim() + "\n\n" + legalBasisSuggestion : legalBasisSuggestion));
+          showToast(violatedNorms.length > 0 ? `Se detectaron ${violatedNorms.length} normas incumplidas.` : "Narrativa base generada con éxito.", 'info');
+      } catch (error) {
+          console.error("Error generating narrative", error);
+          showToast("Error al generar la narrativa.", 'error');
+      } finally {
+          setLoading(false);
+      }
   };
 
   const handleReviewDraft = async () => {
@@ -1126,7 +1134,6 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                             <div className="bg-indigo-100 p-3 rounded-xl text-indigo-600"><Icon name="cpu" size={32}/></div>
                             <div>
                                 <h3 className="font-black text-indigo-900 text-lg uppercase tracking-tight">Asistente de Redacción IVC</h3>
-                                <p className="text-sm text-indigo-800 mt-1 font-medium">Motor de Inteligencia Jurídica v2.0</p>
                                 <div className="text-xs text-indigo-600 mt-2">
                                     Normas Incumplidas Detectadas:
                                     <div className="mt-1 max-h-32 overflow-y-auto bg-white/50 p-2 rounded border border-indigo-100">
@@ -1151,12 +1158,13 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                                 </div>
                             </div>
                         </div>
-                        <Button onClick={handleAutoGenerate} className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-200 h-12 px-6 transform transition-all hover:scale-105">
-                            <Icon name="zap" size={18} className="mr-2"/> GENERAR NARRATIVA Y FUNDAMENTOS
+                        <Button onClick={handleAutoGenerate} disabled={loading} className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-200 h-12 px-6 transform transition-all hover:scale-105 flex items-center gap-3">
+                            <Icon name={navigator.onLine ? "cloud-lightning" : "cpu"} size={18}/>
+                            {loading ? "Redactando..." : "GENERAR NARRATIVA Y FUNDAMENTOS"}
                         </Button>
                     </div>
 
-                    <Card title="Narrativa Técnica y Legal" icon="book-open">
+                    <Card title="Relato de los Hechos" icon="book-open">
                         <div className="space-y-6 p-2">
                             <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-xl">
                                 <p className="text-xs text-blue-800 leading-relaxed font-medium">

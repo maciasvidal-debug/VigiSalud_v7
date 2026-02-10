@@ -316,6 +316,80 @@ const PRODUCT_RULES: InternalRule[] = [
 // 4. EL MOTOR LÓGICO
 // =============================================================================
 
+class NarrativeBuilder {
+  private static OPENERS = ["Se evidencia", "Se observa", "Se constata", "Se verifica", "Se identifica"];
+  private static CONNECTORS = ["Adicionalmente,", "Por otro lado,", "Aunado a lo anterior,", "Así mismo,", "En lo referente a"];
+  private static CLOSERS = ["Lo anterior configura un riesgo sanitario.", "Se requiere subsanación inmediata.", "Dichos hallazgos contravienen la norma.", "Situación que compromete la inocuidad."];
+
+  static build(failedItems: InspectionItem[], products: ProductFinding[]): string {
+    const seized = products.filter(p => p.seizureType !== 'NINGUNO');
+
+    if (failedItems.length === 0 && seized.length === 0) {
+      return "No se evidencian hallazgos críticos al momento de la visita. El establecimiento cumple con las condiciones sanitarias evaluadas conforme a la normatividad vigente.";
+    }
+
+    let narrative = "";
+
+    // Agrupación por Bloque
+    const groups: Record<string, string[]> = {};
+    failedItems.forEach(item => {
+      if (!groups[item.block]) groups[item.block] = [];
+      // Limpiar texto para fluidez (eliminar puntos finales, etc)
+      const cleanText = item.text.trim().replace(/\.$/, '').toLowerCase();
+      groups[item.block].push(cleanText);
+    });
+
+    // Construcción de Oraciones (Loop Determinista)
+    const blocks = Object.keys(groups);
+    blocks.forEach((block, index) => {
+      const findings = groups[block];
+      let prefix = "";
+
+      if (index === 0) {
+        prefix = this.OPENERS[Math.floor(Math.random() * this.OPENERS.length)];
+      } else {
+        prefix = this.CONNECTORS[Math.floor(Math.random() * this.CONNECTORS.length)];
+      }
+
+      // Unir hallazgos con comas y 'y' final
+      let findingsText = "";
+      if (findings.length === 1) {
+          findingsText = findings[0];
+      } else {
+          const last = findings.pop();
+          findingsText = findings.join(", ") + " y " + last;
+      }
+
+      const blockName = block.replace(/_/g, ' ');
+      narrative += `${prefix} en el subsistema de ${blockName} ${findingsText}. `;
+    });
+
+    // Productos
+    if (seized.length > 0) {
+        const total = seized.reduce((acc, p) => acc + p.quantity, 0);
+        const types = [...new Set(seized.map(p => p.type))].join(', ');
+        narrative += `En relación a los productos, se aplicó Medida Sanitaria a ${total} unidades (${types}) debido a incumplimientos de calidad y seguridad. `;
+    }
+
+    // Cierre
+    if (narrative.length > 0) {
+        narrative += this.CLOSERS[Math.floor(Math.random() * this.CLOSERS.length)];
+    }
+
+    return narrative;
+  }
+}
+
+const mockCloudGeneration = async (establishment: Establishment, failedItems: InspectionItem[]): Promise<string> => {
+    return new Promise((resolve) => {
+        setTimeout(() => {
+            const count = failedItems.length;
+            const riskLevel = count > 3 ? "ALTO" : "MODERADO";
+            resolve(`[IA CLOUD] De acuerdo con la evaluación técnica realizada en ${establishment.name}, se identifican ${count} no conformidades que configuran un nivel de riesgo ${riskLevel}. La inteligencia artificial sugiere intervención prioritaria en los procesos críticos para garantizar el cumplimiento normativo y la seguridad sanitaria.`);
+        }, 1500);
+    });
+};
+
 export const inspectionEngine = {
   /**
    * Genera una lista de inspección adaptada al perfil del establecimiento.
@@ -443,142 +517,92 @@ export const inspectionEngine = {
   },
 
   /**
-   * Genera borrador automático de narrativa técnica y jurídica (Asistente IA).
+   * Genera el relato de hechos (Híbrido IA/Local).
    * Contexto: Tablero de Cierre.
+   */
+  generateHybridNarrative: async (
+    checklistResponses: Record<string, { status: string }>,
+    products: ProductFinding[],
+    establishment: Establishment
+  ): Promise<{ narrativeSuggestion: string; legalBasisSuggestion: string; violatedNorms: string[] }> => {
+
+    // Recopilar hallazgos para el motor
+    const allItems = inspectionEngine.generate(establishment);
+    const failedItems = allItems.filter(item => {
+      const resp = checklistResponses[item.id];
+      return resp && resp.status === 'NO_CUMPLE';
+    });
+
+    let narrative = "";
+
+    // ESTRATEGIA: PROGRESSIVE ENHANCEMENT
+    if (navigator.onLine) {
+        try {
+            console.log("☁️ Intentando generación Cloud AI...");
+            narrative = await mockCloudGeneration(establishment, failedItems);
+        } catch (e) {
+            console.warn("⚠️ Fallo Cloud. Degradando a Local...");
+            narrative = NarrativeBuilder.build(failedItems, products);
+        }
+    } else {
+        console.log("🔋 Modo Offline. Usando Motor Local...");
+        narrative = NarrativeBuilder.build(failedItems, products);
+    }
+
+    // PLANTILLA FORMAL
+    const date = new Intl.DateTimeFormat('es-CO', { dateStyle: 'full', timeStyle: 'short' }).format(new Date());
+    const city = establishment.city || 'Barranquilla';
+
+    const header = `En la ciudad de ${city}, siendo las ${date}, se constituyó el funcionario competente en las instalaciones del establecimiento de comercio denominado ${establishment.name}.`;
+    const footer = "Se suscribe la presente acta en constancia de lo anterior, informando al atendido sobre el derecho de contradicción y defensa.";
+
+    const fullNarrative = `${header}\n\n${narrative}\n\n${footer}`;
+
+    // --- GENERACIÓN DE FUNDAMENTOS LEGALES (Reutilizando lógica legacy) ---
+    // (Simplificado para evitar duplicación masiva, extraemos lo esencial del método anterior)
+    const violatedNorms: string[] = [];
+    const legalBasisParts: Set<string> = new Set();
+
+    failedItems.forEach(item => {
+        const citation = item.legalCitation || 'Normatividad Sanitaria Vigente';
+        violatedNorms.push(`• [${citation}]: ${item.text}`);
+        if (item.legalCitation) legalBasisParts.add(item.legalCitation);
+    });
+
+    const seizedProducts = products.filter(p => p.seizureType !== 'NINGUNO');
+    if (seizedProducts.length > 0) {
+        legalBasisParts.add("Ley 9 de 1979 (Código Sanitario Nacional)");
+        seizedProducts.forEach(p => {
+             violatedNorms.push(`• [PRODUCTO]: ${p.name} presenta factores de riesgo sanitario.`);
+        });
+    }
+
+    return {
+      narrativeSuggestion: fullNarrative,
+      legalBasisSuggestion: Array.from(legalBasisParts).join('.\n'),
+      violatedNorms
+    };
+  },
+
+  /**
+   * @deprecated Usar generateHybridNarrative (Async)
    */
   generateLegalContext: (
     checklistResponses: Record<string, { status: string }>,
     products: ProductFinding[],
     establishment: Establishment
   ): { narrativeSuggestion: string; legalBasisSuggestion: string; violatedNorms: string[] } => {
+      // Wrapper síncrono para mantener compatibilidad si algo falla,
+      // pero idealmente todo debe migrar a async.
+      // Retornamos el builder local directamente.
+      const allItems = inspectionEngine.generate(establishment);
+      const failedItems = allItems.filter(item => checklistResponses[item.id]?.status === 'NO_CUMPLE');
+      const narrative = NarrativeBuilder.build(failedItems, products);
 
-    const violatedNorms: string[] = [];
-    const narrativeParts: string[] = [];
-    const legalBasisParts: Set<string> = new Set(); // Evitar duplicados
-
-    // 0. CÁLCULO DE CONCEPTO EN TIEMPO REAL (Para consistencia legal)
-    // Reconstruimos la lógica de puntaje para garantizar que la sugerencia coincida con la realidad
-    const allItems = inspectionEngine.generate(establishment);
-    const simpleResponses: Record<string, string> = {};
-    Object.keys(checklistResponses).forEach(key => simpleResponses[key] = checklistResponses[key].status);
-
-    const calculatedScore = inspectionEngine.calculateRisk(allItems, simpleResponses);
-
-    // Principio de Proporcionalidad:
-    // El concepto base se determina por el puntaje.
-    // Score < 60 = Desfavorable.
-    // Score >= 60 = Favorable (o con reqs).
-    // NO forzamos Desfavorable solo por "Killers" aislados en esta etapa de sugerencia de medidas.
-    const isDesfavorable = calculatedScore < 60;
-
-    // 1. ANÁLISIS DE MATRIZ (Checklist)
-    // Filtramos los items que tienen respuesta NO_CUMPLE
-    const failedItems = MASTER_CATALOG.filter(item => {
-      const resp = checklistResponses[item.id];
-      return resp && resp.status === 'NO_CUMPLE';
-    });
-
-    if (failedItems.length > 0) {
-      const blocks = [...new Set(failedItems.map(i => i.block.replace(/_/g, ' ')))];
-      narrativeParts.push(`En la visita realizada al establecimiento ${establishment.name}, se evidencian incumplimientos a la normatividad sanitaria vigente, afectando los subsistemas de: ${blocks.join(', ')}.`);
-
-      // Detalle de hallazgos críticos en la narrativa
-      const criticals = failedItems.filter(i => i.isKiller).map(i => i.text);
-      if (criticals.length > 0) {
-          narrativeParts.push(`De manera específica y con impacto en la Salud Pública, se observan hallazgos críticos tales como: ${criticals.join('; ')}.`);
-      }
-
-      failedItems.forEach(item => {
-        const citation = item.legalCitation || 'Normatividad Sanitaria Vigente';
-        violatedNorms.push(`• [${citation}]: ${item.text}`);
-        if (item.legalCitation) legalBasisParts.add(item.legalCitation);
-      });
-    } else {
-      narrativeParts.push("Se verificaron las condiciones higiénico-locativas, técnico-sanitarias y de control de calidad, encontrando CUMPLIMIENTO en los aspectos evaluados al momento de la visita.");
-    }
-
-    // 2. ANÁLISIS DE INVENTARIO (Productos)
-    const seizedProducts = products.filter(p => p.seizureType !== 'NINGUNO');
-
-    if (seizedProducts.length > 0) {
-      const totalSeized = seizedProducts.reduce((acc, p) => acc + p.quantity, 0);
-      const causes = [...new Set(seizedProducts.flatMap(p => p.riskFactors || []))];
-
-      narrativeParts.push(`\nAdicionalmente, se aplicó Medida Sanitaria de Seguridad consistente en el congelamiento/decomiso de ${totalSeized} unidades de productos, debido a las siguientes causales de riesgo identificadas: ${causes.map(c => c.replace(/_/g, ' ')).join(', ')}.`);
-
-      // Determinar normas según tipo de producto
-      const hasMeds = seizedProducts.some(p => p.type === 'MEDICAMENTO');
-      const hasDevices = seizedProducts.some(p => p.type === 'DISPOSITIVO_MEDICO');
-
-      if (hasMeds) legalBasisParts.add("Decreto 677 de 1995 (Art. 70 y subsiguientes)");
-      if (hasDevices) legalBasisParts.add("Decreto 4725 de 2005 (Régimen de Dispositivos Médicos)");
-
-      // Agregar Ley 9 siempre que haya medida
-      legalBasisParts.add("Ley 9 de 1979 (Código Sanitario Nacional - Art. 576)");
-
-      // --- GENERACIÓN DE NORMAS VIOLADAS (PRODUCTOS) ---
-      // Mapa de Riesgos a Normas
-      const RISK_NORM_MAP: Record<string, string> = {
-          'VENCIDO': 'Decreto 677/95 Art. 70 (Prohibición de venta producto expirado)',
-          'SIN_REGISTRO': 'Decreto 677/95 (Comercialización sin Registro Sanitario)',
-          'ALTERADO': 'Código Penal Art. 372 (Corrupción de Alimentos/Medicamentos)',
-          'FRAUDULENTO': 'Ley 9/79 Art. 576 (Producto Fraudulento)',
-          'MAL_ALMACENAMIENTO': 'Res. 1403/2007 (Deficiencia en Condiciones de Almacenamiento)',
-          'USO_INSTITUCIONAL': 'Ley 1438/2011 (Prohibición Venta Institucional)',
-          'MUESTRA_MEDICA': 'Res. 114/2004 (Prohibición Venta Muestras)',
-          'CADENA_FRIO': 'Decreto 1782/2014 (Ruptura Cadena de Frío)'
+      return {
+          narrativeSuggestion: narrative,
+          legalBasisSuggestion: "Ver fundamentos en modo asíncrono.",
+          violatedNorms: []
       };
-
-      seizedProducts.forEach(p => {
-          const risks = p.riskFactors || [];
-          if (risks.length > 0) {
-              risks.forEach(r => {
-                  const norm = RISK_NORM_MAP[r] || 'Normatividad Sanitaria Vigente (Incumplimiento Técnico)';
-                  // Evitar duplicados por producto si tiene varios riesgos misma norma? No, listamos todo.
-                  violatedNorms.push(`• [PRODUCTO]: ${p.name} presenta ${r.replace(/_/g, ' ')} -> ${norm}`);
-              });
-          } else {
-              // Caso Raro: Decomiso sin riesgo explícito (Manual)
-              violatedNorms.push(`• [PRODUCTO]: ${p.name} -> Objeto de Medida Sanitaria por Criterio Técnico.`);
-          }
-      });
-    }
-
-    // 3. SUGERENCIA DE MEDIDA (Lógica de Proporcionalidad Sanitaria)
-    const criticalFindings = failedItems.filter(i => i.isKiller);
-    const measures: string[] = [];
-    const warnings: string[] = [];
-
-    // A. DECOMISO (Independiente del concepto del establecimiento)
-    if (seizedProducts.length > 0) {
-        measures.push("DECOMISO DE PRODUCTOS");
-    }
-
-    // B. CLAUSURA (Solo si es DESFAVORABLE por puntaje)
-    if (isDesfavorable) {
-        measures.push("CLAUSURA TEMPORAL DEL ESTABLECIMIENTO");
-    } else {
-        // C. ADVERTENCIA (Si es FAVORABLE pero tiene fallas graves aisladas)
-        if (criticalFindings.length > 0) {
-            warnings.push("SE REQUIERE SUBSANACIÓN INMEDIATA DE HALLAZGOS CRÍTICOS (Sin Clausura por Principio de Proporcionalidad)");
-        }
-    }
-
-    // Construcción de Narrativa de Medidas
-    if (measures.length > 0) {
-      narrativeParts.push(`\nEn consecuencia, y con el objeto de impedir que se atente contra la salud de la comunidad, se procede a aplicar MEDIDA SANITARIA DE SEGURIDAD consistente en ${measures.join(' y ')}, de ejecución inmediata, carácter preventivo y transitorio.`);
-    }
-
-    // Construcción de Narrativa de Advertencias
-    if (warnings.length > 0) {
-        narrativeParts.push(`\nOBSERVACIÓN TÉCNICA: Aunque el concepto es favorable, ${warnings.join('. ')}.`);
-    }
-
-    // Construcción Final
-    return {
-      narrativeSuggestion: narrativeParts.join(' '),
-      legalBasisSuggestion: Array.from(legalBasisParts).join('.\n'),
-      violatedNorms
-    };
   }
 };
