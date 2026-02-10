@@ -15,7 +15,7 @@ import { generateInspectionHash } from '../../utils/crypto';
 import { inspectionEngine } from '../../utils/inspectionEngine';
 import { TacticalMatrix } from '../../components/inspection/TacticalMatrix';
 import { SeizureCalculator } from '../../components/seizure/SeizureCalculator'; 
-import { PRODUCT_SCHEMAS, type FieldConfig } from '../../utils/productSchemas'; 
+import { PRODUCT_SCHEMAS } from '../../utils/productSchemas';
 import { generateInspectionPDF } from '../../utils/PdfGenerator'; 
 import { parsePresentation } from '../../utils/PharmaParser';
 import { validateColdChain, validateExpiration, validateInstitucional } from '../../utils/specializedValidators';
@@ -83,15 +83,6 @@ declare global {
 
 const formatEnum = (text: string | undefined) => text ? text.replace(/_/g, ' ') : '';
 
-const getColSpanClass = (field: FieldConfig) => {
-    const colSpans: Record<number, string> = {
-        1: 'md:col-span-1', 2: 'md:col-span-2', 3: 'md:col-span-3',
-        4: 'md:col-span-4', 5: 'md:col-span-5', 6: 'md:col-span-6',
-        7: 'md:col-span-7', 8: 'md:col-span-8', 9: 'md:col-span-9',
-        10: 'md:col-span-10', 11: 'md:col-span-11', 12: 'md:col-span-12',
-    };
-    return field.colSpan ? `col-span-12 ${colSpans[field.colSpan]}` : 'col-span-12';
-};
 
 // =============================================================================
 // 2. COMPONENTE PRINCIPAL
@@ -638,129 +629,294 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
   // 4. RENDERIZADO DINÁMICO (UX/UI REFACTOR)
   // ===========================================================================
 
-  const renderField = (field: FieldConfig) => {
-      if (field.key === 'quantity' && isReportingIssue && newProduct.seizureType !== 'NINGUNO') return null;
-      if (field.triggerSubtypes && !field.triggerSubtypes.includes(newProduct.subtype as ProductSubtype)) return null;
-
-      const colClass = getColSpanClass(field);
-      const isColdChainError = field.section === 'COLD_CHAIN' && newProduct.coldChainStatus === 'INCUMPLE';
+  const renderProductForm = () => {
+      const isTypeSelected = !!newProduct.type && !!newProduct.subtype;
+      const isIdentityFilled = !!newProduct.name;
+      // Trazabilidad llena si tiene Lote Y Vencimiento (o si es Dispositivo/Reactivo que a veces no tiene vencimiento explícito pero asumamos que sí para simplificar, o ajustamos la lógica)
+      // Para MVP Focus Flow: Lote es clave.
+      const isTraceabilityFilled = !!newProduct.lot;
       
-      const originalValue = newProduct.originalCumData ? newProduct.originalCumData[field.key as keyof ProductFinding] : undefined;
-      const currentValue = newProduct[field.key as keyof ProductFinding];
-      const isDiscrepant = originalValue && currentValue && originalValue !== currentValue;
+      return (
+        <div className="space-y-8">
+            {/* BLOCK 0: SEARCH & CLASSIFICATION */}
+            <FocusSection
+                title="1. Clasificación y Búsqueda"
+                icon="search"
+                isActive={true}
+                isDone={isTypeSelected && isIdentityFilled}
+            >
+                <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                             <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Categoría</label>
+                             <div className="relative">
+                                <select aria-label="Categoría" className="w-full h-12 border-2 border-slate-200 rounded-xl px-4 font-bold text-slate-700 bg-slate-50 outline-none focus:border-blue-500 transition-all appearance-none" value={newProduct.type} onChange={e => setNewProduct({...newProduct, type: e.target.value as ProductType, subtype: PRODUCT_SCHEMAS[e.target.value]?.subtypes[0] || 'GENERAL', cum: '', name: ''})}>
+                                    {Object.keys(PRODUCT_SCHEMAS).map(t => <option key={t} value={t}>{formatEnum(t)}</option>)}
+                                </select>
+                                <div className="absolute right-4 top-3.5 text-slate-400 pointer-events-none"><Icon name="chevron-down" size={16}/></div>
+                             </div>
+                        </div>
+                         <div>
+                             <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Subtipo</label>
+                             <div className="relative">
+                                <select aria-label="Subtipo" className="w-full h-12 border-2 border-slate-200 rounded-xl px-4 font-bold text-slate-700 bg-slate-50 outline-none focus:border-blue-500 transition-all appearance-none" value={newProduct.subtype} onChange={e => setNewProduct({...newProduct, subtype: e.target.value as ProductSubtype})}>
+                                    {PRODUCT_SCHEMAS[newProduct.type as ProductType]?.subtypes.map(s => <option key={s} value={s}>{formatEnum(s)}</option>)}
+                                </select>
+                                <div className="absolute right-4 top-3.5 text-slate-400 pointer-events-none"><Icon name="chevron-down" size={16}/></div>
+                             </div>
+                        </div>
+                    </div>
 
-      // [NEW] READ ONLY CARD MODE (When CUM data is loaded and not editing)
-      // Hide inputs for main identity fields if we have CUM data and are not in edit mode
-      if (newProduct.originalCumData && !isEditingMasterData && ['name', 'invimaReg', 'manufacturer', 'presentation'].includes(field.key)) {
-          return null; // Don't render individual fields, handled by Card Wrapper
-      }
+                    <div className="relative group">
+                         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                            <Icon name="search" className="text-slate-400 group-focus-within:text-blue-500 transition-colors" size={24}/>
+                         </div>
+                         <input
+                            className="w-full h-16 pl-14 pr-24 rounded-2xl border-2 border-slate-200 text-lg font-bold text-slate-700 shadow-sm focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all outline-none"
+                            placeholder="Escanee CUM o Digite Nombre/Expediente..."
+                            value={newProduct.cum || ''}
+                            onChange={(e) => setNewProduct(prev => ({...prev, cum: e.target.value}))}
+                            onKeyDown={(e) => { if(e.key === 'Enter') { setCumQuery(newProduct.cum || ''); setShowCumModal(true); } }}
+                         />
+                         <button
+                            onClick={() => { setCumQuery(newProduct.cum || ''); setShowCumModal(true); }}
+                            className="absolute right-3 top-3 h-10 px-6 bg-slate-900 text-white rounded-xl font-bold text-xs hover:bg-slate-800 transition-colors shadow-lg"
+                         >
+                            BUSCAR
+                         </button>
+                    </div>
+                </div>
+            </FocusSection>
 
-      // CAMPO CUM (Input Libre + Botón)
-      if (field.key === 'cum') {
-          return (
-              <div className={colClass} key={field.key}>
-                  <div className="flex justify-between items-center mb-1.5">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">{field.label}</label>
-                    {newProduct.originalCumData && <Badge label="✓ BD OFICIAL" className="bg-emerald-100 text-emerald-700 border-emerald-200 text-[10px] py-0.5 px-2"/>}
-                  </div>
-                  <div className="flex gap-2">
-                      <div className="relative flex-1">
-                          <Input 
-                              value={newProduct.cum || ''} 
-                              onChange={e => {
-                                  const val = e.target.value;
-                                  setNewProduct(prev => {
-                                      if (val === '') {
-                                          return {
-                                              ...prev, cum: '', name: '', invimaReg: '', lot: '', serial: '',
-                                              expirationDate: '', presentation: '', pharmaceuticalForm: '',
-                                              activePrinciple: '', concentration: '', unit: '', originalCumData: undefined
-                                          };
-                                      }
-                                      return { ...prev, cum: val };
-                                  });
-                              }}
-                              placeholder={field.placeholder || "Digite..."}
-                              className="font-bold text-sm h-11"
-                          />
-                      </div>
-                      <button 
-                          type="button"
-                          onClick={() => { setCumQuery(newProduct.cum || ''); setShowCumModal(true); }}
-                          className="px-4 bg-slate-800 text-white rounded-xl hover:bg-slate-700 shadow-sm transition-all flex items-center justify-center gap-2 font-bold text-xs h-11"
-                          title="Abrir Buscador Maestro (F2)"
-                      >
-                          <Icon name="database" size={16}/> BÚSQUEDA
-                      </button>
-                  </div>
-              </div>
-          );
-      }
+            {/* BLOCK 1: IDENTITY */}
+            <FocusSection
+                title="2. Identificación del Producto"
+                icon="tag"
+                isActive={isTypeSelected && (!!newProduct.cum || isIdentityFilled || newProduct.name !== '')}
+                isDone={isIdentityFilled && !!newProduct.invimaReg}
+            >
+                <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <SmartField
+                            label="Nombre del Producto"
+                            value={newProduct.name || ''}
+                            onChange={e => setNewProduct({...newProduct, name: e.target.value})}
+                            isAutoFilled={!!newProduct.originalCumData}
+                            isLocked={!isEditingMasterData && !!newProduct.originalCumData}
+                            onUnlock={() => setIsEditingMasterData(true)}
+                            placeholder="Ej: DOLEX 500MG..."
+                            className="md:col-span-2"
+                        />
+                        <SmartField
+                            label="Registro Sanitario / INVIMA"
+                            value={newProduct.invimaReg || ''}
+                            onChange={e => setNewProduct({...newProduct, invimaReg: e.target.value})}
+                            isAutoFilled={!!newProduct.originalCumData}
+                            isLocked={!isEditingMasterData && !!newProduct.originalCumData}
+                        />
+                         <SmartField
+                            label="Laboratorio Titular"
+                            value={newProduct.manufacturer || ''}
+                            onChange={e => setNewProduct({...newProduct, manufacturer: e.target.value})}
+                            isAutoFilled={!!newProduct.originalCumData}
+                            isLocked={!isEditingMasterData && !!newProduct.originalCumData}
+                        />
+                         <SmartField
+                            label="Presentación Comercial"
+                            value={newProduct.presentation || ''}
+                            onChange={e => setNewProduct({...newProduct, presentation: e.target.value})}
+                            isAutoFilled={!!newProduct.originalCumData}
+                            isLocked={!isEditingMasterData && !!newProduct.originalCumData}
+                            className="md:col-span-2"
+                        />
+                    </div>
 
-      // CAMPO CANTIDAD (Tarjeta Visual)
-      if (field.key === 'quantity') {
-          return (
-              <div className={colClass} key={field.key}>
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 h-full flex flex-col justify-center shadow-inner">
-                      <label className="text-xs font-bold text-slate-600 uppercase mb-3 block border-b border-slate-200 pb-2">CONTEO FÍSICO</label>
-                      <div className="flex items-end gap-3">
+                     {/* Technical Accordion (Reusing existing logic somewhat) */}
+                    {technicalFields.length > 0 && (
+                        <details className="group border border-slate-200 rounded-xl overflow-hidden bg-slate-50/50">
+                            <summary className="p-4 font-bold text-slate-600 cursor-pointer flex justify-between items-center hover:bg-slate-100 transition-colors select-none">
+                                <span className="flex items-center gap-2 text-xs uppercase tracking-wider"><Icon name="sliders" size={16}/> Ver Ficha Técnica (Principio Activo, ATC...)</span>
+                                <Icon name="chevron-down" size={16} className="group-open:rotate-180 transition-transform text-slate-400"/>
+                            </summary>
+                            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-slate-200">
+                                {technicalFields.map(field => (
+                                     <SmartField
+                                        key={field.key}
+                                        label={field.label}
+                                        value={newProduct[field.key as keyof ProductFinding] as string || ''}
+                                        onChange={e => setNewProduct({...newProduct, [field.key]: e.target.value})}
+                                        isAutoFilled={!!newProduct.originalCumData}
+                                        isLocked={!isEditingMasterData && !!newProduct.originalCumData}
+                                     />
+                                ))}
+                            </div>
+                        </details>
+                    )}
+                </div>
+            </FocusSection>
+
+            {/* BLOCK 2: TRACEABILITY */}
+             <FocusSection
+                title="3. Trazabilidad y Estado"
+                icon="clipboard"
+                isActive={isIdentityFilled}
+                isDone={isTraceabilityFilled}
+            >
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                     <SmartField
+                        label="Lote de Producción"
+                        value={newProduct.lot || ''}
+                        onChange={e => setNewProduct({...newProduct, lot: e.target.value})}
+                        placeholder="Alfanumérico..."
+                    />
+                     <SmartField
+                        label="Fecha de Vencimiento"
+                        type="date"
+                        value={newProduct.expirationDate || ''}
+                        onChange={e => setNewProduct({...newProduct, expirationDate: e.target.value})}
+                    />
+
+                    {needsColdChain && (
+                        <div className="md:col-span-2 mt-2">
+                             <div className={`p-5 rounded-xl border-2 transition-all ${newProduct.coldChainStatus === 'INCUMPLE' ? 'bg-red-50 border-red-200' : 'bg-sky-50 border-sky-100'}`}>
+                                 <div className="flex items-start gap-4">
+                                     <div className={`p-3 rounded-full ${newProduct.coldChainStatus === 'INCUMPLE' ? 'bg-red-100 text-red-600' : 'bg-sky-100 text-sky-600'}`}>
+                                         <Icon name="snowflake" size={24}/>
+                                     </div>
+                                     <div className="flex-1">
+                                         <h4 className={`font-black text-sm uppercase mb-1 ${newProduct.coldChainStatus === 'INCUMPLE' ? 'text-red-700' : 'text-sky-800'}`}>
+                                             CONTROL DE CADENA DE FRÍO
+                                         </h4>
+                                         <div className="flex flex-col md:flex-row gap-4 items-end mt-4">
+                                             <div className="w-full md:w-40">
+                                                 <label className="text-[10px] font-bold text-sky-700 uppercase mb-1 block">Temperatura (°C)</label>
+                                                 <Input type="number" step="0.1" value={newProduct.storageTemp || ''} onChange={e => setNewProduct({...newProduct, storageTemp: e.target.value})} placeholder="Ej: 4.5" className={`font-bold text-lg h-12 text-center ${newProduct.coldChainStatus === 'INCUMPLE' ? 'border-red-300 bg-red-50 text-red-700' : 'border-sky-300'}`} />
+                                             </div>
+                                             <div className="flex-1 pb-1">
+                                                {newProduct.coldChainStatus === 'INCUMPLE' ? (
+                                                    <div className="flex items-center gap-2 text-red-600 font-bold bg-red-100 px-3 py-2 rounded-lg"><Icon name="alert-triangle" size={18}/> RUPTURA DETECTADA</div>
+                                                ) : newProduct.storageTemp ? (
+                                                    <div className="flex items-center gap-2 text-emerald-600 font-bold bg-emerald-100 px-3 py-2 rounded-lg"><Icon name="check-circle" size={18}/> TEMPERATURA CONFORME</div>
+                                                ) : null}
+                                             </div>
+                                         </div>
+                                     </div>
+                                 </div>
+                             </div>
+                         </div>
+                    )}
+                </div>
+            </FocusSection>
+
+            {/* BLOCK 3: LOGISTICS */}
+             <FocusSection
+                title="4. Logística y Conteo"
+                icon="box"
+                isActive={isTraceabilityFilled}
+                isDone={false}
+            >
+                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 shadow-inner">
+                      <label className="text-xs font-bold text-slate-600 uppercase mb-4 block border-b border-slate-200 pb-2">CONTEO FÍSICO DE UNIDADES</label>
+                      <div className="flex items-end gap-4">
                           <div className="flex-1">
-                              <label className="text-[10px] font-bold text-slate-400 mb-1.5 block uppercase">Cajas/Empaques</label>
-                              <Input type="number" value={packsInput || ''} onChange={e => setPacksInput(Math.max(0, parseInt(e.target.value) || 0))} placeholder="0" className="text-center font-bold text-lg h-12 border-slate-300" />
+                              <label className="text-[10px] font-bold text-slate-400 mb-1.5 block uppercase">Cajas/Empaques ({parsedModel.packType || 'Cajas'})</label>
+                              <Input type="number" value={packsInput || ''} onChange={e => setPacksInput(Math.max(0, parseInt(e.target.value) || 0))} placeholder="0" className="text-center font-bold text-3xl h-16 border-slate-300 bg-white" />
                           </div>
-                          <div className="pb-3 text-slate-300"><Icon name="plus" size={24}/></div>
+                          <div className="pb-5 text-slate-300"><Icon name="plus" size={32}/></div>
                           <div className="flex-1">
-                              <label className="text-[10px] font-bold text-slate-400 mb-1.5 block uppercase">Unidades Sueltas</label>
-                              <Input type="number" value={looseInput || ''} onChange={e => setLooseInput(Math.max(0, parseInt(e.target.value) || 0))} placeholder="0" className="text-center font-bold text-lg h-12 border-slate-300" />
+                              <label className="text-[10px] font-bold text-slate-400 mb-1.5 block uppercase">Unidades Sueltas ({parsedModel.containerType || 'Unid'})</label>
+                              <Input type="number" value={looseInput || ''} onChange={e => setLooseInput(Math.max(0, parseInt(e.target.value) || 0))} placeholder="0" className="text-center font-bold text-3xl h-16 border-slate-300 bg-white" />
                           </div>
                       </div>
                       {interpretedQty && !isReportingIssue && (
-                          <div className="mt-3 bg-emerald-50 border border-emerald-100 rounded-lg p-2 text-center animate-in fade-in">
-                              <p className="text-emerald-700 text-xs font-bold flex items-center justify-center gap-2">
-                                  <Icon name="check-circle" size={14}/> {interpretedQty}
+                          <div className="mt-4 bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-center animate-in fade-in">
+                              <p className="text-emerald-700 text-sm font-bold flex items-center justify-center gap-2">
+                                  <Icon name="check-circle" size={16}/> {interpretedQty}
                               </p>
                           </div>
                       )}
                   </div>
-              </div>
-          );
-      }
 
-      // CAMPOS ESTÁNDAR
-      return (
-          <div className={colClass} key={field.key}>
-              <div className="flex justify-between items-end mb-1.5">
-                  <label className={`text-xs font-bold text-slate-500 uppercase tracking-wide ${isColdChainError ? 'text-red-500' : ''}`}>
-                      {field.label} {field.required && <span className="text-red-500">*</span>}
-                  </label>
-                  {isDiscrepant && <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded font-bold border border-amber-100">MODIFICADO</span>}
-              </div>
-              
-              {field.type === 'select' ? (
-                  <div className="relative">
-                      <select 
-                          aria-label={field.label}
-                          className={`w-full h-11 px-4 bg-white border rounded-xl text-slate-700 font-bold text-sm outline-none transition-all appearance-none cursor-pointer shadow-sm hover:border-blue-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 ${isDiscrepant ? 'border-amber-300 ring-2 ring-amber-50' : 'border-slate-200'}`}
-                          value={newProduct[field.key as keyof ProductFinding] as string || ''} 
-                          onChange={e => setNewProduct({...newProduct, [field.key]: e.target.value})}
-                          disabled={field.disabled}
-                      >
-                          <option value="">Seleccione...</option>
-                          {field.options?.map(opt => <option key={opt} value={opt}>{formatEnum(opt)}</option>)}
-                      </select>
-                      <div className="absolute right-4 top-3.5 text-slate-400 pointer-events-none"><Icon name="chevron-down" size={16}/></div>
-                  </div>
-              ) : (
-                  <Input 
-                      type={field.type} 
-                      value={newProduct[field.key as keyof ProductFinding] as string || ''} 
-                      onChange={e => setNewProduct({...newProduct, [field.key]: e.target.value})} 
-                      placeholder={field.placeholder} 
-                      disabled={field.disabled}
-                      className={`h-11 shadow-sm font-bold text-sm ${isDiscrepant ? 'border-amber-300 bg-amber-50/20' : ''}`}
-                  />
-              )}
-          </div>
+                   {/* ACTION BUTTONS */}
+                   <div className="flex flex-col md:flex-row gap-4 justify-end mt-8 pt-6 border-t border-slate-100">
+                        {!isReportingIssue ? (
+                            <>
+                                <button onClick={() => setIsReportingIssue(true)} className="px-6 py-4 rounded-xl border-2 border-slate-200 text-slate-600 font-bold hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all flex items-center gap-2 group"><div className="p-1 bg-slate-100 rounded group-hover:bg-red-100 transition-colors"><Icon name="alert-triangle" size={18}/></div> REPORTAR HALLAZGO</button>
+                                <button onClick={() => handleAddProduct(true)} disabled={cumValidationState === 'EXPIRED'} className={`px-8 py-4 rounded-xl font-bold shadow-xl flex items-center gap-3 text-white transition-all transform hover:scale-[1.02] ${cumValidationState === 'EXPIRED' || (needsColdChain && newProduct.coldChainStatus === 'INCUMPLE') ? 'bg-slate-300 cursor-not-allowed' : 'bg-slate-900 hover:bg-slate-800'}`}><Icon name="check-circle" size={20}/> REGISTRAR CONFORME</button>
+                            </>
+                        ) : (
+                            <div className="w-full bg-red-50 p-6 rounded-2xl border border-red-100 animate-in slide-in-from-bottom-4 shadow-xl shadow-red-50/50">
+                                <div className="flex items-center gap-3 mb-6 pb-4 border-b border-red-200/50">
+                                    <div className="p-2 bg-red-100 text-red-600 rounded-lg"><Icon name="shield-off" size={24}/></div>
+                                    <div><h4 className="font-black text-red-900 uppercase">Panel de Medidas Sanitarias</h4><p className="text-xs text-red-700">Configure la causal y la medida a aplicar.</p></div>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-6">
+                                    <div>
+                                        <label className="text-xs font-bold text-red-800 uppercase mb-3 block tracking-wide">Causales del Riesgo (Selección Múltiple)</label>
+                                        <div className="flex flex-wrap gap-2">
+                                            {['VENCIDO', 'SIN_REGISTRO', 'ALTERADO', 'USO_INSTITUCIONAL', 'MUESTRA_MEDICA', 'MAL_ALMACENAMIENTO', 'FRAUDULENTO'].map((risk) => {
+                                                const isSelected = (newProduct.riskFactors || []).includes(risk as RiskFactor);
+                                                return (
+                                                    <button
+                                                        key={risk}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setNewProduct(prev => {
+                                                                const current = prev.riskFactors || [];
+                                                                return {
+                                                                    ...prev,
+                                                                    riskFactors: isSelected
+                                                                        ? current.filter(r => r !== risk)
+                                                                        : [...current, risk as RiskFactor]
+                                                                };
+                                                            });
+                                                        }}
+                                                        className={`px-4 py-2 rounded-full text-[10px] font-black tracking-wide transition-all flex items-center gap-2 transform active:scale-95 ${isSelected ? 'bg-red-600 text-white shadow-md shadow-red-200 ring-2 ring-red-400 ring-offset-1' : 'bg-white text-red-800 border border-red-200 hover:bg-red-50 hover:border-red-300'}`}
+                                                    >
+                                                        {isSelected && <Icon name="check" size={10}/>}
+                                                        {risk.replace(/_/g, ' ')}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-red-800 uppercase mb-3 block tracking-wide">Medida a Aplicar</label>
+                                        <div className="relative">
+                                            <select aria-label="Medida Sanitaria a Aplicar" className="w-full h-12 pl-4 pr-10 border-2 border-red-200 rounded-xl text-red-900 font-bold bg-white focus:border-red-500 focus:ring-4 focus:ring-red-100 outline-none appearance-none transition-all cursor-pointer" value={newProduct.seizureType} onChange={e=>setNewProduct({...newProduct, seizureType: e.target.value as SeizureType})}>
+                                                <option value="NINGUNO">SOLO HALLAZGO (Sin Medida)</option>
+                                                <option value="DECOMISO">DECOMISO (Incautación)</option>
+                                                <option value="CONGELAMIENTO">CONGELAMIENTO</option>
+                                                <option value="DESNATURALIZACION">DESTRUCCIÓN IN SITU</option>
+                                            </select>
+                                            <div className="absolute right-4 top-3.5 text-red-400 pointer-events-none"><Icon name="chevron-down" size={16}/></div>
+                                        </div>
+
+                                        {newProduct.seizureType !== 'NINGUNO' && (
+                                            <div className="mt-4 animate-in fade-in slide-in-from-top-2">
+                                                <SeizureCalculator onCalculate={handleCalculatorUpdate} cum={newProduct.cum} presentation={newProduct.presentation} pharmaceuticalForm={newProduct.pharmaceuticalForm} isVerified={cumSearchStatus === 'FOUND'} />
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="flex justify-end gap-4 border-t border-red-200 pt-6">
+                                    <button onClick={() => setIsReportingIssue(false)} className="px-6 py-3 text-slate-500 font-bold hover:text-slate-800 transition-colors">Cancelar</button>
+                                    <button onClick={() => handleAddProduct(false)} className="px-8 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold shadow-lg shadow-red-200 flex items-center gap-2 transform hover:scale-[1.02] transition-all"><Icon name="alert-octagon" size={18}/> CONFIRMAR HALLAZGO</button>
+                                </div>
+                            </div>
+                        )}
+                   </div>
+            </FocusSection>
+
+            {formError && (
+                 <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3 text-red-700 animate-shake">
+                     <Icon name="alert-circle" size={24}/>
+                     <span className="font-bold text-sm">{formError}</span>
+                 </div>
+            )}
+        </div>
       );
   };
 
@@ -772,12 +928,9 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
   // Technical: ATC, Via, ActivePrinciple, Unit (Accordion)
   // Operational: Lot, Expiration, Quantity (Always Visible)
 
-  const identityFieldsKeys = ['name', 'manufacturer', 'invimaReg', 'presentation'];
   const technicalFieldsKeys = ['atcCode', 'viaAdministration', 'activePrinciple', 'unit', 'pharmaceuticalForm', 'concentration'];
 
-  const identityFields = currentSchema.fields.filter(f => identityFieldsKeys.includes(f.key));
   // Operational are the rest (minus Technical and Identity)
-  const operationalFields = currentSchema.fields.filter(f => !identityFieldsKeys.includes(f.key) && !technicalFieldsKeys.includes(f.key));
   // Technical fields definition
   const technicalFields = currentSchema.fields.filter(f => technicalFieldsKeys.includes(f.key));
 
@@ -816,191 +969,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
             {/* PESTAÑA 2: PRODUCTOS */}
             {currentTab === 'PRODUCTOS' && (
             <div className="space-y-8 animate-in slide-in-from-right-4 duration-300">
-                <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 border border-slate-200 overflow-hidden">
-                    {/* ENCABEZADO DE SECCIÓN */}
-                    <div className="bg-slate-50 p-6 border-b border-slate-200 flex flex-col md:flex-row gap-6 items-end">
-                        <div className="flex-1 w-full">
-                            <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 block">CATEGORÍA</label>
-                            <div className="relative">
-                                <select aria-label="Categoría del Producto" className="w-full h-14 pl-12 pr-4 bg-white border-2 border-slate-200 rounded-xl font-bold text-slate-700 text-lg outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all appearance-none cursor-pointer" value={newProduct.type} onChange={e => setNewProduct({...newProduct, type: e.target.value as ProductType, subtype: PRODUCT_SCHEMAS[e.target.value]?.subtypes[0] || 'GENERAL', cum: '', name: ''})}>{Object.keys(PRODUCT_SCHEMAS).map(t => <option key={t} value={t}>{formatEnum(t)}</option>)}</select>
-                                <div className="absolute left-4 top-4 text-slate-400"><Icon name="package" size={24}/></div>
-                                <div className="absolute right-4 top-5 text-slate-400 pointer-events-none"><Icon name="chevron-down" size={16}/></div>
-                            </div>
-                        </div>
-                        <div className="flex-1 w-full">
-                            <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 block">SUBTIPO</label>
-                            <div className="relative">
-                                <select aria-label="Subtipo del Producto" className="w-full h-14 pl-12 pr-4 bg-white border-2 border-slate-200 rounded-xl font-bold text-slate-700 text-lg outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all appearance-none cursor-pointer" value={newProduct.subtype} onChange={e => setNewProduct({...newProduct, subtype: e.target.value as ProductSubtype})}>{PRODUCT_SCHEMAS[newProduct.type as ProductType]?.subtypes.map(s => <option key={s} value={s}>{formatEnum(s)}</option>)}</select>
-                                <div className="absolute left-4 top-4 text-slate-400"><Icon name="tag" size={24}/></div>
-                                <div className="absolute right-4 top-5 text-slate-400 pointer-events-none"><Icon name="chevron-down" size={16}/></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="p-8">
-                        {/* 1. SECCIÓN IDENTIDAD (PRODUCT CARD VS INPUTS) */}
-                        {newProduct.originalCumData && !isEditingMasterData ? (
-                            <div className="bg-slate-900 rounded-xl p-6 mb-8 text-white relative shadow-2xl overflow-hidden group border border-slate-800">
-                                {/* Decoración de fondo */}
-                                <div className="absolute top-0 right-0 -mt-10 -mr-10 w-40 h-40 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
-
-                                <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                                    <button onClick={() => setIsEditingMasterData(true)} className="flex items-center gap-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-bold backdrop-blur-md transition-colors border border-white/10 text-white shadow-sm">
-                                        <Icon name="edit-2" size={14}/> EDITAR
-                                    </button>
-                                </div>
-                                <div className="flex items-start gap-5 relative z-0">
-                                    <div className="p-4 bg-blue-500/20 rounded-2xl border border-blue-500/30 shadow-inner">
-                                        <Icon name="database" size={32} className="text-blue-400"/>
-                                    </div>
-                                    <div className="flex-1">
-                                        <div className="flex flex-col md:flex-row md:items-center gap-2 mb-2">
-                                            <h3 className="text-xl font-black tracking-tight text-white leading-tight">{newProduct.name}</h3>
-                                            <span className="px-2 py-0.5 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 rounded text-[10px] font-bold w-fit flex items-center gap-1"><Icon name="check-circle" size={10}/> CUM VIGENTE</span>
-                                        </div>
-                                        <p className="text-sm font-medium text-slate-300 mb-4 flex items-center gap-2"><Icon name="briefcase" size={12}/> {newProduct.manufacturer}</p>
-
-                                        <div className="flex flex-wrap gap-2 text-xs font-bold">
-                                            <span className="bg-white/10 px-3 py-1.5 rounded-lg border border-white/10 text-slate-200 flex items-center gap-2"><span className="text-slate-400">REG:</span> {newProduct.invimaReg}</span>
-                                            <span className="bg-white/10 px-3 py-1.5 rounded-lg border border-white/10 text-slate-200 flex items-center gap-2"><span className="text-slate-400">CUM:</span> {newProduct.cum}</span>
-                                            <span className="bg-indigo-500/20 px-3 py-1.5 rounded-lg border border-indigo-500/30 text-indigo-200 w-full md:w-auto mt-1 md:mt-0 flex items-center gap-2"><Icon name="package" size={12}/> {newProduct.presentation}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-12 gap-x-6 gap-y-8 mb-8">
-                                {/* Campo CUM siempre visible, Identity fields se renderizan si no están en modo tarjeta */}
-                                {renderField({ key: 'cum', label: 'CUM / Expediente', type: 'text', colSpan: 12, required: true })}
-                                {identityFields.map(renderField)}
-                            </div>
-                        )}
-
-                        {/* 2. CAMPOS OPERATIVOS (Siempre visibles) */}
-                        <div className="grid grid-cols-12 gap-x-6 gap-y-8">
-                            {operationalFields.map(renderField)}
-                        </div>
-
-                        {/* 3. [NEW] ACCORDION DETALLES TÉCNICOS (Accordion Strict) */}
-                        {technicalFields.length > 0 && (
-                            <details className="mt-8 group border border-slate-200 rounded-xl overflow-hidden bg-white">
-                                <summary className="bg-slate-50 p-4 font-bold text-slate-600 cursor-pointer flex justify-between items-center hover:bg-slate-100 transition-colors select-none">
-                                    <span className="flex items-center gap-2 text-xs uppercase tracking-wider"><Icon name="sliders" size={16}/> Ver Ficha Técnica Detallada (+)</span>
-                                    <Icon name="chevron-down" size={16} className="group-open:rotate-180 transition-transform text-slate-400"/>
-                                </summary>
-                                <div className="p-6 grid grid-cols-12 gap-x-6 gap-y-6 bg-slate-50/50 border-t border-slate-100">
-                                    {technicalFields.map(renderField)}
-                                </div>
-                            </details>
-                        )}
-
-                        {needsColdChain && (
-                            <div className="col-span-12 mt-8 p-5 bg-sky-50 border-2 border-sky-200 rounded-xl animate-in slide-in-from-top-2">
-                                <div className="flex items-start gap-4">
-                                    <div className={`p-3 rounded-xl ${newProduct.coldChainStatus === 'INCUMPLE' ? 'bg-red-100 text-red-600' : 'bg-sky-100 text-sky-600'}`}>
-                                        <Icon name="snowflake" size={24}/>
-                                    </div>
-                                    <div className="flex-1">
-                                        <h4 className={`font-black text-sm uppercase mb-1 ${newProduct.coldChainStatus === 'INCUMPLE' ? 'text-red-700' : 'text-sky-800'}`}>
-                                            CONTROL DE CADENA DE FRÍO (Decreto 1782)
-                                        </h4>
-                                        <div className="flex gap-4 items-end mt-4">
-                                            <div className="w-40">
-                                                <label className="text-[10px] font-bold text-sky-700 uppercase mb-1 block">Temperatura (°C)</label>
-                                                <Input type="number" step="0.1" value={newProduct.storageTemp || ''} onChange={e => setNewProduct({...newProduct, storageTemp: e.target.value})} aria-label="Temperatura de almacenamiento" placeholder="Ej: 4.5" className={`font-bold text-lg h-12 text-center ${newProduct.coldChainStatus === 'INCUMPLE' ? 'border-red-300 bg-red-50 text-red-700' : 'border-sky-300'}`} />
-                                            </div>
-                                            <div className="flex-1 pb-1">
-                                                {newProduct.coldChainStatus === 'INCUMPLE' ? (
-                                                    <div className="flex items-center gap-2 text-red-600 font-bold bg-red-100 px-3 py-2 rounded-lg"><Icon name="alert-triangle" size={18}/> RUPTURA DETECTADA - INMOVILIZACIÓN REQUERIDA</div>
-                                                ) : newProduct.storageTemp ? (
-                                                    <div className="flex items-center gap-2 text-emerald-600 font-bold bg-emerald-100 px-3 py-2 rounded-lg"><Icon name="check-circle" size={18}/> TEMPERATURA CONFORME</div>
-                                                ) : null}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {formError && (
-                            <div className="mt-8 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3 text-red-700 animate-shake"><Icon name="alert-circle" size={24}/><span className="font-bold text-sm">{formError}</span></div>
-                        )}
-
-                        <div className="flex flex-col md:flex-row gap-4 justify-end mt-10 pt-8 border-t border-slate-100">
-                            {!isReportingIssue ? (
-                                <>
-                                    <button onClick={() => setIsReportingIssue(true)} className="px-6 py-4 rounded-xl border-2 border-slate-200 text-slate-600 font-bold hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all flex items-center gap-2 group"><div className="p-1 bg-slate-100 rounded group-hover:bg-red-100 transition-colors"><Icon name="alert-triangle" size={18}/></div> REPORTAR HALLAZGO</button>
-                                    <button onClick={() => handleAddProduct(true)} disabled={cumValidationState === 'EXPIRED'} className={`px-8 py-4 rounded-xl font-bold shadow-xl flex items-center gap-3 text-white transition-all transform hover:scale-[1.02] ${cumValidationState === 'EXPIRED' || (needsColdChain && newProduct.coldChainStatus === 'INCUMPLE') ? 'bg-slate-300 cursor-not-allowed' : 'bg-slate-900 hover:bg-slate-800'}`}><Icon name="check-circle" size={20}/> REGISTRAR CONFORME</button>
-                                </>
-                            ) : (
-                                <div className="w-full bg-red-50 p-6 rounded-2xl border border-red-100 animate-in slide-in-from-bottom-4 shadow-xl shadow-red-50/50">
-                                    <div className="flex items-center gap-3 mb-6 pb-4 border-b border-red-200/50">
-                                        <div className="p-2 bg-red-100 text-red-600 rounded-lg"><Icon name="shield-off" size={24}/></div>
-                                        <div><h4 className="font-black text-red-900 uppercase">Panel de Medidas Sanitarias</h4><p className="text-xs text-red-700">Configure la causal y la medida a aplicar.</p></div>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-6">
-                                        <div>
-                                            <label className="text-xs font-bold text-red-800 uppercase mb-3 block tracking-wide">Causales del Riesgo (Selección Múltiple)</label>
-
-                                            {/* [NEW] PILLS SELECTOR (Clean UI) */}
-                                            <div className="flex flex-wrap gap-2">
-                                                {['VENCIDO', 'SIN_REGISTRO', 'ALTERADO', 'USO_INSTITUCIONAL', 'MUESTRA_MEDICA', 'MAL_ALMACENAMIENTO', 'FRAUDULENTO'].map((risk) => {
-                                                    const isSelected = (newProduct.riskFactors || []).includes(risk as RiskFactor);
-                                                    return (
-                                                        <button
-                                                            key={risk}
-                                                            type="button"
-                                                            onClick={() => {
-                                                                setNewProduct(prev => {
-                                                                    const current = prev.riskFactors || [];
-                                                                    return {
-                                                                        ...prev,
-                                                                        riskFactors: isSelected
-                                                                            ? current.filter(r => r !== risk)
-                                                                            : [...current, risk as RiskFactor]
-                                                                    };
-                                                                });
-                                                            }}
-                                                            className={`px-4 py-2 rounded-full text-[10px] font-black tracking-wide transition-all flex items-center gap-2 transform active:scale-95 ${isSelected ? 'bg-red-600 text-white shadow-md shadow-red-200 ring-2 ring-red-400 ring-offset-1' : 'bg-white text-red-800 border border-red-200 hover:bg-red-50 hover:border-red-300'}`}
-                                                        >
-                                                            {isSelected && <Icon name="check" size={10}/>}
-                                                            {risk.replace(/_/g, ' ')}
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-
-                                        </div>
-                                        <div>
-                                            <label className="text-xs font-bold text-red-800 uppercase mb-3 block tracking-wide">Medida a Aplicar</label>
-                                            <div className="relative">
-                                                <select aria-label="Medida Sanitaria a Aplicar" className="w-full h-12 pl-4 pr-10 border-2 border-red-200 rounded-xl text-red-900 font-bold bg-white focus:border-red-500 focus:ring-4 focus:ring-red-100 outline-none appearance-none transition-all cursor-pointer" value={newProduct.seizureType} onChange={e=>setNewProduct({...newProduct, seizureType: e.target.value as SeizureType})}>
-                                                    <option value="NINGUNO">SOLO HALLAZGO (Sin Medida)</option>
-                                                    <option value="DECOMISO">DECOMISO (Incautación)</option>
-                                                    <option value="CONGELAMIENTO">CONGELAMIENTO</option>
-                                                    <option value="DESNATURALIZACION">DESTRUCCIÓN IN SITU</option>
-                                                </select>
-                                                <div className="absolute right-4 top-3.5 text-red-400 pointer-events-none"><Icon name="chevron-down" size={16}/></div>
-                                            </div>
-
-                                            {/* JUST-IN-TIME CALCULATOR */}
-                                            {newProduct.seizureType !== 'NINGUNO' && (
-                                                <div className="mt-4 animate-in fade-in slide-in-from-top-2">
-                                                    <SeizureCalculator onCalculate={handleCalculatorUpdate} cum={newProduct.cum} presentation={newProduct.presentation} pharmaceuticalForm={newProduct.pharmaceuticalForm} isVerified={cumSearchStatus === 'FOUND'} />
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    <div className="flex justify-end gap-4 border-t border-red-200 pt-6">
-                                        <button onClick={() => setIsReportingIssue(false)} className="px-6 py-3 text-slate-500 font-bold hover:text-slate-800 transition-colors">Cancelar</button>
-                                        <button onClick={() => handleAddProduct(false)} className="px-8 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold shadow-lg shadow-red-200 flex items-center gap-2 transform hover:scale-[1.02] transition-all"><Icon name="alert-octagon" size={18}/> CONFIRMAR HALLAZGO</button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
+                {renderProductForm()}
 
                 {/* HISTORIAL */}
                 <div className="space-y-4">
@@ -1398,4 +1367,85 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
     </div>
   );
+};
+
+// =============================================================================
+// 5. COMPONENTES AUXILIARES (FOCUS FLOW UX)
+// =============================================================================
+
+const FocusSection: React.FC<{
+    title: string;
+    isActive: boolean;
+    isDone: boolean;
+    children: React.ReactNode;
+    icon: string;
+}> = ({ title, isActive, isDone, children, icon }) => {
+    return (
+        <div className={`border rounded-2xl transition-all duration-500 ${isActive ? 'border-blue-500 ring-4 ring-blue-50/50 bg-white shadow-xl scale-[1.01]' : isDone ? 'border-emerald-200 bg-emerald-50/30 opacity-70 hover:opacity-100' : 'border-slate-100 bg-slate-50 opacity-40 grayscale'}`}>
+            <div className={`p-4 flex items-center gap-3 border-b ${isActive ? 'border-blue-100' : 'border-transparent'}`}>
+                <div className={`p-2 rounded-xl transition-colors ${isActive ? 'bg-blue-600 text-white' : isDone ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-200 text-slate-400'}`}>
+                    <Icon name={isDone ? 'check' : icon} size={20} />
+                </div>
+                <h4 className={`font-black uppercase text-xs tracking-widest ${isActive ? 'text-blue-900' : 'text-slate-500'}`}>{title}</h4>
+            </div>
+            <div className={`transition-all duration-500 overflow-hidden ${isActive ? 'max-h-[2000px] opacity-100 p-6' : 'max-h-0 opacity-0'}`}>
+                {children}
+            </div>
+        </div>
+    );
+};
+
+const SmartField: React.FC<{
+    label: string;
+    value: string | number;
+    onChange?: (e: any) => void;
+    isAutoFilled?: boolean;
+    isLocked?: boolean;
+    onUnlock?: () => void;
+    placeholder?: string;
+    type?: string;
+    className?: string;
+    readOnly?: boolean;
+}> = ({ label, value, onChange, isAutoFilled, isLocked, onUnlock, placeholder, type = 'text', className, readOnly }) => {
+    return (
+        <div className={className}>
+            <label className="text-[10px] font-bold text-slate-400 uppercase mb-1.5 flex items-center justify-between">
+                {label}
+                {isAutoFilled && <span className="text-[9px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100 flex items-center gap-1"><Icon name="database" size={8}/> AUTO</span>}
+            </label>
+            <div className="relative group">
+                <Input
+                    type={type}
+                    value={value}
+                    onChange={onChange}
+                    disabled={isLocked || readOnly}
+                    placeholder={placeholder}
+                    className={`h-11 font-bold text-sm transition-all ${
+                        isLocked ? 'bg-slate-50 text-slate-500 border-slate-200 cursor-not-allowed pl-10' :
+                        isAutoFilled ? 'bg-blue-50/30 border-blue-200 text-blue-900 focus:border-blue-500' :
+                        'bg-white border-slate-300 focus:border-indigo-500'
+                    }`}
+                />
+                {isLocked && (
+                    <div className="absolute left-3 top-3 text-slate-400">
+                        <Icon name="lock" size={16}/>
+                    </div>
+                )}
+                {isLocked && onUnlock && (
+                    <button
+                        onClick={onUnlock}
+                        className="absolute right-2 top-2 p-1.5 text-slate-300 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                        title="Desbloquear para edición manual"
+                    >
+                        <Icon name="edit-2" size={14}/>
+                    </button>
+                )}
+                 {!isLocked && isAutoFilled && (
+                     <div className="absolute right-3 top-3.5 text-blue-400 pointer-events-none animate-pulse">
+                        <Icon name="sparkles" size={14}/>
+                     </div>
+                 )}
+            </div>
+        </div>
+    );
 };
