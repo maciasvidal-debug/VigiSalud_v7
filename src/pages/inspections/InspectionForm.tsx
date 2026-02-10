@@ -21,7 +21,7 @@ import { parsePresentation } from '../../utils/PharmaParser';
 import type { Report, ProductFinding, ProductType, InspectionItem, FindingEvidence, RiskFactor, SeizureType, ComplaintType, CustodyChain, ProductSubtype, SeizureLogistics, ExtendedCumRecord } from '../../types';
 
 // =============================================================================
-// 1. TIPOS LOCALES Y UTILIDADES
+// 1. TIPOS Y UTILIDADES DE CAMPO
 // =============================================================================
 
 interface InspectionFormProps {
@@ -39,12 +39,12 @@ interface InspectionFormProps {
   };
 }
 
+// Extensión del tipo para manejo local en memoria
 interface LocalProductFinding extends ProductFinding {
     hasEvidence?: boolean;
     containerId?: string; 
-    // Auditoría de integridad de datos (ALCOA+)
-    originalCumData?: Partial<ProductFinding>;
-    originalInput?: { packs: number; loose: number };
+    originalCumData?: Partial<ProductFinding>; // Para auditoría de cambios vs BD
+    originalInput?: { packs: number; loose: number }; // Para reconstrucción de inventario
 }
 
 interface EvidenceContainer {
@@ -54,33 +54,43 @@ interface EvidenceContainer {
     items: string[]; 
 }
 
-// Helper de Formato
+declare global {
+    interface Window {
+        webkitSpeechRecognition: any;
+        SpeechRecognition: any;
+    }
+}
+
+// Formateador visual para Enums (Ej: SINTESIS_QUIMICA -> SINTESIS QUIMICA)
 const formatEnum = (text: string | undefined) => text ? text.replace(/_/g, ' ') : '';
 
-// Helper de Grilla 12 Columnas (Estricto según Manual)
+// Helper de Grilla Responsive (Ajustado para Tablet/Desktop)
 const getColSpanClass = (field: FieldConfig) => {
+    // Mapa de columnas basado en grid-cols-12
     const colSpans: Record<number, string> = {
         1: 'md:col-span-1', 2: 'md:col-span-2', 3: 'md:col-span-3',
         4: 'md:col-span-4', 5: 'md:col-span-5', 6: 'md:col-span-6',
         7: 'md:col-span-7', 8: 'md:col-span-8', 9: 'md:col-span-9',
         10: 'md:col-span-10', 11: 'md:col-span-11', 12: 'md:col-span-12',
     };
-    // Por defecto 12 si no está definido, para evitar colapsos
     const spanClass = field.colSpan ? colSpans[field.colSpan] : 'md:col-span-12';
+    // En móvil siempre full width (col-span-12), en MD usa la configuración
     return `col-span-12 ${spanClass}`;
 };
 
 // =============================================================================
-// 2. COMPONENTE PRINCIPAL (CORE LOGIC)
+// 2. COMPONENTE PRINCIPAL (CORE LÓGICO Y VISUAL)
 // =============================================================================
 
 export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) => {
   const { establishmentId } = useParams();
   const navigate = useNavigate();
   const { showToast } = useToast();
+  
+  // Refs para inputs ocultos y modales
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // --- ESTADOS DE FLUJO ---
+  // --- ESTADOS DE MÁQUINA DE ESTADOS (CORE) ---
   const [loading, setLoading] = useState(false);
   const [currentTab, setCurrentTab] = useState<'DIAGNOSTICO' | 'PRODUCTOS' | 'CUSTODIA' | 'CIERRE'>('DIAGNOSTICO');
   
@@ -102,7 +112,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | undefined>(undefined);
   const [pendingReportData, setPendingReportData] = useState<Partial<Report> | null>(null);
 
-  // --- ESTADOS DE PRODUCTOS E INVENTARIO ---
+  // --- ESTADOS DE INVENTARIO Y PRODUCTOS ---
   const [products, setProducts] = useState<LocalProductFinding[]>([]);
   const [containers, setContainers] = useState<EvidenceContainer[]>([]); 
   const [newContainer, setNewContainer] = useState<{type: string, code: string}>({ type: 'BOLSA_SEGURIDAD', code: '' }); 
@@ -110,11 +120,12 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
   const [isReportingIssue, setIsReportingIssue] = useState(false);
   const [evidenceTemp, setEvidenceTemp] = useState(false); 
   
-  // --- GESTIÓN DE CANTIDADES (SPLIT INPUT) ---
+  // --- GESTIÓN DE CANTIDADES (SPLIT INPUT - UX MEJORADA) ---
   const [packsInput, setPacksInput] = useState<number>(0);
   const [looseInput, setLooseInput] = useState<number>(0);
-  
-  // --- ESTADOS DE BÚSQUEDA CUM (INTEGRACIÓN DB) ---
+  const [interpretedQty, setInterpretedQty] = useState<string>('');
+
+  // --- MOTOR DE BÚSQUEDA CUM (HÍBRIDO) ---
   const [isSearchingCum, setIsSearchingCum] = useState(false);
   const [cumSearchStatus, setCumSearchStatus] = useState<'IDLE' | 'FOUND' | 'NOT_FOUND'>('IDLE');
   const [cumValidationState, setCumValidationState] = useState<'VALID' | 'EXPIRED' | 'SUSPENDED' | 'REVOKED' | null>(null);
@@ -122,12 +133,12 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
   const [cumResults, setCumResults] = useState<ExtendedCumRecord[]>([]);
   const [showCumModal, setShowCumModal] = useState(false);
   
-  // --- ESTADOS MODALES DE ALERTA ---
+  // --- MODALES DE FLUJO ---
   const [showEvidenceModal, setShowEvidenceModal] = useState(false);
   const [showBlockModal, setShowBlockModal] = useState(false);
   const [pendingEvidenceId, setPendingEvidenceId] = useState<string | null>(null);
   
-  // --- OBJETO PRODUCTO (ESTADO TRANSACCIONAL) ---
+  // --- STATE OBJECT: NUEVO PRODUCTO ---
   const [newProduct, setNewProduct] = useState<Partial<ProductFinding> & { 
       coldChainStatus?: string; 
       pharmaceuticalForm?: string;
@@ -147,45 +158,68 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
     packLabel: '', logistics: undefined
   });
 
-  const [interpretedQty, setInterpretedQty] = useState<string>('');
-
   const [custodyData, setCustodyData] = useState<Partial<CustodyChain> & { transportType?: string }>({
     depositLocation: '', transportType: 'INSTITUCIONAL', transportCompany: '', transportPlate: '', driverName: ''
   });
 
-  // --- QUERIES DE BASE DE DATOS ---
+  // --- QUERY REACTIVO AL ESTABLECIMIENTO ---
   const establishment = useLiveQuery(() => (establishmentId ? db.establishments.get(Number(establishmentId)) : undefined), [establishmentId]);
   const hasSeizures = products.some(p => p.seizureType !== 'NINGUNO');
   
   const INSPECTION_STEPS: StepItem[] = [
-      { id: 'DIAGNOSTICO', label: 'Condiciones', icon: 'clipboard', description: 'Matriz IVC' }, 
-      { id: 'PRODUCTOS', label: 'Evidencia', icon: 'search', description: 'Inventario' }, 
-      { id: 'CUSTODIA', label: 'Logística', icon: 'shield', description: 'Custodia', disabled: !hasSeizures }, 
-      { id: 'CIERRE', label: 'Cierre', icon: 'pen-tool', description: 'Acta Final' }
+      { id: 'DIAGNOSTICO', label: '1. Diagnóstico', icon: 'clipboard', description: 'Matriz de Riesgo' }, 
+      { id: 'PRODUCTOS', label: '2. Evidencia', icon: 'search', description: 'Inventario y Hallazgos' }, 
+      { id: 'CUSTODIA', label: '3. Custodia', icon: 'shield', description: 'Aseguramiento', disabled: !hasSeizures }, 
+      { id: 'CIERRE', label: '4. Cierre', icon: 'pen-tool', description: 'Firma y Acta' }
   ];
 
   // ===========================================================================
-  // 3. LOGICA DE NEGOCIO (HANDLERS)
+  // 3. LOGICA DE NEGOCIO (HANDLERS ROBUSTOS)
   // ===========================================================================
 
-  // --- VOICE TO TEXT (STUB OBLIGATORIO) ---
+  // --- DICTADO POR VOZ (WEB SPEECH API) ---
   const toggleListening = (fieldId: string, setter: React.Dispatch<React.SetStateAction<string>>) => {
     if (isListening === fieldId) { setIsListening(null); return; }
-    // En producción aquí va la API de WebSpeech
-    showToast("Micrófono activado (Simulación)", 'info');
+    
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) { 
+        showToast("Dispositivo no compatible con dictado por voz.", 'error'); 
+        return; 
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'es-CO';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
     setIsListening(fieldId);
-    setTimeout(() => setIsListening(null), 3000);
+    showToast("Escuchando... hable claro.", 'info');
+
+    recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        setter(prev => prev ? `${prev} ${transcript}` : transcript); 
+        setIsListening(null);
+    };
+
+    recognition.onerror = (event: any) => {
+        console.warn("Error voz:", event.error);
+        setIsListening(null);
+    };
+
+    recognition.onend = () => setIsListening(null);
+    recognition.start();
   };
 
-  // --- GESTIÓN DE CUSTODIA (PACKING) ---
+  // --- LOGÍSTICA: GESTIÓN DE CONTENEDORES ---
   const addContainer = () => { 
-      if (!newContainer.code) { showToast("Debe ingresar el código del precinto.", 'warning'); return; } 
+      if (!newContainer.code) { showToast("Código de precinto requerido.", 'warning'); return; } 
       const newId = crypto.randomUUID(); 
       setContainers([...containers, { id: newId, type: newContainer.type as any, code: newContainer.code, items: [] }]); 
       setNewContainer({ ...newContainer, code: '' }); 
   };
   
   const removeContainer = (containerId: string) => { 
+      // Desvincular productos del contenedor eliminado
       setProducts(prev => prev.map(p => p.containerId === containerId ? { ...p, containerId: undefined } : p)); 
       setContainers(prev => prev.filter(c => c.id !== containerId)); 
   };
@@ -198,17 +232,19 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       setProducts(prev => prev.map(p => p.id === productId ? { ...p, containerId: undefined } : p)); 
   };
   
-  // --- GESTIÓN DE FOTOS Y EVIDENCIA ---
+  // --- EVIDENCIA FOTOGRÁFICA ---
   const handlePhotoClick = () => { if (fileInputRef.current) fileInputRef.current.click(); };
   
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { 
       if (e.target.files && e.target.files[0]) { 
           const fakeUrl = URL.createObjectURL(e.target.files[0]); 
           if (pendingEvidenceId) { 
+              // Asignar a producto existente
               setProducts(prev => prev.map(p => p.id === pendingEvidenceId ? { ...p, hasEvidence: true, photoUrl: fakeUrl } : p)); 
               setPendingEvidenceId(null); 
-              showToast("Evidencia vinculada exitosamente", 'success'); 
+              showToast("Evidencia vinculada al hallazgo.", 'success'); 
           } else { 
+              // Asignar a nuevo producto en proceso
               setEvidenceTemp(true); 
               if (showEvidenceModal) setShowEvidenceModal(false); 
           } 
@@ -221,39 +257,36 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       if (fileInputRef.current) fileInputRef.current.click(); 
   };
 
-  // --- CALCULADORA DE VOLUMEN (DECOMISO) ---
+  // --- CALCULADORA DE VOLUMEN (INTEGRACIÓN) ---
   const handleCalculatorUpdate = useCallback((total: number, label: string, logistics: SeizureLogistics) => {
       setNewProduct(prev => {
+          // Evitar re-renders si no hay cambios
           if (prev.quantity === total && prev.packLabel === label) return prev; 
           return { ...prev, quantity: total, packLabel: label, logistics };
       });
   }, []);
 
-  // --- CORE: AGREGAR PRODUCTO AL ACTA ---
+  // --- AGREGAR PRODUCTO (COMMIT) ---
   const commitProduct = (overrideEvidence: boolean) => {
       const finalRisk = newProduct.riskFactor || 'NINGUNO';
       
-      // Lógica de Negocio: Cálculo de Cantidad Total
       let finalQuantity = 0;
       let smartLabel = '';
       let currentLogistics = newProduct.logistics;
 
+      // Lógica para Productos Conformes (Cálculo Automático)
       if (!isReportingIssue && newProduct.presentation && newProduct.pharmaceuticalForm) {
           const model = parsePresentation(newProduct.pharmaceuticalForm, newProduct.presentation);
-          
-          // Fórmula: (Cajas * Factor) + Unidades Sueltas
           finalQuantity = (packsInput * model.packFactor) + looseInput;
           
-          // Etiqueta Inteligente para el Acta
           if (packsInput > 0 && looseInput > 0) {
-              smartLabel = `${packsInput} ${model.packType}s + ${looseInput} ${model.containerType}s (${finalQuantity} Total)`;
+              smartLabel = `${packsInput} ${model.packType}s + ${looseInput} ${model.containerType}s`;
           } else if (packsInput > 0) {
-              smartLabel = `${packsInput} ${model.packType}s (${finalQuantity} ${model.containerType}s)`;
+              smartLabel = `${packsInput} ${model.packType}s`;
           } else {
-              smartLabel = `${looseInput} ${model.containerType}s Sueltos`;
+              smartLabel = `${looseInput} ${model.containerType}s`;
           }
 
-          // Generar Logística (Backoffice)
           if (!currentLogistics) {
               currentLogistics = {
                   presentation: model,
@@ -267,13 +300,13 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
               };
           }
       } else {
-          // Modo Manual o Decomiso
+          // Fallback para manual o decomiso
           finalQuantity = newProduct.quantity || 0;
           smartLabel = newProduct.packLabel || `${finalQuantity} Unidades`;
       }
 
-      if (finalQuantity === 0) {
-          setFormError("La cantidad total no puede ser cero.");
+      if (finalQuantity <= 0) {
+          setFormError("La cantidad debe ser mayor a cero.");
           return;
       }
 
@@ -292,7 +325,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
 
       setProducts(prev => [finding, ...prev]);
       
-      // Limpieza de Formulario
+      // Limpieza profunda del formulario
       setNewProduct({ 
         type: newProduct.type, subtype: newProduct.subtype,
         name: '', manufacturer: '', riskFactor: 'NINGUNO', seizureType: 'NINGUNO', quantity: 0,
@@ -313,16 +346,16 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
     setFormError(null); 
     if (!newProduct.name) { setFormError("El nombre del producto es obligatorio."); return; }
     
-    // Semáforo Regulatorio
+    // Regla QbD: Bloqueo si está vencido en BD y se intenta pasar como conforme
     if (isConform && (cumValidationState === 'EXPIRED' || cumValidationState === 'SUSPENDED' || cumValidationState === 'REVOKED')) {
-        setFormError("⛔ BLOQUEO: Este producto tiene Registro Vencido. Debe reportarlo como Hallazgo.");
+        setFormError("⛔ BLOQUEO DE SEGURIDAD: El Registro Sanitario figura como VENCIDO/CANCELADO. Debe reportarlo como Hallazgo.");
         return;
     }
 
     const finalRisk = isConform ? 'NINGUNO' : (newProduct.riskFactor || 'NINGUNO');
-    if (isConform && finalRisk !== 'NINGUNO') { setFormError("Inconsistencia: No puede marcar 'Conforme' si seleccionó un riesgo."); return; }
+    if (isConform && finalRisk !== 'NINGUNO') { setFormError("Error lógico: No puede ser Conforme si seleccionó un Riesgo."); return; }
     
-    // Obligatoriedad de Evidencia en Hallazgos
+    // Regla Legal: Hallazgo requiere evidencia
     if (!isConform && finalRisk !== 'NINGUNO' && !evidenceTemp) { 
         setShowEvidenceModal(true); 
         return; 
@@ -332,10 +365,10 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
 
   const removeProduct = (id: string) => setProducts(products.filter(p => p.id !== id));
 
-  // --- GENERACIÓN DE DOCUMENTOS (PDF) ---
+  // --- CIERRE Y PDF ---
   const handleReviewDraft = async () => {
     if (!establishment || !establishmentId) return;
-    if (!inspectionNarrative) { showToast("⚠️ Falta la narrativa de los hechos.", 'error'); return; }
+    if (!inspectionNarrative) { showToast("⚠️ Debe completar la narrativa de los hechos.", 'error'); return; }
     
     setLoading(true);
     try {
@@ -393,7 +426,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       setShowDraftModal(true);
     } catch (e) { 
         console.error(e); 
-        showToast("Error crítico generando el PDF.", 'error'); 
+        showToast("Error generando el PDF del acta.", 'error'); 
     } finally { 
         setLoading(false); 
     }
@@ -406,7 +439,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
           const hash = await generateInspectionHash(pendingReportData);
           pendingReportData.verificationHash = hash;
           await db.inspections.add(pendingReportData as Report);
-          showToast(`✅ Acta cerrada y firmada digitalmente.`, 'success');
+          showToast(`✅ Acta N° ${pendingReportData.data?.actId} cerrada correctamente.`, 'success');
           navigate('/dashboard/inspections');
       } catch (e) { 
           console.error(e); 
@@ -417,7 +450,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       }
   };
 
-  // --- BÚSQUEDA CUM AVANZADA (MODO HÍBRIDO) ---
+  // --- BÚSQUEDA CUM (MODO HÍBRIDO AVANZADO) ---
   const searchCum = async (query: string) => {
       setIsSearchingCum(true);
       const cleanQuery = query.trim().toUpperCase();
@@ -430,16 +463,16 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
               return;
           }
 
-          // Lógica de detección de tipo de búsqueda
+          // Detección de Patrón: ¿Es código o texto?
           if (/^\d+/.test(cleanQuery)) {
-              // Si inicia con números -> Buscar por EXPEDIENTE (Indexado)
+              // Búsqueda Exacta por Expediente
               results = await db.cums
                   .where('expediente')
                   .startsWith(cleanQuery)
                   .limit(20)
                   .toArray() as unknown as ExtendedCumRecord[];
           } else {
-              // Si son letras -> Buscar por PRODUCTO o PRINCIPIO ACTIVO (Paralelo)
+              // Búsqueda Semántica (Producto o Principio Activo)
               const byProduct = await db.cums
                   .where('producto')
                   .startsWithIgnoreCase(cleanQuery)
@@ -452,7 +485,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                   .limit(10)
                   .toArray();
 
-              // Merge y Deduplicación
+              // Deduplicación inteligente
               const combined = [...byProduct, ...byActive];
               const unique = new Map();
               combined.forEach(item => unique.set(item.expediente, item));
@@ -466,22 +499,22 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       setIsSearchingCum(false);
   };
 
-  // Debounce (Solo busca automáticamente si escribes rápido en el modal)
+  // Debounce en búsqueda del Modal (para no saturar Dexie)
   useEffect(() => {
       const timer = setTimeout(() => {
-          if (cumQuery.length > 2) {
+          if (showCumModal && cumQuery.length > 2) {
               searchCum(cumQuery);
           }
-      }, 500); 
+      }, 400); 
       return () => clearTimeout(timer);
-  }, [cumQuery]);
+  }, [cumQuery, showCumModal]);
 
   const selectFromModal = (record: ExtendedCumRecord) => {
-      // Semáforo de Vigencia
+      // Análisis de Vigencia (QbD)
       let validation: 'VALID' | 'EXPIRED' | 'SUSPENDED' | 'REVOKED' = 'VALID';
       const status = record.estadoregistro ? record.estadoregistro.toUpperCase() : '';
       
-      if (status.includes('VENCID') || status.includes('CANCELAD')) {
+      if (status.includes('VENCID') || status.includes('CANCELAD') || status.includes('REVOCAD')) {
           validation = 'EXPIRED';
       } else if (record.fechavencimiento) {
           const expiration = new Date(record.fechavencimiento);
@@ -491,10 +524,10 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       setCumValidationState(validation);
       if (validation !== 'VALID') {
           setIsReportingIssue(true);
-          showToast("⚠️ ALERTA: El registro seleccionado no está vigente.", "warning");
+          showToast("⚠️ ALERTA: Registro Sanitario NO VIGENTE.", "warning");
       }
 
-      // MAPEO DE DATOS (BD -> Formulario)
+      // Mapeo Automático
       const mappedProduct: Partial<ProductFinding> = {
           cum: record.expediente + (record.consecutivocum ? `-${record.consecutivocum}` : ''), 
           name: record.producto,
@@ -506,7 +539,6 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
           concentration: record.concentracion,
           viaAdministration: record.viaadministracion,
           atcCode: record.atc,
-          // Si está vencido, pre-seleccionamos el riesgo VENCIDO
           riskFactor: validation !== 'VALID' ? (validation === 'EXPIRED' ? 'VENCIDO' : 'SIN_REGISTRO') : 'NINGUNO'
       };
 
@@ -515,7 +547,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       setCumQuery('');
   };
 
-  // --- MANEJADORES DE MATRIZ ---
+  // --- HANDLERS MATRIZ ---
   const handleMatrixResponse = (itemId: string, value: 'CUMPLE' | 'NO_CUMPLE' | 'NO_APLICA') => { 
       setChecklistResponses(prev => ({ ...prev, [itemId]: { ...prev[itemId], status: value } })); 
   };
@@ -526,7 +558,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       setChecklistResponses(prev => ({ ...prev, [itemId]: { ...prev[itemId], observation } })); 
   };
 
-  // --- EFECTOS DE INICIALIZACIÓN ---
+  // --- EFECTOS AUXILIARES ---
   useEffect(() => { 
       if (establishment) setInspectionItems(inspectionEngine.generate(establishment)); 
   }, [establishment]);
@@ -541,7 +573,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       setConcept(finalScore < 60 ? 'DESFAVORABLE' : 'FAVORABLE'); 
   }, [checklistResponses, products, inspectionItems]);
   
-  // Parser de Texto para Cantidad (Feedback visual)
+  // Feedback visual de cantidad
   useEffect(() => {
       if (newProduct.presentation && newProduct.pharmaceuticalForm && (packsInput > 0 || looseInput > 0) && !isReportingIssue) {
           const model = parsePresentation(newProduct.pharmaceuticalForm, newProduct.presentation);
@@ -558,7 +590,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
 
 
   // ===========================================================================
-  // 4. RENDERIZADO DINÁMICO DE CAMPOS
+  // 4. RENDERIZADO DINÁMICO DE CAMPOS (UI PROFESIONAL)
   // ===========================================================================
 
   const renderField = (field: FieldConfig) => {
@@ -567,80 +599,75 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       const colClass = getColSpanClass(field);
       const isColdChainError = field.section === 'COLD_CHAIN' && newProduct.coldChainStatus?.includes('INCUMPLE');
       
+      // Control de cambios
       const originalValue = newProduct.originalCumData ? newProduct.originalCumData[field.key as keyof ProductFinding] : undefined;
       const currentValue = newProduct[field.key as keyof ProductFinding];
       const isDiscrepant = originalValue && currentValue && originalValue !== currentValue;
 
-      // CAMPO CUM: Input libre + Botón de Búsqueda
+      // CAMPO CUM (Input + Botón Dedicado)
       if (field.key === 'cum') {
           return (
               <div className={colClass} key={field.key}>
-                  <label className="text-xs font-bold text-slate-500 mb-1 flex justify-between">
-                      {field.label}
-                      {newProduct.originalCumData && <span className="text-emerald-600 bg-emerald-50 px-1 rounded text-[9px] border border-emerald-200">✓ BD INVIMA</span>}
-                  </label>
-                  <div className="relative flex shadow-sm rounded-xl overflow-hidden border border-slate-200 focus-within:border-blue-500 focus-within:ring-2 ring-blue-100 transition-all">
-                      <input 
-                          className="w-full h-11 pl-3 pr-3 text-sm font-bold text-slate-700 outline-none bg-white placeholder-slate-400"
-                          value={newProduct.cum || ''} 
-                          onChange={e => setNewProduct({...newProduct, cum: e.target.value})} 
-                          placeholder={field.placeholder || "Digite CUM..."}
-                          // 🛑 FIX CRÍTICO: Eliminado el onClick que bloqueaba la escritura
-                      />
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-xs font-black text-slate-500 uppercase tracking-wider">{field.label}</label>
+                    {newProduct.originalCumData && <Badge label="✓ BD OFICIAL" className="bg-emerald-100 text-emerald-700 border-emerald-200"/>}
+                  </div>
+                  <div className="flex gap-2">
+                      <div className="relative flex-1">
+                          <Input 
+                              value={newProduct.cum || ''} 
+                              onChange={e => setNewProduct({...newProduct, cum: e.target.value})} 
+                              placeholder={field.placeholder || "Digite..."}
+                              className="font-mono text-sm"
+                          />
+                      </div>
                       <button 
-                          type="button" 
-                          onClick={() => { setCumQuery(newProduct.cum || ''); setShowCumModal(true); }} 
-                          className="px-4 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs flex items-center gap-2 shadow-sm transition-colors"
+                          type="button"
+                          onClick={() => { setCumQuery(newProduct.cum || ''); setShowCumModal(true); }}
+                          className="px-4 bg-slate-800 text-white rounded-xl hover:bg-slate-700 shadow-md transition-all flex items-center justify-center gap-2 font-bold text-xs"
                           title="Abrir Buscador Maestro (F2)"
                       >
-                          <Icon name="database" size={16}/> AVANZADO
+                          <Icon name="database" size={16}/> BÚSQUEDA
                       </button>
                   </div>
-                  {field.hint && <p className="text-[10px] text-slate-400 mt-1 italic flex items-center gap-1"><Icon name="info" size={10}/> {field.hint}</p>}
               </div>
           );
       }
 
-      // CAMPO CANTIDAD: Split Input (Cajas vs Unidades)
+      // CAMPO CANTIDAD (Tarjeta Visual)
       if (field.key === 'quantity') {
           return (
               <div className={colClass} key={field.key}>
-                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
-                      <label className="text-xs font-bold text-slate-600 mb-2 block border-b border-slate-200 pb-1">INVENTARIO FÍSICO (REG-Q022)</label>
-                      <div className="flex gap-2 items-end">
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 h-full flex flex-col justify-center shadow-inner">
+                      <label className="text-xs font-black text-slate-600 mb-3 block border-b border-slate-200 pb-2">CONTEO FÍSICO</label>
+                      <div className="flex items-end gap-3">
                           <div className="flex-1">
-                              <label className="text-[9px] text-slate-400 font-bold uppercase mb-1 block">Empaques Completos</label>
-                              <div className="relative">
-                                  <input 
-                                      type="number" 
-                                      className="w-full h-10 pl-3 pr-2 rounded-lg border border-slate-300 font-bold text-slate-700 outline-none focus:border-blue-500"
-                                      value={packsInput || ''}
-                                      onChange={e => setPacksInput(parseInt(e.target.value) || 0)}
-                                      placeholder="Cajas..."
-                                  />
-                                  <div className="absolute right-2 top-2.5 text-slate-300 pointer-events-none"><Icon name="box" size={14}/></div>
-                              </div>
+                              <label className="text-[9px] font-bold text-slate-400 mb-1 block uppercase">Cajas/Empaques</label>
+                              <Input 
+                                  type="number" 
+                                  value={packsInput || ''} 
+                                  onChange={e => setPacksInput(Math.max(0, parseInt(e.target.value) || 0))} 
+                                  placeholder="0" 
+                                  className="text-center font-black text-lg h-12 border-slate-300"
+                              />
                           </div>
-                          <div className="pb-2 text-slate-300 font-black">+</div>
+                          <div className="pb-3 text-slate-300"><Icon name="plus" size={24}/></div>
                           <div className="flex-1">
-                              <label className="text-[9px] text-slate-400 font-bold uppercase mb-1 block">Unidades Sueltas</label>
-                              <div className="relative">
-                                  <input 
-                                      type="number" 
-                                      className="w-full h-10 pl-3 pr-2 rounded-lg border border-slate-300 font-bold text-slate-700 outline-none focus:border-blue-500"
-                                      value={looseInput || ''}
-                                      onChange={e => setLooseInput(parseInt(e.target.value) || 0)}
-                                      placeholder="Unid..."
-                                  />
-                                  <div className="absolute right-2 top-2.5 text-slate-300 pointer-events-none"><Icon name="grid" size={14}/></div>
-                              </div>
+                              <label className="text-[9px] font-bold text-slate-400 mb-1 block uppercase">Unidades Sueltas</label>
+                              <Input 
+                                  type="number" 
+                                  value={looseInput || ''} 
+                                  onChange={e => setLooseInput(Math.max(0, parseInt(e.target.value) || 0))} 
+                                  placeholder="0" 
+                                  className="text-center font-black text-lg h-12 border-slate-300"
+                              />
                           </div>
                       </div>
                       {interpretedQty && !isReportingIssue && (
-                          <div className="mt-2 text-right">
-                              <span className="inline-block bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-1 rounded border border-emerald-200">
-                                  <Icon name="check" size={10} className="inline mr-1"/> {interpretedQty}
-                              </span>
+                          <div className="mt-3 bg-emerald-50 border border-emerald-100 rounded-lg p-2 text-center animate-in fade-in">
+                              <p className="text-emerald-700 text-xs font-bold flex items-center justify-center gap-2">
+                                  <Icon name="check-circle" size={14}/> {interpretedQty}
+                              </p>
                           </div>
                       )}
                   </div>
@@ -648,20 +675,20 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
           );
       }
 
-      // RESTO DE CAMPOS (Standard)
+      // CAMPOS ESTÁNDAR
       return (
           <div className={colClass} key={field.key}>
-              <div className="flex justify-between items-center mb-1">
-                  <label className={`text-xs font-bold text-slate-500 ${isColdChainError ? 'text-red-500' : ''}`}>
+              <div className="flex justify-between items-end mb-1">
+                  <label className={`text-xs font-bold text-slate-500 uppercase tracking-wider ${isColdChainError ? 'text-red-500' : ''}`}>
                       {field.label} {field.required && <span className="text-red-500">*</span>}
                   </label>
-                  {isDiscrepant && <span className="text-[9px] text-amber-600 bg-amber-50 px-1 rounded font-bold border border-amber-100">! Modificado</span>}
+                  {isDiscrepant && <span className="text-[9px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded font-bold border border-amber-100">MODIFICADO</span>}
               </div>
               
               {field.type === 'select' ? (
                   <div className="relative">
                       <select 
-                          className={`w-full h-12 px-4 bg-white border rounded-xl text-slate-700 font-medium outline-none transition-all text-sm appearance-none cursor-pointer ${isDiscrepant ? 'border-amber-300 ring-2 ring-amber-50' : 'border-slate-200 focus:border-teal-500'}`}
+                          className={`w-full h-12 px-4 bg-white border rounded-xl text-slate-700 font-medium text-sm outline-none transition-all appearance-none cursor-pointer shadow-sm hover:border-blue-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 ${isDiscrepant ? 'border-amber-300 ring-2 ring-amber-50' : 'border-slate-200'}`}
                           value={newProduct[field.key as keyof ProductFinding] as string || ''} 
                           onChange={e => setNewProduct({...newProduct, [field.key]: e.target.value})}
                           disabled={field.disabled}
@@ -673,219 +700,194 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                   </div>
               ) : (
                   <Input 
-                      type={field.type}
-                      value={newProduct[field.key as keyof ProductFinding] as string || ''}
-                      onChange={e => setNewProduct({...newProduct, [field.key]: e.target.value})}
-                      placeholder={field.placeholder}
+                      type={field.type} 
+                      value={newProduct[field.key as keyof ProductFinding] as string || ''} 
+                      onChange={e => setNewProduct({...newProduct, [field.key]: e.target.value})} 
+                      placeholder={field.placeholder} 
                       disabled={field.disabled}
-                      className={isDiscrepant ? 'border-amber-300 bg-amber-50/20' : ''}
+                      className={`h-12 shadow-sm ${isDiscrepant ? 'border-amber-300 bg-amber-50/20' : ''}`}
                   />
               )}
-              {field.hint && <p className="text-[9px] text-slate-400 mt-1 italic">{field.hint}</p>}
           </div>
       );
   };
 
-  if (!establishment) return <div className="p-10 text-center font-bold text-slate-400">Cargando expediente...</div>;
-
+  if (!establishment) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="text-center"><Icon name="loader" className="animate-spin text-blue-600 mx-auto mb-4" size={40}/><h2 className="text-slate-600 font-bold">Cargando Expediente...</h2></div></div>;
   const currentSchema = PRODUCT_SCHEMAS[newProduct.type as string] || PRODUCT_SCHEMAS['OTRO'];
   const needsColdChain = newProduct.type === 'MEDICAMENTO' && ['BIOLOGICO', 'BIOTECNOLOGICO', 'REACTIVO_INVITRO'].includes(newProduct.subtype as string);
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 animate-fade-in pb-24 relative">
-        {/* HEADER */}
-        <header className="bg-white px-6 py-4 rounded-xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-4">
-            <div><div className="flex items-center gap-2 mb-1"><Badge label={establishment.category} variant="neutral" /><Badge label={establishment.type} variant="neutral" />{hasSeizures && <Badge label="MEDIDA SANITARIA" className="bg-red-600 text-white" />}</div><h1 className="text-xl font-black text-slate-800 uppercase">{establishment.name}</h1><p className="text-xs text-slate-500 font-bold">{establishment.address} • NIT: {establishment.nit}</p></div>
-            <div className={`px-4 py-2 rounded-lg border-2 font-black text-xl ${score < 60 ? 'bg-red-50 border-red-100 text-red-700' : 'bg-teal-50 border-teal-100 text-teal-700'}`}>{score}%</div>
+    <div className="max-w-6xl mx-auto space-y-6 pb-24 animate-in fade-in">
+        {/* HEADER EMPRESARIAL */}
+        <header className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4 sticky top-4 z-30 backdrop-blur-md bg-white/95">
+            <div>
+                <div className="flex items-center gap-2 mb-2">
+                    <Badge label={establishment.category} variant="neutral"/>
+                    <Badge label={establishment.type} variant="neutral"/>
+                    {hasSeizures && <Badge label="MEDIDA SANITARIA" className="bg-red-600 text-white animate-pulse"/>}
+                </div>
+                <h1 className="text-2xl font-black text-slate-800 tracking-tight uppercase">{establishment.name}</h1>
+                <p className="text-xs font-bold text-slate-500 flex items-center gap-2 mt-1"><Icon name="map-pin" size={12}/> {establishment.address} • NIT: {establishment.nit}</p>
+            </div>
+            <div className={`flex flex-col items-end`}>
+                <div className={`text-3xl font-black px-5 py-2 rounded-xl border-2 shadow-sm ${score < 60 ? 'bg-red-50 border-red-100 text-red-600' : 'bg-teal-50 border-teal-100 text-teal-600'}`}>{score}%</div>
+                <span className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">{concept}</span>
+            </div>
         </header>
 
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200">
+        <div className="bg-white rounded-2xl p-2 shadow-sm border border-slate-200 sticky top-28 z-20">
             <WizardStepper steps={INSPECTION_STEPS} currentStep={currentTab} onStepClick={setCurrentTab} />
         </div>
 
-        {/* CONTENEDOR PRINCIPAL */}
         <div className="grid grid-cols-1 gap-8">
-            
-            {/* 1. DIAGNÓSTICO */}
+            {/* PESTAÑA 1: DIAGNÓSTICO */}
             {currentTab === 'DIAGNOSTICO' && (
-                <div className="animate-in fade-in">
-                    <TacticalMatrix 
-                        items={inspectionItems} 
-                        responses={checklistResponses} 
-                        onResponse={handleMatrixResponse} 
-                        onEvidence={handleEvidence} 
-                        onObservation={handleObservation} 
-                    />
-                    <div className="flex justify-end mt-6">
-                        <Button onClick={() => setCurrentTab('PRODUCTOS')}>Continuar <Icon name="arrow-right"/></Button>
-                    </div>
+                <div className="animate-in slide-in-from-right-4 duration-300">
+                    <TacticalMatrix items={inspectionItems} responses={checklistResponses} onResponse={handleMatrixResponse} onEvidence={handleEvidence} onObservation={handleObservation} />
+                    <div className="flex justify-end mt-8"><Button onClick={() => setCurrentTab('PRODUCTOS')} className="bg-slate-900 text-white shadow-lg h-12 px-8">Continuar a Inventario <Icon name="arrow-right" size={18}/></Button></div>
                 </div>
             )}
 
-            {/* 2. PRODUCTOS */}
+            {/* PESTAÑA 2: PRODUCTOS (REDISEÑADA) */}
             {currentTab === 'PRODUCTOS' && (
-            <div className="animate-in fade-in space-y-6">
-                <div className="bg-white rounded-xl shadow-lg shadow-slate-200/50 border border-slate-200 overflow-hidden">
-                    
-                    {cumValidationState === 'EXPIRED' && (
-                        <div className="bg-red-100 p-3 border-b border-red-200 flex items-center gap-3 animate-pulse">
-                            <Icon name="alert-triangle" className="text-red-600" size={20}/>
-                            <p className="text-xs font-black text-red-800 uppercase">ALERTA REGULATORIA: El Registro Sanitario seleccionado figura como VENCIDO o CANCELADO.</p>
+            <div className="space-y-8 animate-in slide-in-from-right-4 duration-300">
+                <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 border border-slate-200 overflow-hidden">
+                    {/* ENCABEZADO DE SECCIÓN */}
+                    <div className="bg-slate-50 p-6 border-b border-slate-200 flex flex-col md:flex-row gap-6 items-end">
+                        <div className="flex-1 w-full">
+                            <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2 block">CATEGORÍA</label>
+                            <div className="relative">
+                                <select className="w-full h-14 pl-12 pr-4 bg-white border-2 border-slate-200 rounded-xl font-bold text-slate-700 text-lg outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all appearance-none cursor-pointer" value={newProduct.type} onChange={e => setNewProduct({...newProduct, type: e.target.value as ProductType, subtype: PRODUCT_SCHEMAS[e.target.value]?.subtypes[0] || 'GENERAL', cum: '', name: ''})}>{Object.keys(PRODUCT_SCHEMAS).map(t => <option key={t} value={t}>{formatEnum(t)}</option>)}</select>
+                                <div className="absolute left-4 top-4 text-slate-400"><Icon name="package" size={24}/></div>
+                                <div className="absolute right-4 top-5 text-slate-400 pointer-events-none"><Icon name="chevron-down" size={16}/></div>
+                            </div>
                         </div>
-                    )}
-
-                    <div className="p-5 border-b border-slate-100 bg-slate-50/50">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="relative"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Categoría del Producto</label><div className="relative"><select className="w-full h-11 pl-10 pr-4 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all appearance-none cursor-pointer" value={newProduct.type} onChange={e => setNewProduct({...newProduct, type: e.target.value as ProductType, subtype: PRODUCT_SCHEMAS[e.target.value]?.subtypes[0] || 'GENERAL', cum: '', name: ''})}>{Object.keys(PRODUCT_SCHEMAS).map(t => <option key={t} value={t}>{formatEnum(t)}</option>)}</select><div className="absolute left-3 top-3 text-slate-400 pointer-events-none"><Icon name="package" size={18} /></div><div className="absolute right-3 top-3 text-slate-400 pointer-events-none"><Icon name="chevron-down" size={16} /></div></div></div>
-                            <div className="relative"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Línea / Subtipo</label><div className="relative"><select className="w-full h-11 pl-10 pr-4 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all appearance-none cursor-pointer" value={newProduct.subtype} onChange={e => setNewProduct({...newProduct, subtype: e.target.value as ProductSubtype})}>{PRODUCT_SCHEMAS[newProduct.type as ProductType]?.subtypes.map(st => <option key={st} value={st}>{formatEnum(st)}</option>)}</select><div className="absolute left-3 top-3 text-slate-400 pointer-events-none"><Icon name="tag" size={18} /></div><div className="absolute right-3 top-3 text-slate-400 pointer-events-none"><Icon name="chevron-down" size={16} /></div></div></div>
+                        <div className="flex-1 w-full">
+                            <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2 block">SUBTIPO</label>
+                            <div className="relative">
+                                <select className="w-full h-14 pl-12 pr-4 bg-white border-2 border-slate-200 rounded-xl font-bold text-slate-700 text-lg outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all appearance-none cursor-pointer" value={newProduct.subtype} onChange={e => setNewProduct({...newProduct, subtype: e.target.value as ProductSubtype})}>{PRODUCT_SCHEMAS[newProduct.type as ProductType]?.subtypes.map(s => <option key={s} value={s}>{formatEnum(s)}</option>)}</select>
+                                <div className="absolute left-4 top-4 text-slate-400"><Icon name="tag" size={24}/></div>
+                                <div className="absolute right-4 top-5 text-slate-400 pointer-events-none"><Icon name="chevron-down" size={16}/></div>
+                            </div>
                         </div>
                     </div>
-                    <div className="p-5">
-                        <div className="grid grid-cols-12 gap-x-4 gap-y-6">
-                            {currentSchema.fields.filter((f: FieldConfig) => ['HEADER', 'TECHNICAL', 'LOGISTICS'].includes(f.section || '')).map(renderField)}
-                            {needsColdChain && (<><div className="col-span-12 flex items-center gap-2 pb-2 border-b border-sky-100 mt-2 mb-[-5px] bg-sky-50/50 p-2 rounded-t-lg -mx-2"><Icon name="snowflake" size={14} className="text-sky-500"/><span className="text-[10px] font-black text-sky-700 uppercase tracking-widest">Cadena de Frío (Dec. 1782)</span></div>{currentSchema.fields.filter((f: FieldConfig) => f.section === 'COLD_CHAIN').map(renderField)}</>)}
+
+                    <div className="p-8">
+                        <div className="grid grid-cols-12 gap-x-6 gap-y-8">
+                            {currentSchema.fields.map(renderField)}
+                            {needsColdChain && (<div className="col-span-12 p-4 bg-sky-50 border border-sky-200 rounded-xl flex items-center gap-4 text-sky-800"><div className="p-2 bg-sky-100 rounded-lg"><Icon name="snowflake" size={24}/></div><div><h4 className="font-bold text-sm">CADENA DE FRÍO REQUERIDA</h4><p className="text-xs opacity-80">Verifique temperatura entre 2°C y 8°C según Decreto 1782.</p></div></div>)}
                         </div>
                         
-                        {formError && <div className="mt-6 p-3 bg-red-100 text-red-800 rounded-lg text-sm font-bold text-center border border-red-200 flex items-center justify-center gap-2"><Icon name="alert-circle"/> {formError}</div>}
-                        
-                        <div className="flex gap-3 justify-end mt-8 pt-6 border-t border-slate-100">
+                        {formError && (
+                            <div className="mt-8 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3 text-red-700 animate-shake">
+                                <Icon name="alert-circle" size={24}/>
+                                <span className="font-bold text-sm">{formError}</span>
+                            </div>
+                        )}
+
+                        <div className="flex flex-col md:flex-row gap-4 justify-end mt-10 pt-8 border-t border-slate-100">
                             {!isReportingIssue ? (
                                 <>
-                                    <button tabIndex={3} onClick={() => setIsReportingIssue(true)} className="px-5 py-2.5 rounded-lg border-2 border-slate-200 text-slate-500 font-bold hover:text-red-600 hover:bg-red-50 transition-all flex items-center gap-2 text-sm"><Icon name="alert-triangle" size={16}/> Reportar Riesgo</button>
-                                    <button 
-                                        tabIndex={2} 
-                                        onClick={() => handleAddProduct(true)} 
-                                        disabled={cumValidationState === 'EXPIRED'}
-                                        className={`px-8 py-2.5 rounded-lg font-bold shadow-lg flex items-center gap-2 text-sm transition-all ${cumValidationState === 'EXPIRED' ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-slate-900 text-white hover:bg-slate-800'}`}
-                                    >
-                                        <Icon name="check" size={18}/> REGISTRAR CONFORME
-                                    </button>
+                                    <button onClick={() => setIsReportingIssue(true)} className="px-6 py-4 rounded-xl border-2 border-slate-200 text-slate-600 font-bold hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all flex items-center gap-2 group"><div className="p-1 bg-slate-100 rounded group-hover:bg-red-100 transition-colors"><Icon name="alert-triangle" size={18}/></div> REPORTAR HALLAZGO</button>
+                                    <button onClick={() => handleAddProduct(true)} disabled={cumValidationState === 'EXPIRED'} className={`px-8 py-4 rounded-xl font-bold shadow-xl flex items-center gap-3 text-white transition-all transform hover:scale-[1.02] ${cumValidationState === 'EXPIRED' ? 'bg-slate-300 cursor-not-allowed' : 'bg-slate-900 hover:bg-slate-800'}`}><Icon name="check-circle" size={20}/> REGISTRAR CONFORME</button>
                                 </>
                             ) : (
-                                <div className="flex-1 bg-red-50 p-4 rounded-xl border border-red-100 animate-in slide-in-from-bottom-2">
-                                    <div className="grid grid-cols-2 gap-4 mb-4">
-                                        <div><label className="block text-[10px] font-black text-red-800 uppercase mb-1">MOTIVO DE LA MEDIDA</label><select className="w-full h-9 rounded border-red-200 text-red-900 text-sm font-bold bg-white" value={newProduct.riskFactor} onChange={e=>setNewProduct({...newProduct, riskFactor: e.target.value as RiskFactor})}><option value="NINGUNO">Seleccione...</option><option value="VENCIDO">VENCIDO</option><option value="USO_INSTITUCIONAL">USO INSTITUCIONAL</option><option value="SIN_REGISTRO">SIN REGISTRO / CONTRABANDO</option><option value="FRAUDULENTO">FRAUDULENTO (FALSIFICADO)</option><option value="ALTERADO">ALTERADO (FÍSICO-QUÍMICO)</option><option value="MAL_ALMACENAMIENTO">MAL ALMACENAMIENTO (Temp/Humedad)</option><option value="MUESTRA_MEDICA">MUESTRA MÉDICA (PROHIBIDA VENTA)</option></select></div>
-                                        <div><label className="block text-[10px] font-black text-red-800 uppercase mb-1">MEDIDA SANITARIA</label><select className="w-full h-9 rounded border-red-200 text-red-900 text-sm font-bold bg-white" value={newProduct.seizureType} onChange={e=>setNewProduct({...newProduct, seizureType: e.target.value as SeizureType})}><option value="NINGUNO">Seleccione...</option><option value="CONGELAMIENTO">CONGELAMIENTO (RETENCIÓN PREVENTIVA)</option><option value="DECOMISO">DECOMISO (INCAUTACIÓN)</option><option value="DESNATURALIZACION">DESTRUCCIÓN / DESNATURALIZACIÓN</option></select></div>
+                                <div className="w-full bg-red-50 p-6 rounded-2xl border border-red-100 animate-in slide-in-from-bottom-4">
+                                    <div className="flex items-center gap-3 mb-6 pb-4 border-b border-red-200/50">
+                                        <div className="p-2 bg-red-100 text-red-600 rounded-lg"><Icon name="shield-off" size={24}/></div>
+                                        <div><h4 className="font-black text-red-900 uppercase">Panel de Medidas Sanitarias</h4><p className="text-xs text-red-700">Configure la causal y la medida a aplicar.</p></div>
                                     </div>
-                                    
-                                    {newProduct.seizureType !== 'NINGUNO' && (
-                                        <div className="mb-4">
-                                            <SeizureCalculator 
-                                                onCalculate={handleCalculatorUpdate}
-                                                cum={newProduct.cum}
-                                                presentation={newProduct.presentation}
-                                                pharmaceuticalForm={newProduct.pharmaceuticalForm} 
-                                                isVerified={cumSearchStatus === 'FOUND'} 
-                                            />
-                                        </div>
-                                    )}
-
-                                    <div className="mb-4">
-                                        <div className={`p-3 border rounded-lg flex items-center justify-between transition-colors ${evidenceTemp ? 'bg-green-50 border-green-200' : 'bg-white/60 border-red-100'}`}>
-                                            <div><h5 className={`text-[10px] font-black uppercase ${evidenceTemp ? 'text-green-800' : 'text-red-900'}`}>{evidenceTemp ? 'EVIDENCIA ADJUNTA CORRECTAMENTE' : 'EVIDENCIA PROBATORIA (OBLIGATORIO)'}</h5><p className={`text-[9px] ${evidenceTemp ? 'text-green-700' : 'text-red-700'}`}>{evidenceTemp ? 'Prueba fotográfica vinculada.' : 'Requerimiento Legal (Ley 9/79).'}</p></div>
-                                            <button onClick={handlePhotoClick} className={`px-3 py-1.5 border rounded font-bold text-xs flex items-center gap-2 shadow-sm transition-all ${evidenceTemp ? 'bg-white text-green-700 border-green-200 hover:bg-green-50' : 'bg-white text-red-700 border-red-200 hover:bg-red-50'}`}><Icon name={evidenceTemp ? "check" : "camera"} size={14}/> {evidenceTemp ? "Ver/Cambiar Foto" : "Adjuntar Foto"}</button>
-                                        </div>
+                                    <div className="grid grid-cols-2 gap-6 mb-6">
+                                        <div><label className="text-xs font-bold text-red-800 uppercase mb-2 block">Causal del Riesgo</label><select className="w-full h-12 border-2 border-red-200 rounded-xl text-red-900 font-bold bg-white px-3 focus:ring-4 focus:ring-red-100 outline-none" value={newProduct.riskFactor} onChange={e=>setNewProduct({...newProduct, riskFactor: e.target.value as RiskFactor})}><option value="NINGUNO">Seleccione...</option><option value="VENCIDO">VENCIDO / EXPIRADO</option><option value="SIN_REGISTRO">SIN REGISTRO / FRAUDULENTO</option><option value="ALTERADO">ALTERADO (Físico-Químico)</option><option value="USO_INSTITUCIONAL">USO INSTITUCIONAL</option></select></div>
+                                        <div><label className="text-xs font-bold text-red-800 uppercase mb-2 block">Medida a Aplicar</label><select className="w-full h-12 border-2 border-red-200 rounded-xl text-red-900 font-bold bg-white px-3 focus:ring-4 focus:ring-red-100 outline-none" value={newProduct.seizureType} onChange={e=>setNewProduct({...newProduct, seizureType: e.target.value as SeizureType})}><option value="NINGUNO">Seleccione...</option><option value="DECOMISO">DECOMISO (Incautación)</option><option value="CONGELAMIENTO">CONGELAMIENTO</option><option value="DESNATURALIZACION">DESTRUCCIÓN IN SITU</option></select></div>
                                     </div>
-                                    
-                                    <div className="flex justify-end gap-3 mt-4"><button onClick={() => setIsReportingIssue(false)} className="text-slate-500 font-bold text-xs underline">Cancelar</button><button onClick={() => handleAddProduct(false)} className="px-6 py-2 rounded-lg bg-red-600 text-white font-bold text-sm shadow-md">CONFIRMAR HALLAZGO</button></div>
+                                    {newProduct.seizureType !== 'NINGUNO' && (<div className="mb-6"><SeizureCalculator onCalculate={handleCalculatorUpdate} cum={newProduct.cum} presentation={newProduct.presentation} pharmaceuticalForm={newProduct.pharmaceuticalForm} isVerified={cumSearchStatus === 'FOUND'} /></div>)}
+                                    <div className="flex justify-end gap-4"><button onClick={() => setIsReportingIssue(false)} className="px-6 py-3 text-slate-500 font-bold hover:text-slate-800 transition-colors">Cancelar</button><button onClick={() => handleAddProduct(false)} className="px-8 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold shadow-lg shadow-red-200 flex items-center gap-2"><Icon name="alert-octagon" size={18}/> CONFIRMAR HALLAZGO</button></div>
                                 </div>
                             )}
                         </div>
                     </div>
                 </div>
 
-                {/* LISTA DE PRODUCTOS */}
-                <div className="space-y-3">
-                    <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest px-2">Historial Reciente</h4>
-                    {products.length === 0 && <div className="text-center p-6 text-slate-400 border-2 border-dashed border-slate-100 rounded-xl text-sm">No hay productos registrados en esta visita.</div>}
+                {/* HISTORIAL */}
+                <div className="space-y-4">
+                    <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest px-2 flex items-center gap-2"><Icon name="clock" size={14}/> Historial de Registros</h4>
+                    {products.length === 0 && <div className="p-12 text-center border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50"><Icon name="inbox" size={40} className="text-slate-300 mx-auto mb-3"/><p className="text-slate-500 font-medium">No se han registrado productos en esta visita.</p></div>}
                     {products.map(p => (
-                        <div key={p.id} className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex justify-between items-center group hover:border-blue-300 transition-colors">
-                            <div className="flex items-center gap-3"><div className={`w-2 h-10 rounded-full ${p.riskFactor === 'NINGUNO' ? 'bg-emerald-400' : 'bg-red-500'}`}></div><div><div className="font-bold text-slate-700 text-sm">{p.name}</div><div className="text-[10px] text-slate-500 font-mono uppercase">LOTE: {p.lot || 'N/A'} • {p.subtype?.replace('_', ' ')}</div></div></div>
+                        <div key={p.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all flex justify-between items-center group">
                             <div className="flex items-center gap-4">
-                                {p.riskFactor !== 'NINGUNO' && !p.hasEvidence && (<button onClick={() => triggerEvidenceCheck(p.id)} className="px-2 py-1 bg-red-50 text-red-600 border border-red-200 rounded text-[10px] font-bold flex items-center gap-1 hover:bg-red-100"><Icon name="camera" size={12}/> Falta Foto</button>)}
-                                <div className="text-right">
-                                    <span className="font-black text-slate-800 text-sm block">{p.packLabel}</span>
-                                    {p.logistics?.totals?.logisticVolume && (p.logistics.totals.logisticVolume > 0) ? (
-                                        <span className="text-[10px] font-bold text-blue-600 block bg-blue-50 px-1 rounded">
-                                            Total: {p.logistics.totals.logisticVolume} {p.logistics.totals.logisticUnit}
-                                        </span>
-                                    ) : (
-                                        <span className="text-[9px] text-slate-400 italic block">
-                                            (Inventario Manual)
-                                        </span>
-                                    )}
-                                </div>
-                                <button onClick={() => removeProduct(p.id)} className="text-slate-300 hover:text-red-500 p-2"><Icon name="trash" size={16}/></button>
+                                <div className={`w-1.5 h-12 rounded-full ${p.riskFactor === 'NINGUNO' ? 'bg-emerald-400' : 'bg-red-500'}`}></div>
+                                <div><h5 className="font-black text-slate-700">{p.name}</h5><div className="flex gap-3 text-xs text-slate-500 mt-1"><span className="flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded"><Icon name="tag" size={10}/> Lote: {p.lot || 'N/A'}</span><span className="flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded"><Icon name="box" size={10}/> {p.packLabel}</span></div></div>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                {p.riskFactor !== 'NINGUNO' && <Badge label={p.seizureType} className="bg-red-100 text-red-700 border-red-200"/>}
+                                <button onClick={() => removeProduct(p.id)} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Icon name="trash" size={18}/></button>
                             </div>
                         </div>
                     ))}
                 </div>
 
-                <div className="flex justify-between mt-8 pt-6 border-t border-slate-200">
-                    <Button variant="secondary" onClick={() => setCurrentTab('DIAGNOSTICO')}>Atrás</Button>
-                    {hasSeizures ? <Button className="bg-orange-600 text-white" onClick={() => setCurrentTab('CUSTODIA')}>Ir a Custodia <Icon name="shield"/></Button> : <Button className="bg-slate-900 text-white" onClick={() => setCurrentTab('CIERRE')}>Finalizar <Icon name="check"/></Button>}
+                <div className="flex justify-between mt-12 pt-8 border-t border-slate-200">
+                    <Button variant="secondary" onClick={() => setCurrentTab('DIAGNOSTICO')} className="px-6 h-12">Atrás</Button>
+                    {hasSeizures ? <Button onClick={() => setCurrentTab('CUSTODIA')} className="bg-orange-600 text-white h-12 px-8 shadow-lg shadow-orange-200 hover:bg-orange-700">Continuar a Custodia <Icon name="shield"/></Button> : <Button onClick={() => setCurrentTab('CIERRE')} className="bg-slate-900 text-white h-12 px-8 shadow-lg hover:bg-slate-800">Finalizar Inventario <Icon name="check"/></Button>}
                 </div>
             </div>
             )}
 
-            {/* 3. CUSTODIA (LOGÍSTICA) */}
+            {/* PESTAÑA 3: CUSTODIA (LOGÍSTICA) */}
             {currentTab === 'CUSTODIA' && hasSeizures && (
-                <div className="animate-in fade-in slide-in-from-right-4 space-y-6">
-                    <div className="bg-orange-50 border-l-4 border-orange-500 p-4 rounded-r-xl shadow-sm flex gap-3"><div className="bg-orange-100 p-2 rounded-full text-orange-600 h-fit"><Icon name="shield-alert" size={24}/></div><div><h3 className="font-black text-orange-900 uppercase">Protocolo de Cadena de Custodia</h3><p className="text-sm text-orange-800 mt-1">Se han generado medidas sanitarias. Diligencie la logística.</p></div></div>
+                <div className="animate-in slide-in-from-right-4 duration-300 space-y-8">
+                    <div className="bg-orange-50 border-l-4 border-orange-500 p-6 rounded-r-2xl shadow-sm flex gap-4">
+                        <div className="bg-orange-100 p-3 rounded-xl text-orange-600 h-fit"><Icon name="shield-alert" size={32}/></div>
+                        <div><h3 className="font-black text-orange-900 text-lg uppercase tracking-tight">Protocolo de Cadena de Custodia</h3><p className="text-sm text-orange-800 mt-2 leading-relaxed opacity-90">Se han generado medidas sanitarias que requieren aseguramiento físico. Diligencie la información de embalaje y transporte conforme a la Resolución 1234.</p></div>
+                    </div>
                     
                     <Card title="1. Estación de Embalaje (Individualización)" icon="box">
-                        <div className="space-y-6">
-                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex gap-3 items-end">
-                                <div className="flex-1"><label className="text-[10px] font-bold text-slate-500 uppercase mb-1">Tipo de Embalaje</label><select className="w-full h-10 px-3 rounded-lg border border-slate-300 text-xs font-bold" value={newContainer.type} onChange={e => setNewContainer({...newContainer, type: e.target.value})}><option value="BOLSA_SEGURIDAD">BOLSA DE SEGURIDAD</option><option value="CAJA_SELLADA">CAJA DE CARTÓN SELLADA</option><option value="NEVERA_PORTATIL">NEVERA / CONTENEDOR FRÍO</option><option value="SOBRE_MANILA">SOBRE DE MANILA (Documentos)</option></select></div>
-                                <div className="flex-1"><label className="text-[10px] font-bold text-slate-500 uppercase mb-1">Código / Precinto</label><input className="w-full h-10 px-3 rounded-lg border border-slate-300 text-xs font-bold" placeholder="Ej: B-10293..." value={newContainer.code} onChange={e => setNewContainer({...newContainer, code: e.target.value})} /></div>
-                                <button onClick={addContainer} className="h-10 px-4 bg-slate-800 text-white rounded-lg text-xs font-bold hover:bg-slate-700 flex items-center gap-2"><Icon name="plus" size={16}/> Crear</button>
+                        <div className="space-y-8 p-2">
+                            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 flex flex-col md:flex-row gap-4 items-end">
+                                <div className="flex-1 w-full"><label className="text-[10px] font-bold text-slate-500 uppercase mb-2 block tracking-wider">Tipo de Embalaje</label><select className="w-full h-12 px-4 rounded-xl border border-slate-300 font-bold text-slate-700 bg-white" value={newContainer.type} onChange={e => setNewContainer({...newContainer, type: e.target.value})}><option value="BOLSA_SEGURIDAD">BOLSA DE SEGURIDAD</option><option value="CAJA_SELLADA">CAJA DE CARTÓN SELLADA</option><option value="NEVERA_PORTATIL">NEVERA / CONTENEDOR FRÍO</option></select></div>
+                                <div className="flex-1 w-full"><label className="text-[10px] font-bold text-slate-500 uppercase mb-2 block tracking-wider">Código de Precinto</label><input className="w-full h-12 px-4 rounded-xl border border-slate-300 font-bold text-slate-700" placeholder="Ej: B-10293..." value={newContainer.code} onChange={e => setNewContainer({...newContainer, code: e.target.value})} /></div>
+                                <button onClick={addContainer} className="h-12 px-6 bg-slate-800 text-white rounded-xl font-bold hover:bg-slate-700 flex items-center gap-2 shadow-lg transition-all"><Icon name="plus" size={18}/> Crear Contenedor</button>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div>
-                                    <h4 className="text-xs font-black text-red-600 uppercase mb-3 flex items-center gap-2"><Icon name="alert-circle" size={14}/> Por Empacar</h4>
-                                    <div className="space-y-2">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                <div className="bg-red-50/50 p-4 rounded-2xl border border-red-100">
+                                    <h4 className="text-xs font-black text-red-600 uppercase mb-4 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div> Pendientes por Empacar</h4>
+                                    <div className="space-y-3">
                                         {products.filter(p => p.seizureType !== 'NINGUNO' && !p.containerId).map(p => (
-                                            <div key={p.id} className="p-3 bg-red-50 border border-red-100 rounded-lg text-xs">
-                                                <p className="font-bold text-red-800">{p.name}</p>
-                                                <div className="flex justify-between items-end mt-1">
-                                                    <div>
-                                                        <p className="text-[10px] font-bold text-red-700">{p.packLabel || `${p.quantity} Und.`}</p>
-                                                        {p.logistics?.totals?.logisticVolume && (
-                                                            <p className="text-[9px] text-red-500 font-mono">Vol: {p.logistics.totals.logisticVolume} {p.logistics.totals.logisticUnit}</p>
-                                                        )}
-                                                        <p className="text-[9px] text-red-400 italic mt-0.5">{p.seizureType}</p>
-                                                    </div>
+                                            <div key={p.id} className="p-4 bg-white border border-red-100 rounded-xl shadow-sm hover:shadow-md transition-all">
+                                                <p className="font-bold text-slate-800 text-sm">{p.name}</p>
+                                                <div className="flex justify-between items-center mt-3 pt-3 border-t border-slate-50">
+                                                    <span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-1 rounded">{p.packLabel}</span>
                                                     {containers.length > 0 ? (
-                                                        <select className="w-24 h-7 px-1 rounded border border-red-200 text-[9px] font-bold text-slate-600" onChange={(e) => assignItemToContainer(p.id, e.target.value)} defaultValue="">
-                                                            <option value="" disabled>Empacar...</option>
-                                                            {containers.map(c => <option key={c.id} value={c.id}>{c.code.slice(-4)}</option>)}
-                                                        </select>
-                                                    ) : null}
+                                                        <select className="h-8 pl-2 pr-6 rounded-lg border border-slate-200 text-xs font-bold text-slate-600 bg-slate-50 cursor-pointer" onChange={(e) => assignItemToContainer(p.id, e.target.value)} defaultValue=""><option value="" disabled>Asignar a...</option>{containers.map(c => <option key={c.id} value={c.id}>{c.code.slice(-6)}</option>)}</select>
+                                                    ) : <span className="text-[10px] text-slate-400 italic">Cree un contenedor</span>}
                                                 </div>
                                             </div>
                                         ))}
-                                        {products.filter(p => p.seizureType !== 'NINGUNO' && !p.containerId).length === 0 && <div className="p-6 text-center border-2 border-dashed border-slate-200 rounded-lg text-slate-400 text-xs italic">Todos items asignados ✅</div>}
+                                        {products.filter(p => p.seizureType !== 'NINGUNO' && !p.containerId).length === 0 && <div className="p-8 text-center border-2 border-dashed border-slate-200 rounded-xl text-slate-400 text-sm font-medium">Todo empacado ✅</div>}
                                     </div>
                                 </div>
-                                <div>
-                                    <h4 className="text-xs font-black text-teal-600 uppercase mb-3 flex items-center gap-2"><Icon name="package" size={14}/> Embalaje Listo</h4>
-                                    <div className="space-y-3">
+                                <div className="bg-teal-50/50 p-4 rounded-2xl border border-teal-100">
+                                    <h4 className="text-xs font-black text-teal-600 uppercase mb-4 flex items-center gap-2"><Icon name="package" size={14}/> Contenedores Listos</h4>
+                                    <div className="space-y-4">
                                         {containers.map(c => (
-                                            <div key={c.id} className="p-3 bg-teal-50 border border-teal-200 rounded-lg relative group">
-                                                <button onClick={() => removeContainer(c.id)} className="absolute top-2 right-2 text-teal-300 hover:text-red-500"><Icon name="x" size={14}/></button>
-                                                <div className="flex items-center gap-2 mb-2"><Icon name="archive" size={16} className="text-teal-600"/><div><p className="font-bold text-teal-900 text-xs">{c.type.replace('_', ' ')}</p><p className="font-mono text-[10px] text-teal-700 font-bold bg-white px-1.5 rounded inline-block border border-teal-100">{c.code}</p></div></div>
-                                                <div className="space-y-1 pl-6 border-l-2 border-teal-200">
+                                            <div key={c.id} className="p-4 bg-white border border-teal-100 rounded-xl shadow-sm relative group">
+                                                <button onClick={() => removeContainer(c.id)} className="absolute top-3 right-3 text-slate-300 hover:text-red-500 transition-colors"><Icon name="x" size={16}/></button>
+                                                <div className="flex items-center gap-3 mb-3">
+                                                    <div className="p-2 bg-teal-100 text-teal-600 rounded-lg"><Icon name="archive" size={20}/></div>
+                                                    <div><p className="font-bold text-slate-700 text-sm">{c.type.replace('_', ' ')}</p><p className="font-mono text-xs text-teal-600 bg-teal-50 px-1.5 rounded inline-block">{c.code}</p></div>
+                                                </div>
+                                                <div className="pl-4 border-l-2 border-teal-100 space-y-2">
                                                     {products.filter(p => p.containerId === c.id).map(p => (
-                                                        <div key={p.id} className="flex justify-between items-center text-[10px]">
-                                                            <span className="text-teal-800 truncate w-3/4">{p.quantity}x {p.name}</span>
-                                                            <button onClick={() => unassignItem(p.id)} className="text-teal-400 hover:text-red-500"><Icon name="minus-circle" size={12}/></button>
+                                                        <div key={p.id} className="flex justify-between items-center text-xs group/item">
+                                                            <span className="text-slate-600 font-medium truncate w-3/4">{p.quantity}x {p.name}</span>
+                                                            <button onClick={() => unassignItem(p.id)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover/item:opacity-100 transition-opacity"><Icon name="minus-circle" size={14}/></button>
                                                         </div>
                                                     ))}
-                                                    {products.filter(p => p.containerId === c.id).length === 0 && <span className="text-[9px] text-teal-400 italic">Vacío</span>}
+                                                    {products.filter(p => p.containerId === c.id).length === 0 && <span className="text-[10px] text-slate-400 italic">Contenedor vacío</span>}
                                                 </div>
                                             </div>
                                         ))}
-                                        {containers.length === 0 && <div className="p-6 text-center border-2 border-dashed border-slate-200 rounded-lg text-slate-400 text-xs italic">No hay contenedores creados</div>}
                                     </div>
                                 </div>
                             </div>
@@ -893,132 +895,93 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                     </Card>
 
                     <Card title="2. Logística de Transporte" icon="truck">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="md:col-span-2"><label className="text-[10px] font-bold text-slate-500 uppercase mb-1">Modalidad de Transporte</label><select className="w-full h-10 px-3 rounded-lg border border-slate-300 text-xs font-bold bg-white" value={custodyData.transportType} onChange={e => setCustodyData({...custodyData, transportType: e.target.value})}><option value="INSTITUCIONAL">VEHÍCULO OFICIAL (Entidad)</option><option value="CONTRATISTA">LOGÍSTICA CONTRATADA</option><option value="TERCERO">EMPRESA DE TRANSPORTE (Guía)</option></select></div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 p-2">
+                            <div className="md:col-span-2">
+                                <label className="text-xs font-bold text-slate-500 uppercase mb-2 block tracking-wider">Modalidad de Transporte</label>
+                                <div className="grid grid-cols-2 gap-4">
+                                    {['INSTITUCIONAL', 'CONTRATISTA'].map(mode => (
+                                        <button key={mode} onClick={() => setCustodyData({...custodyData, transportType: mode})} className={`p-4 rounded-xl border-2 font-bold text-sm transition-all ${custodyData.transportType === mode ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}>{mode}</button>
+                                    ))}
+                                </div>
+                            </div>
                             <Input label="Lugar de Depósito Final" value={custodyData.depositLocation} onChange={e => setCustodyData({...custodyData, depositLocation: e.target.value})} placeholder="Ej: BODEGA CENTRAL DE EVIDENCIAS" />
-                            {custodyData.transportType !== 'INSTITUCIONAL' && (<Input label="Empresa Transportadora" value={custodyData.transportCompany} onChange={e => setCustodyData({...custodyData, transportCompany: e.target.value})} placeholder="Nombre de la empresa" />)}
+                            <Input label="Empresa / Entidad" value={custodyData.transportCompany} onChange={e => setCustodyData({...custodyData, transportCompany: e.target.value})} placeholder="Nombre de la empresa" />
                             <Input label="Placa del Vehículo" value={custodyData.transportPlate} onChange={e => setCustodyData({...custodyData, transportPlate: e.target.value})} placeholder="Ej: OBF-123" />
-                            <Input label="Nombre del Conductor / Responsable" value={custodyData.driverName} onChange={e => setCustodyData({...custodyData, driverName: e.target.value})} placeholder="Nombre completo" />
+                            <Input label="Conductor Responsable" value={custodyData.driverName} onChange={e => setCustodyData({...custodyData, driverName: e.target.value})} placeholder="Nombre completo" />
                         </div>
                     </Card>
 
-                    <div className="flex justify-between mt-6">
-                        <Button variant="secondary" onClick={() => setCurrentTab('PRODUCTOS')}>Atrás</Button>
-                        <Button onClick={() => setCurrentTab('CIERRE')} className="bg-slate-900 text-white">Confirmar Custodia y Cerrar <Icon name="lock"/></Button>
+                    <div className="flex justify-between mt-8 pt-6 border-t border-slate-200">
+                        <Button variant="secondary" onClick={() => setCurrentTab('PRODUCTOS')} className="px-6 h-12">Atrás</Button>
+                        <Button onClick={() => setCurrentTab('CIERRE')} className="bg-slate-900 text-white px-8 h-12 shadow-xl hover:bg-slate-800">Confirmar y Cerrar <Icon name="lock" size={18}/></Button>
                     </div>
                 </div>
             )}
 
             {/* 4. CIERRE */}
             {currentTab === 'CIERRE' && (
-                <div className="animate-in fade-in zoom-in-95 space-y-6">
-                    <div className={`p-6 rounded-2xl shadow-xl border border-white/10 text-center ${concept === 'FAVORABLE' ? 'bg-slate-800 text-white' : 'bg-red-800 text-white'}`}>
-                        <div className="text-xs uppercase tracking-[0.3em] opacity-80 mb-2">Concepto Técnico Emitido</div>
-                        <div className="text-4xl font-black mb-4">{concept.replace('_', ' ')}</div>
-                        <div className="w-full bg-black/30 h-4 rounded-full overflow-hidden max-w-md mx-auto">
-                        <div className={`h-full transition-all duration-1000 ${score < 60 ? 'bg-red-400' : 'bg-teal-400'}`} style={{ width: `${score}%` }}></div>
+                <div className="animate-in fade-in zoom-in-95 space-y-8">
+                    <div className={`p-8 rounded-2xl shadow-xl border text-center text-white relative overflow-hidden ${score < 60 ? 'bg-gradient-to-br from-red-600 to-red-800 border-red-500' : 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700'}`}>
+                        <div className="relative z-10">
+                            <div className="text-xs uppercase tracking-[0.3em] opacity-80 mb-2 font-bold">Concepto Técnico Emitido</div>
+                            <div className="text-5xl font-black mb-6 tracking-tight">{concept.replace('_', ' ')}</div>
+                            <div className="w-full bg-white/20 h-3 rounded-full overflow-hidden max-w-lg mx-auto backdrop-blur-sm">
+                                <div className={`h-full transition-all duration-1000 ${score < 60 ? 'bg-red-300' : 'bg-teal-400'}`} style={{ width: `${score}%` }}></div>
+                            </div>
+                            <p className="mt-4 text-sm font-bold opacity-90">Índice de Cumplimiento Normativo: {score}%</p>
                         </div>
-                        <p className="mt-2 text-sm font-bold opacity-80">Cumplimiento Normativo: {score}%</p>
+                        <div className="absolute top-0 right-0 -mt-10 -mr-10 w-64 h-64 bg-white/5 rounded-full blur-3xl"></div>
+                        <div className="absolute bottom-0 left-0 -mb-10 -ml-10 w-64 h-64 bg-black/10 rounded-full blur-3xl"></div>
                     </div>
 
-                    <Card title="Narrativa Técnica y Legal de la Actuación" icon="book-open">
-                        <div className="space-y-6">
-                            <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-lg">
-                                <p className="text-xs text-blue-800 leading-relaxed text-justify">
-                                    <strong>INSTRUCCIÓN:</strong> El inspector debe relatar de manera cronológica y detallada los hechos ocurridos durante la visita, describiendo las condiciones sanitarias encontradas y motivando técnica y jurídicamente las decisiones tomadas (Art. 35 CPACA).
+                    <Card title="Narrativa Técnica y Legal" icon="book-open">
+                        <div className="space-y-6 p-2">
+                            <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-xl">
+                                <p className="text-xs text-blue-800 leading-relaxed font-medium">
+                                    <strong>IMPORTANTE:</strong> Relate cronológicamente los hechos. Describa las condiciones sanitarias encontradas y motive técnica y jurídicamente las decisiones (Art. 35 CPACA).
                                 </p>
                             </div>
-                            <div>
-                                <div className="flex justify-between items-center mb-1">
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">1. Relato de los Hechos (Descripción Detallada)</label>
-                                    <button onClick={() => toggleListening('narrative', setInspectionNarrative)} className={`p-1 rounded-full transition-colors ${isListening === 'narrative' ? 'bg-red-100 text-red-600 animate-pulse' : 'bg-slate-100 text-slate-400 hover:text-blue-600'}`} title="Dictar por voz"><Icon name="mic" size={14}/></button>
-                                </div>
-                                <textarea 
-                                    className="w-full p-3 rounded-lg border-2 border-slate-200 text-sm font-medium focus:border-blue-500 outline-none min-h-[150px]"
-                                    placeholder="Describa: Condiciones de ingreso, recorrido, hallazgos principales, actitud del vigilado..."
-                                    value={inspectionNarrative}
-                                    onChange={(e) => setInspectionNarrative(e.target.value)}
-                                />
+                            <div className="space-y-2">
+                                <div className="flex justify-between items-center"><label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Relato de los Hechos</label><button onClick={() => toggleListening('narrative', setInspectionNarrative)} className={`p-2 rounded-full transition-all ${isListening==='narrative'?'bg-red-100 text-red-600 animate-pulse':'bg-slate-100 text-slate-500 hover:text-blue-600'}`}><Icon name="mic" size={16}/></button></div>
+                                <textarea className="w-full p-4 rounded-xl border-2 border-slate-200 text-sm font-medium focus:border-blue-500 outline-none min-h-[160px] resize-y" placeholder="Describa las condiciones de ingreso, recorrido y hallazgos principales..." value={inspectionNarrative} onChange={(e) => setInspectionNarrative(e.target.value)}/>
                             </div>
                             {hasSeizures && (
-                                <div>
-                                    <div className="flex justify-between items-center mb-1">
-                                        <label className="text-[10px] font-black text-red-600 uppercase tracking-widest">2. Fundamentos Jurídicos de la Medida Sanitaria</label>
-                                        <button onClick={() => toggleListening('legal', setLegalBasis)} className={`p-1 rounded-full transition-colors ${isListening === 'legal' ? 'bg-red-100 text-red-600 animate-pulse' : 'bg-slate-100 text-slate-400 hover:text-blue-600'}`} title="Dictar por voz"><Icon name="mic" size={14}/></button>
-                                    </div>
-                                    <textarea 
-                                        className="w-full p-3 rounded-lg border-2 border-red-200 bg-red-50/30 text-sm font-medium focus:border-red-500 outline-none min-h-[100px]"
-                                        placeholder="Cite las normas específicas infringidas (Ley 9/79, Decreto 677/95...) que sustentan la medida..."
-                                        value={legalBasis}
-                                        onChange={(e) => setLegalBasis(e.target.value)}
-                                    />
+                                <div className="space-y-2">
+                                    <div className="flex justify-between items-center"><label className="text-xs font-bold text-red-600 uppercase tracking-wider">Fundamentos Jurídicos de la Medida</label><button onClick={() => toggleListening('legal', setLegalBasis)} className="text-red-500 hover:text-red-700"><Icon name="mic" size={16}/></button></div>
+                                    <textarea className="w-full p-4 rounded-xl border-2 border-red-200 bg-red-50/20 text-sm font-medium focus:border-red-500 outline-none min-h-[100px]" placeholder="Cite las normas infringidas (Ley 9/79, Decreto 677...)" value={legalBasis} onChange={(e) => setLegalBasis(e.target.value)}/>
                                 </div>
                             )}
                         </div>
                     </Card>
 
                     <Card title="Formalización Legal" icon="gavel">
-                        <div className="space-y-6">
+                        <div className="space-y-8 p-2">
                             <div>
-                                <div className="flex justify-between items-center mb-2">
-                                    <div className="flex items-center gap-2">
-                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Observaciones del Vigilado (Derecho de Contradicción)</label>
-                                            <span className="text-[9px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded border border-slate-200">Art. 29 CPACA</span>
-                                    </div>
-                                    <button onClick={() => toggleListening('citizen', setCitizenObservation)} className={`p-1 rounded-full transition-colors ${isListening === 'citizen' ? 'bg-red-100 text-red-600 animate-pulse' : 'bg-slate-100 text-slate-400 hover:text-blue-600'}`} title="Dictar por voz"><Icon name="mic" size={14}/></button>
-                                </div>
-                                <textarea 
-                                    className="w-full p-4 rounded-xl border-2 border-slate-200 text-sm font-medium focus:border-blue-500 outline-none min-h-[100px]"
-                                    placeholder="Espacio para que el atendido consigne sus descargos o inconformidades frente a la diligencia..."
-                                    value={citizenObservation}
-                                    onChange={(e) => setCitizenObservation(e.target.value)}
-                                />
-                            </div>
-
-                            <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 text-justify">
-                                <h4 className="text-xs font-black text-slate-700 uppercase mb-2 text-center">Declaración de Cierre</h4>
-                                <p className="text-xs text-slate-600 leading-relaxed">
-                                    Siendo la hora registrada en el sistema, se da por terminada la presente diligencia de Inspección, Vigilancia y Control. 
-                                    Se deja constancia de que se ha garantizado el debido proceso, informando al interesado sobre los hallazgos encontrados y las medidas sanitarias aplicadas (si las hubiere).
-                                    <br/><br/>
-                                    <strong>NOTIFICACIÓN:</strong> La presente acta se entiende notificada en estrados al finalizar la diligencia. Contra el concepto técnico emitido proceden los recursos de ley conforme al Código de Procedimiento Administrativo y de lo Contencioso Administrativo (CPACA).
-                                </p>
+                                <div className="flex justify-between items-center mb-2"><div className="flex items-center gap-2"><label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Observaciones del Vigilado</label><span className="text-[9px] bg-slate-100 px-2 py-0.5 rounded font-bold text-slate-400">DERECHO DE CONTRADICCIÓN</span></div><button onClick={() => toggleListening('citizen', setCitizenObservation)} className="text-blue-600"><Icon name="mic" size={16}/></button></div>
+                                <textarea className="w-full p-4 rounded-xl border-2 border-slate-200 text-sm font-medium focus:border-blue-500 outline-none min-h-[100px]" placeholder="Espacio para descargos del atendido..." value={citizenObservation} onChange={(e) => setCitizenObservation(e.target.value)}/>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4 border-t border-slate-100">
-                                <div className="flex flex-col h-full justify-between">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 text-center">Funcionario Responsable (IVC)</p>
-                                    <div className="border-2 border-slate-200 rounded-xl flex-1 min-h-[160px] flex flex-col items-center justify-center bg-slate-50">
-                                        <Icon name="user-check" size={32} className="text-teal-600 mb-2"/>
+                                <div className="flex flex-col h-full justify-between gap-4">
+                                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest text-center">Funcionario Responsable (IVC)</p>
+                                    <div className="border-2 border-slate-200 rounded-xl flex-1 min-h-[180px] flex flex-col items-center justify-center bg-slate-50/50">
+                                        <div className="w-16 h-16 bg-teal-100 rounded-full flex items-center justify-center text-teal-600 mb-3"><Icon name="user-check" size={32}/></div>
                                         <p className="font-black text-slate-700 text-sm">INSPECTOR VIGISALUD</p>
-                                        <p className="text-[10px] text-slate-400 font-bold">Firma Digital Autenticada</p>
+                                        <p className="text-[10px] text-slate-400 font-bold mt-1">Firma Digital Autenticada</p>
                                     </div>
                                 </div>
 
-                                <div className="flex flex-col h-full justify-between">
-                                    <div className="flex justify-between items-center mb-3">
-                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{refusalToSign ? 'Firma de Testigo' : `Firma de: ${contextData?.attendedBy?.slice(0,15)}...`}</p>
-                                        <button 
-                                            onClick={() => setRefusalToSign(!refusalToSign)}
-                                            className={`text-[9px] font-bold px-2 py-1 rounded border transition-colors ${refusalToSign ? 'bg-red-50 text-red-600 border-red-200' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-red-50 hover:text-red-600'}`}
-                                        >
-                                            {refusalToSign ? 'Cancelar Renuencia' : '¿Se niega a firmar?'}
-                                        </button>
-                                    </div>
-
-                                    <div className="flex-1 min-h-[160px]">
+                                <div className="flex flex-col h-full justify-between gap-4">
+                                    <div className="flex justify-between items-center"><p className="text-xs font-black text-slate-400 uppercase tracking-widest">{refusalToSign ? 'Firma de Testigo' : `Firma de: ${contextData?.attendedBy?.slice(0,15)}...`}</p><button onClick={() => setRefusalToSign(!refusalToSign)} className={`text-[9px] font-bold px-3 py-1.5 rounded-lg border transition-all ${refusalToSign?'bg-red-50 text-red-600 border-red-200':'bg-white text-slate-500 border-slate-200 hover:border-red-300 hover:text-red-500'}`}>{refusalToSign ? 'Cancelar Renuencia' : '¿Se niega a firmar?'}</button></div>
+                                    <div className="flex-1 min-h-[180px]">
                                         {!refusalToSign ? (
-                                            <SignaturePad onChange={(data) => setSignature(data)} label="Firma en pantalla" />
+                                            <SignaturePad onChange={(data) => setSignature(data)} label="Firme aquí dentro del recuadro" />
                                         ) : (
                                             <div className="h-full flex flex-col gap-3 animate-in fade-in">
-                                                <div className="bg-red-50 p-2 rounded-lg border border-red-100 text-[10px] text-red-700 font-bold text-center">
-                                                    Protocolo de Renuencia: Firma de testigo requerida.
-                                                </div>
-                                                <Input label="Nombre Testigo" value={witness.name} onChange={e => setWitness({...witness, name: e.target.value})} placeholder="Nombre completo" />
-                                                <Input label="Cédula Testigo" value={witness.id} onChange={e => setWitness({...witness, id: e.target.value})} placeholder="No. Documento" />
-                                                <div className="flex-1">
-                                                        <SignaturePad onChange={(data) => setWitness({...witness, signature: data})} label="Firma del Testigo" />
-                                                </div>
+                                                <div className="bg-red-50 p-3 rounded-xl border border-red-100 text-xs text-red-700 font-bold text-center flex items-center justify-center gap-2"><Icon name="alert-triangle" size={14}/> Protocolo de Renuencia Activado</div>
+                                                <Input label="Nombre Testigo" value={witness.name} onChange={e => setWitness({...witness, name: e.target.value})} />
+                                                <Input label="Cédula" value={witness.id} onChange={e => setWitness({...witness, id: e.target.value})} />
+                                                <div className="flex-1"><SignaturePad onChange={(data) => setWitness({...witness, signature: data})} label="Firma del Testigo" /></div>
                                             </div>
                                         )}
                                     </div>
@@ -1027,10 +990,10 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                         </div>
                     </Card>
 
-                    <div className="flex justify-between mt-6">
-                        <Button variant="secondary" onClick={() => setCurrentTab(hasSeizures ? 'CUSTODIA' : 'PRODUCTOS')}>Atrás</Button>
-                        <Button onClick={() => handleReviewDraft()} className="bg-slate-900 text-white shadow-xl" disabled={loading}>
-                        {loading ? "Generando Borrador..." : "REVISAR Y FINALIZAR ACTA"}
+                    <div className="flex justify-between mt-12 pt-6 border-t border-slate-200">
+                        <Button variant="secondary" onClick={() => setCurrentTab(hasSeizures ? 'CUSTODIA' : 'PRODUCTOS')} className="px-8 h-12">Atrás</Button>
+                        <Button onClick={() => handleReviewDraft()} className="bg-slate-900 text-white shadow-xl h-12 px-10 hover:scale-105 transition-transform" disabled={loading}>
+                        {loading ? <span className="flex items-center gap-2"><Icon name="loader" className="animate-spin"/> Generando Acta...</span> : <span className="flex items-center gap-2">VISTA PREVIA Y FINALIZAR <Icon name="file-text"/></span>}
                         </Button>
                     </div>
                 </div>
@@ -1040,66 +1003,60 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       {/* --- MODALES --- */}
 
       {showCumModal && createPortal(
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-200">
             <div className="absolute inset-0" onClick={() => setShowCumModal(false)}></div>
-            <div className="relative bg-white w-full max-w-4xl rounded-2xl shadow-2xl border border-slate-200 flex flex-col max-h-[85vh] overflow-hidden">
-                <div className="bg-slate-900 p-4 flex items-center justify-between text-white">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-white/10 rounded-lg"><Icon name="database" size={20}/></div>
-                        <div>
-                            <h3 className="font-bold text-sm uppercase tracking-wide">Base de Datos Maestra INVIMA</h3>
-                            <p className="text-[10px] opacity-70">Consulta en tiempo real</p>
-                        </div>
+            <div className="relative bg-white w-full max-w-5xl rounded-3xl shadow-2xl border border-slate-200 flex flex-col max-h-[85vh] overflow-hidden">
+                <div className="bg-slate-900 p-5 flex items-center justify-between text-white shrink-0">
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 bg-white/10 rounded-2xl backdrop-blur-sm"><Icon name="database" size={24}/></div>
+                        <div><h3 className="font-black text-lg uppercase tracking-wide">Base de Datos Maestra INVIMA</h3><p className="text-xs opacity-70 font-medium">Motor de Búsqueda Regulatoria v8.2</p></div>
                     </div>
-                    <button onClick={() => setShowCumModal(false)} className="hover:bg-white/10 p-2 rounded-full transition-colors"><Icon name="x" size={20}/></button>
+                    <button onClick={() => setShowCumModal(false)} className="hover:bg-white/10 p-3 rounded-full transition-colors"><Icon name="x" size={24}/></button>
                 </div>
 
-                <div className="p-4 bg-slate-50 border-b border-slate-200">
-                    <div className="relative">
-                        <input 
-                            autoFocus 
-                            className="w-full h-12 pl-12 pr-4 rounded-xl border border-slate-300 text-lg font-bold text-slate-700 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all outline-none" 
-                            placeholder="Buscar por Nombre, Principio Activo, Expediente o CUM..." 
-                            value={cumQuery} 
-                            onChange={(e) => { setCumQuery(e.target.value); }}
-                        />
-                        <div className="absolute left-4 top-3.5 text-slate-400"><Icon name="search" size={20}/></div>
+                <div className="p-6 bg-slate-50 border-b border-slate-200 shrink-0">
+                    <div className="relative group">
+                        <input autoFocus className="w-full h-16 pl-14 pr-6 rounded-2xl border-2 border-slate-200 text-xl font-bold text-slate-700 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all outline-none shadow-sm" placeholder="Buscar por Nombre, Principio Activo, Expediente o CUM..." value={cumQuery} onChange={(e) => { setCumQuery(e.target.value); }} />
+                        <div className="absolute left-5 top-5 text-slate-400 group-focus-within:text-blue-500 transition-colors"><Icon name="search" size={24}/></div>
                     </div>
-                    <div className="flex gap-4 mt-3 text-xs text-slate-500">
-                        <span className="flex items-center gap-1"><Icon name="check" size={12}/> Búsqueda Inteligente</span>
-                        <span className="flex items-center gap-1"><Icon name="database" size={12}/> {cumResults.length} Resultados encontrados</span>
+                    <div className="flex gap-6 mt-4 text-xs font-bold text-slate-500 px-2">
+                        <span className="flex items-center gap-2"><div className="w-2 h-2 bg-green-500 rounded-full"></div> Vigentes</span>
+                        <span className="flex items-center gap-2"><div className="w-2 h-2 bg-red-500 rounded-full"></div> Vencidos</span>
+                        <span className="flex items-center gap-2 ml-auto"><Icon name="database" size={12}/> {cumResults.length} Registros encontrados</span>
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-auto bg-slate-100 p-4 min-h-[300px]">
-                    <div className="space-y-2">
+                <div className="flex-1 overflow-y-auto p-4 bg-slate-100/50">
+                    <div className="space-y-3">
                         {cumResults.map(r => (
-                            <button key={r.id} onClick={() => selectFromModal(r)} className="w-full bg-white p-4 rounded-xl border border-slate-200 hover:border-blue-500 hover:shadow-md transition-all text-left group flex justify-between items-center">
-                                <div>
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <h4 className="font-black text-sm text-slate-800 group-hover:text-blue-700">{r.producto}</h4>
-                                        <Badge label={r.estadoregistro} variant={r.estadoregistro === 'Vigente' ? 'success' : 'danger'} className="text-[10px]"/>
+                            <button key={r.id} onClick={() => selectFromModal(r)} className="w-full bg-white p-5 rounded-2xl border border-slate-200 hover:border-blue-500 hover:shadow-lg transition-all text-left group flex justify-between items-center relative overflow-hidden">
+                                <div className="absolute left-0 top-0 bottom-0 w-1 bg-slate-200 group-hover:bg-blue-500 transition-colors"></div>
+                                <div className="pl-2">
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <h4 className="font-black text-base text-slate-800 group-hover:text-blue-700 transition-colors">{r.producto}</h4>
+                                        <Badge label={r.estadoregistro} variant={r.estadoregistro === 'Vigente' ? 'success' : 'danger'} className="text-[10px] uppercase tracking-wider"/>
                                     </div>
-                                    <p className="text-xs text-slate-500 font-medium">{r.titular} • <span className="font-mono bg-slate-100 px-1 rounded">{r.registrosanitario}</span></p>
-                                    <div className="mt-2 flex gap-4 text-[10px] text-slate-400 font-bold uppercase tracking-wide">
-                                        <span>Principio: {r.principioactivo}</span>
-                                        <span>CUM: {r.expediente}-{r.consecutivocum}</span>
+                                    <p className="text-xs text-slate-500 font-bold uppercase mb-1">{r.titular}</p>
+                                    <div className="flex gap-4 mt-3">
+                                        <span className="px-2 py-1 bg-slate-100 rounded-lg text-[10px] font-mono font-bold text-slate-600 border border-slate-200">REG: {r.registrosanitario}</span>
+                                        <span className="px-2 py-1 bg-slate-100 rounded-lg text-[10px] font-mono font-bold text-slate-600 border border-slate-200">CUM: {r.expediente}-{r.consecutivocum}</span>
+                                        <span className="px-2 py-1 bg-blue-50 rounded-lg text-[10px] font-bold text-blue-700 border border-blue-100">{r.principioactivo}</span>
                                     </div>
                                 </div>
-                                <div className="text-slate-300 group-hover:text-blue-500"><Icon name="chevron-right" size={20}/></div>
+                                <div className="text-slate-300 group-hover:text-blue-500 transform group-hover:translate-x-1 transition-all"><Icon name="chevron-right" size={24}/></div>
                             </button>
                         ))}
                         {cumResults.length === 0 && !isSearchingCum && (
-                            <div className="h-64 flex flex-col items-center justify-center text-slate-400">
-                                <Icon name="search" size={48} className="mb-4 opacity-20"/>
-                                <p className="font-medium">Ingrese términos para buscar en el catálogo oficial.</p>
-                                <p className="text-xs mt-1">Puede buscar por nombre comercial, principio activo o código CUM.</p>
+                            <div className="h-full flex flex-col items-center justify-center text-slate-400 py-20">
+                                <Icon name="search" size={64} className="mb-6 opacity-10"/>
+                                <p className="font-bold text-lg text-slate-500">Buscador Listo</p>
+                                <p className="text-sm mt-2 opacity-60">Ingrese cualquier criterio para consultar el catálogo oficial.</p>
                             </div>
                         )}
                         {isSearchingCum && (
-                            <div className="h-64 flex flex-col items-center justify-center text-blue-500">
-                                <Icon name="loader" size={48} className="mb-4 animate-spin"/>
-                                <p className="font-bold animate-pulse">Consultando Base de Datos...</p>
+                            <div className="h-full flex flex-col items-center justify-center text-blue-500 py-20">
+                                <Icon name="loader" size={48} className="mb-6 animate-spin"/>
+                                <p className="font-bold text-lg animate-pulse">Consultando Base de Datos...</p>
                             </div>
                         )}
                     </div>
@@ -1109,90 +1066,46 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       )}
 
       {showEvidenceModal && createPortal(
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in zoom-in-95">
-            <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border-2 border-amber-200 overflow-hidden">
-                <div className="bg-amber-50 p-4 border-b border-amber-100 flex items-center gap-3">
-                    <div className="p-2 bg-amber-100 rounded-full text-amber-600"><Icon name="alert-triangle" size={24}/></div>
-                    <div>
-                        <h3 className="font-black text-amber-900 uppercase leading-none">Requerimiento Legal</h3>
-                        <p className="text-[10px] font-bold text-amber-700 mt-1">Ley 9 de 1979 - Art. 576</p>
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md animate-in fade-in zoom-in-95">
+            <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl border-2 border-amber-200 overflow-hidden">
+                <div className="bg-amber-50 p-6 border-b border-amber-100 flex items-center gap-4">
+                    <div className="p-3 bg-amber-100 rounded-2xl text-amber-600 shadow-inner"><Icon name="alert-triangle" size={32}/></div>
+                    <div><h3 className="font-black text-amber-900 text-lg uppercase leading-none">Requerimiento Legal</h3><p className="text-xs font-bold text-amber-700/70 mt-1">Ley 9 de 1979 - Art. 576</p></div>
+                </div>
+                <div className="p-8 space-y-4 text-center">
+                    <p className="text-slate-600 font-medium leading-relaxed">Para soportar una medida sanitaria o hallazgo crítico, es <strong>obligatorio</strong> adjuntar evidencia probatoria documental (fotografía).</p>
+                    <div className="flex flex-col gap-3 mt-4">
+                        <button onClick={handlePhotoClick} className="w-full py-4 bg-slate-900 text-white font-bold rounded-2xl shadow-xl hover:bg-slate-800 flex items-center justify-center gap-3 transition-transform hover:scale-[1.02]"><Icon name="camera" size={20}/> ACTIVAR CÁMARA</button>
+                        <button onClick={() => commitProduct(false)} className="w-full py-4 bg-white text-slate-400 font-bold rounded-2xl border-2 border-slate-100 hover:border-slate-300 hover:text-slate-600 transition-all text-xs uppercase tracking-wider">Omitir (Queda como Pendiente)</button>
                     </div>
-                </div>
-                <div className="p-6 space-y-4">
-                    <p className="text-sm text-slate-600 font-medium">Para soportar la medida sanitaria se requiere <strong>evidencia probatoria documental</strong>.</p>
-                    <p className="text-sm text-slate-600">¿Desea adjuntar la fotografía del hallazgo ahora?</p>
-                </div>
-                <div className="p-4 bg-slate-50 border-t border-slate-100 flex flex-col gap-2">
-                    <button onClick={handlePhotoClick} className="w-full py-3 bg-slate-900 text-white font-bold rounded-xl shadow-lg hover:bg-slate-800 flex items-center justify-center gap-2">
-                        <Icon name="camera" size={18}/> Sí, abrir cámara ahora
-                    </button>
-                    <button onClick={() => commitProduct(false)} className="w-full py-3 bg-white text-slate-500 font-bold rounded-xl border border-slate-200 hover:bg-slate-50 text-xs">
-                        No, agregar como PENDIENTE (Bloquea cierre)
-                    </button>
-                </div>
-            </div>
-        </div>, document.body
-      )}
-
-      {showBlockModal && createPortal(
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-red-900/50 backdrop-blur-sm animate-in fade-in zoom-in-95">
-            <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border-2 border-red-500 overflow-hidden">
-                <div className="bg-red-500 p-6 text-white text-center">
-                    <div className="mx-auto bg-white/20 w-16 h-16 rounded-full flex items-center justify-center mb-4"><Icon name="lock" size={32}/></div>
-                    <h3 className="text-xl font-black uppercase">Cierre Bloqueado</h3>
-                    <p className="text-red-100 text-sm font-bold mt-1">Seguridad Jurídica Activada</p>
-                </div>
-                <div className="p-6 text-center space-y-4">
-                    <p className="text-slate-600 font-medium">No puede cerrar el acta porque existen <strong>hallazgos con medida sanitaria SIN evidencia probatoria</strong>.</p>
-                    <div className="bg-red-50 p-3 rounded-lg border border-red-100 text-xs text-red-800 font-bold">Por favor revise la lista de productos y adjunte las fotos pendientes (Botones Rojos).</div>
-                </div>
-                <div className="p-4 bg-slate-50 border-t border-slate-100">
-                    <button onClick={() => setShowBlockModal(false)} className="w-full py-3 bg-white text-slate-700 font-bold rounded-xl border-2 border-slate-200 hover:border-slate-300">Entendido, volver a la lista</button>
                 </div>
             </div>
         </div>, document.body
       )}
 
        {showDraftModal && createPortal(
-         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-sm animate-in fade-in">
-             <div className="bg-white w-full max-w-5xl h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden">
-                 <div className="p-4 bg-slate-800 text-white flex justify-between items-center">
-                     <div>
-                         <h3 className="font-bold text-lg">Vista Previa del Acta (Borrador)</h3>
-                         <p className="text-xs text-slate-400">Revise cuidadosamente antes de firmar y cerrar. Esta acción es irreversible.</p>
-                     </div>
-                     <button onClick={() => setShowDraftModal(false)}><Icon name="x" size={24}/></button>
+         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/95 backdrop-blur-xl animate-in fade-in">
+             <div className="bg-white w-full max-w-6xl h-[95vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden">
+                 <div className="p-5 bg-slate-900 text-white flex justify-between items-center shrink-0">
+                     <div><h3 className="font-black text-xl tracking-tight">Vista Previa del Acta</h3><p className="text-xs opacity-60 font-medium">Revise cuidadosamente antes de firmar.</p></div>
+                     <button onClick={() => setShowDraftModal(false)} className="p-2 hover:bg-white/10 rounded-full transition-colors"><Icon name="x" size={24}/></button>
                  </div>
-                 
-                 <div className="flex-1 bg-slate-200 p-4 relative">
+                 <div className="flex-1 bg-slate-200 p-4 md:p-8 relative overflow-hidden">
                      {pdfBlobUrl ? (
-                         <iframe src={pdfBlobUrl ?? undefined} className="w-full h-full rounded shadow-lg border border-slate-300" title="PDF Preview"></iframe>
+                         <iframe src={pdfBlobUrl} className="w-full h-full rounded-xl shadow-2xl border border-slate-300 bg-white" title="PDF Preview"></iframe>
                      ) : (
-                         <div className="flex items-center justify-center h-full">Generando PDF...</div>
+                         <div className="flex items-center justify-center h-full flex-col text-slate-400"><Icon name="loader" size={48} className="animate-spin mb-4"/><p className="font-bold">Generando Documento...</p></div>
                      )}
                  </div>
-
-                 <div className="p-4 border-t border-slate-200 flex justify-end gap-4 bg-white">
-                     <Button variant="secondary" onClick={() => setShowDraftModal(false)}>
-                         <Icon name="edit-2" size={18}/> Corregir / Volver
-                     </Button>
-                     <Button className="bg-emerald-600 text-white hover:bg-emerald-700" onClick={handleFinalizeInspection} disabled={loading}>
-                         <Icon name="check-circle" size={18}/> {loading ? "Guardando..." : "APROBAR Y FINALIZAR"}
-                     </Button>
+                 <div className="p-6 border-t border-slate-200 flex justify-end gap-4 bg-white shrink-0">
+                     <Button variant="secondary" onClick={() => setShowDraftModal(false)} className="h-12 px-6">Corregir</Button>
+                     <Button className="bg-emerald-600 text-white hover:bg-emerald-700 h-12 px-8 shadow-lg hover:shadow-emerald-200 hover:-translate-y-0.5 transition-all" onClick={handleFinalizeInspection} disabled={loading}><Icon name="check-circle" size={20}/> {loading ? "Guardando..." : "APROBAR Y FIRMAR"}</Button>
                  </div>
              </div>
          </div>, document.body
        )}
 
-      {/* INPUT FILE OCULTO - CRÍTICO PARA FUNCIONAMIENTO DE FOTOS */}
-      <input 
-          type="file" 
-          ref={fileInputRef} 
-          className="hidden" 
-          accept="image/*" 
-          onChange={handleFileChange}
-      />
-
+      <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
     </div>
   );
 };

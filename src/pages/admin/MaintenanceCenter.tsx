@@ -1,7 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { db } from '../../db';
-import { Button } from '../../components/ui/Button';
 import { Icon } from '../../components/ui/Icon';
 import { backupHandler } from '../../utils/backupHandler';
 import { useToast } from '../../context/ToastContext';
@@ -11,7 +9,7 @@ import { excelHandler } from '../../utils/excelHandler';
 import ExcelJS from 'exceljs';
 
 // =============================================================================
-// PARSER INDUSTRIAL DE CUMS (REFACTORIZADO - INGESTA AGRESIVA)
+// LÓGICA DE PARSEO Y DATOS (INTACTA)
 // =============================================================================
 
 const cleanString = (val: any): string => {
@@ -24,24 +22,19 @@ const sanitizeNumber = (val: any): string => {
   return String(val).replace(/[^0-9]/g, '');
 };
 
-// Convierte "Expediente CUM" -> "expedientecum" para evitar errores de tipeo en Excel
 const normalizeHeader = (header: string) => {
     return header.toLowerCase().replace(/[^a-z0-9]/g, '');
 };
 
 const normalizeRecord = (raw: any) => {
-  // Extracción segura usando claves normalizadas
   const exp = sanitizeNumber(raw['expediente'] || raw['expedientecum']);
   const cons = sanitizeNumber(raw['consecutivo'] || raw['consecutivocum']);
   
-  // Construcción del CUM Compuesto (Clave de Búsqueda)
   let computedCum = exp;
-  if (exp && cons) {
-      computedCum = `${exp}-${cons}`;
-  }
+  if (exp && cons) computedCum = `${exp}-${cons}`;
 
   return {
-    expediente: computedCum, // Este es el campo que busca el sistema
+    expediente: computedCum,
     producto: cleanString(raw['producto'] || raw['nombreproducto'] || 'DESCONOCIDO'),
     titular: cleanString(raw['titular'] || raw['titularregistro']),
     registrosanitario: cleanString(raw['registrosanitario'] || raw['registro'] || raw['invima']),
@@ -74,11 +67,10 @@ const normalizeRecord = (raw: any) => {
 };
 
 // =============================================================================
-// COMPONENTE PRINCIPAL
+// COMPONENTE VISUAL (PIXEL PERFECT RESTORATION)
 // =============================================================================
 
 export const MaintenanceCenter = () => {
-  const navigate = useNavigate();
   const { showToast } = useToast();
   
   type LoadingOperation = 'IDLE' | 'BACKUP' | 'RESTORE' | 'IMPORT_CUM' | 'IMPORT_CENSUS' | 'RESET_CENSUS' | 'RESET_ALL';
@@ -93,299 +85,270 @@ export const MaintenanceCenter = () => {
 
   const isBusy = loadingOp !== 'IDLE';
 
-  // --- MANEJADORES DE BACKUP ---
+  // --- HANDLERS ---
   const handleBackup = async () => {
     setLoadingOp('BACKUP');
     try {
       await backupHandler.exportSystemData();
-      showToast('Copia de seguridad descargada', 'success');
+      showToast('Copia de seguridad generada.', 'success');
     } catch (e) {
       console.error(e);
-      showToast('Error creando copia', 'error');
+      showToast('Error al generar respaldo.', 'error');
     } finally {
       setLoadingOp('IDLE');
     }
   };
 
-  const handleRestoreClick = () => {
-    if (fileInputRef.current) fileInputRef.current.click();
-  };
+  const handleRestoreClick = () => fileInputRef.current?.click();
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
     setLoadingOp('RESTORE');
     try {
       await backupHandler.importSystemData(file);
-      showToast('Base de datos restaurada. Reiniciando...', 'success');
+      showToast('Restauración completada. Reiniciando...', 'success');
       setTimeout(() => window.location.reload(), 2000);
     } catch (error) {
-      console.error(error);
-      showToast('Archivo de respaldo inválido', 'error');
+      showToast('Archivo inválido.', 'error');
       setLoadingOp('IDLE');
     }
     e.target.value = '';
   };
 
-  // --- MANEJADOR DE IMPORTACIÓN CUM (LOGICA REFORZADA) ---
   const handleCumImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
-
       setLoadingOp('IMPORT_CUM');
-      
       const reader = new FileReader();
-      
       reader.onload = async (evt) => {
           try {
               const buffer = evt.target?.result as ArrayBuffer;
               const workbook = new ExcelJS.Workbook();
               await workbook.xlsx.load(buffer);
-              
               const worksheet = workbook.getWorksheet(1);
-              if (!worksheet) throw new Error("Archivo Excel vacío o sin hojas.");
-
-              // Limpieza de DB
+              if (!worksheet) throw new Error("Archivo vacío.");
               await db.cums.clear();
-
               const batchSize = 1000;
               let batch: any[] = [];
               let count = 0;
-
-              // MAPEO INTELIGENTE DE HEADERS
-              // Leemos la fila 1 y creamos un mapa: { 1: 'expediente', 2: 'producto'... }
               const colMap: Record<number, string> = {};
-              const headerRow = worksheet.getRow(1);
+              worksheet.getRow(1).eachCell((cell, colNumber) => { if (cell.value) colMap[colNumber] = normalizeHeader(cell.value.toString()); });
+              if (!Object.values(colMap).includes('expediente')) throw new Error("Falta columna Expediente.");
               
-              headerRow.eachCell((cell, colNumber) => {
-                  const rawHeader = cell.value?.toString() || '';
-                  if (rawHeader) {
-                      colMap[colNumber] = normalizeHeader(rawHeader);
-                  }
-              });
-
-              // Si no encontramos columnas clave, abortamos
-              if (!Object.values(colMap).includes('expediente') && !Object.values(colMap).includes('producto')) {
-                  throw new Error("El archivo no parece tener columnas 'Expediente' o 'Producto' válidas.");
-              }
-
-              // PROCESAMIENTO
               for (let i = 2; i <= worksheet.rowCount; i++) {
                   const row = worksheet.getRow(i);
                   const rawData: any = {};
-                  
-                  // Extraer datos usando el mapa de columnas
                   Object.keys(colMap).forEach((colIdx: any) => {
-                      const key = colMap[colIdx];
-                      const cell = row.getCell(Number(colIdx));
-                      
-                      // Manejo de Rich Text de Excel
-                      const val = (cell.value && typeof cell.value === 'object' && 'text' in cell.value) 
-                          ? (cell.value as any).text 
-                          : cell.value;
-                          
-                      rawData[key] = val;
+                      const val = row.getCell(Number(colIdx)).value;
+                      rawData[colMap[colIdx]] = (val && typeof val === 'object' && 'text' in val) ? (val as any).text : val;
                   });
-
-                  // Solo procesar si tiene al menos un expediente o producto
-                  if (rawData['expediente'] || rawData['producto']) {
-                      const cleanRecord = normalizeRecord(rawData);
-                      batch.push(cleanRecord);
-                      count++;
-                  }
-
-                  if (batch.length >= batchSize) {
-                      await db.cums.bulkAdd(batch);
-                      batch = [];
-                      // Yield al navegador
-                      await new Promise(resolve => setTimeout(resolve, 0));
-                  }
+                  if (rawData['expediente']) { batch.push(normalizeRecord(rawData)); count++; }
+                  if (batch.length >= batchSize) { await db.cums.bulkAdd(batch); batch = []; await new Promise(resolve => setTimeout(resolve, 0)); }
               }
-
-              if (batch.length > 0) {
-                  await db.cums.bulkAdd(batch);
-              }
-
-              if (count === 0) {
-                  showToast("⚠️ Advertencia: No se encontraron registros válidos para importar.", "warning");
-              } else {
-                  showToast(`✅ Éxito: Se importaron ${count} medicamentos correctamente.`, 'success');
-              }
-
-          } catch (error) {
-              console.error("Error importando CUM:", error);
-              showToast("Error procesando archivo. Verifique el formato.", 'error');
-          } finally {
-              setLoadingOp('IDLE');
-              if (cumInputRef.current) cumInputRef.current.value = '';
-          }
+              if (batch.length > 0) await db.cums.bulkAdd(batch);
+              showToast(`Importación exitosa: ${count} registros.`, 'success');
+          } catch (error) { console.error(error); showToast("Error importando CUM.", 'error'); } 
+          finally { setLoadingOp('IDLE'); if (cumInputRef.current) cumInputRef.current.value = ''; }
       };
-
       reader.readAsArrayBuffer(file);
   };
 
-  // --- MANEJADOR DE IMPORTACIÓN CENSO ---
   const handleCensusImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
-
       setLoadingOp('IMPORT_CENSUS');
       try {
           const establishments = await excelHandler.parseCensusExcel(file);
-          if (establishments.length === 0) throw new Error("No se encontraron registros");
-          
+          if (establishments.length === 0) throw new Error("Sin registros.");
           await db.establishments.clear();
           await db.establishments.bulkAdd(establishments);
-          
-          showToast(`Censo actualizado: ${establishments.length} establecimientos`, 'success');
-      } catch (error) {
-          console.error(error);
-          showToast('Error al importar el censo. Verifique el formato.', 'error');
-      } finally {
-          setLoadingOp('IDLE');
-          if (censusInputRef.current) censusInputRef.current.value = '';
-      }
+          showToast(`Censo actualizado: ${establishments.length} registros.`, 'success');
+      } catch (error) { showToast('Error importando censo.', 'error'); } 
+      finally { setLoadingOp('IDLE'); if (censusInputRef.current) censusInputRef.current.value = ''; }
   };
 
-  // --- ACCIONES PROTEGIDAS ---
-  const requestAction = (action: { type: string, payload?: any }) => {
-    setPendingAction(action);
-    setGuardOpen(true);
-  };
-
+  const requestAction = (action: { type: string, payload?: any }) => { setPendingAction(action); setGuardOpen(true); };
   const executePendingAction = async () => {
     if (!pendingAction) return;
-    
     try {
-        if (pendingAction.type === 'RESET_CENSUS') {
-            setLoadingOp('RESET_CENSUS');
-            await db.establishments.clear();
-            await db.cums.clear(); 
-            showToast('Censo y BD CUM eliminados.', 'warning');
-        } 
-        else if (pendingAction.type === 'RESET_ALL') {
-            setLoadingOp('RESET_ALL');
-            await db.delete();
-            showToast('Sistema reseteado de fábrica.', 'warning');
-            setTimeout(() => window.location.reload(), 1000);
-        }
-        else if (pendingAction.type === 'SEED_CENSUS') {
-            setLoadingOp('IMPORT_CENSUS');
-            await seedDatabase();
-            showToast('Censo de prueba cargado.', 'success');
-        }
-        else if (pendingAction.type === 'LOAD_CUM') {
-            if (cumInputRef.current) cumInputRef.current.click();
-        }
-        else if (pendingAction.type === 'LOAD_CENSUS') {
-            if (censusInputRef.current) censusInputRef.current.click();
-        }
-    } catch (e) {
-        console.error(e);
-        showToast('Error ejecutando acción', 'error');
-    } finally {
-        if (pendingAction.type !== 'LOAD_CUM' && pendingAction.type !== 'LOAD_CENSUS') {
-            setLoadingOp('IDLE');
-        }
-        setGuardOpen(false);
-        setPendingAction(null);
-    }
+        if (pendingAction.type === 'RESET_CENSUS') { setLoadingOp('RESET_CENSUS'); await db.establishments.clear(); await db.cums.clear(); showToast('Datos eliminados.', 'warning'); } 
+        else if (pendingAction.type === 'RESET_ALL') { setLoadingOp('RESET_ALL'); await db.delete(); showToast('Reset de fábrica.', 'warning'); setTimeout(() => window.location.reload(), 1000); }
+        else if (pendingAction.type === 'SEED_CENSUS') { setLoadingOp('IMPORT_CENSUS'); await seedDatabase(); showToast('Datos demo cargados.', 'success'); }
+        else if (pendingAction.type === 'LOAD_CUM') { cumInputRef.current?.click(); }
+        else if (pendingAction.type === 'LOAD_CENSUS') { censusInputRef.current?.click(); }
+    } catch (e) { showToast('Error.', 'error'); } 
+    finally { if (pendingAction.type !== 'LOAD_CUM' && pendingAction.type !== 'LOAD_CENSUS') setLoadingOp('IDLE'); setGuardOpen(false); setPendingAction(null); }
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in">
-      <div className="flex items-center gap-4 mb-8">
-        <Button variant="secondary" onClick={() => navigate('/dashboard')}>
-          <Icon name="arrow-left" size={20}/> Volver
-        </Button>
+    <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in pb-12">
+      {/* HEADER: Basado en image_13ffb4.png */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-2">
+        <div className="flex items-center gap-4">
+            {/* Ícono grande decorativo (Engranaje) */}
+            <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-500 shadow-inner border border-slate-200/50">
+                <Icon name="settings" size={32}/>
+            </div>
+            <div>
+                <h1 className="text-3xl font-black text-slate-800 tracking-tight">Centro de Mantenimiento</h1>
+                <p className="text-slate-500 font-medium">Gestión de datos maestros y seguridad del sistema</p>
+            </div>
+        </div>
         <div>
-          <h1 className="text-2xl font-black text-slate-800">Centro de Mantenimiento</h1>
-          <p className="text-slate-500 text-sm">Gestión de datos, copias de seguridad y restablecimiento.</p>
+             <div className="px-4 py-2 bg-slate-50 text-slate-700 rounded-full text-xs font-bold border border-slate-200 flex items-center gap-2 shadow-sm">
+                <div className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse"></div> Sistema Activo
+            </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* BACKUP SECTION */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        {/* COLUMNA IZQUIERDA: BASES DE DATOS (2/3 ANCHO) */}
+        <div className="lg:col-span-2 space-y-6">
+            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                <Icon name="database" size={14}/> BASES DE DATOS MAESTRAS
+            </h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* TARJETA CUM (AZUL) */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col h-full">
+                    <div className="p-8 flex-1">
+                        <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center mb-5">
+                            <Icon name="server" size={24}/>
+                        </div>
+                        <h4 className="text-xl font-bold text-slate-800 mb-2">Base de Datos CUM</h4>
+                        <p className="text-sm text-slate-500 leading-relaxed">
+                            Importe el archivo maestro (.xlsx) del INVIMA para habilitar el motor de búsqueda offline.
+                        </p>
+                    </div>
+                    {/* Footer: Estado a la izquierda, Botón a la derecha */}
+                    <div className="p-6 border-t border-slate-100 flex justify-between items-center">
+                        <span className="text-[10px] font-black text-slate-300 uppercase">ESTADO: DESCONOCIDO</span>
+                        <button 
+                            onClick={() => requestAction({ type: 'LOAD_CUM' })} 
+                            disabled={isBusy}
+                            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-lg shadow-sm flex items-center gap-2 transition-all disabled:opacity-50"
+                        >
+                            {loadingOp === 'IMPORT_CUM' ? <Icon name="loader" className="animate-spin" size={16}/> : <Icon name="upload-cloud" size={18}/>}
+                            {loadingOp === 'IMPORT_CUM' ? 'Procesando...' : 'Cargar CUM'}
+                        </button>
+                    </div>
+                    <input type="file" ref={cumInputRef} className="hidden" accept=".xlsx" onChange={handleCumImport} />
+                </div>
+
+                {/* TARJETA CENSO (VERDE) */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col h-full">
+                    <div className="p-8 flex-1">
+                        <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center mb-5">
+                            <Icon name="map" size={24}/>
+                        </div>
+                        <h4 className="text-xl font-bold text-slate-800 mb-2">Censo de Establecimientos</h4>
+                        <p className="text-sm text-slate-500 leading-relaxed">
+                            Gestione el listado de sujetos de control. Soporta carga masiva o reinicio de datos.
+                        </p>
+                    </div>
+                    {/* Footer: Dos botones a la derecha */}
+                    <div className="p-6 border-t border-slate-100 flex justify-end gap-3">
+                        <button 
+                            onClick={() => requestAction({ type: 'SEED_CENSUS' })} 
+                            disabled={isBusy}
+                            className="px-4 py-3 bg-white border border-slate-200 text-slate-600 hover:border-emerald-200 hover:text-emerald-600 text-sm font-bold rounded-lg transition-all"
+                        >
+                            Cargar Demo
+                        </button>
+                        <button 
+                            onClick={() => requestAction({ type: 'LOAD_CENSUS' })} 
+                            disabled={isBusy}
+                            className="px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-lg shadow-sm flex items-center gap-2 disabled:opacity-50 transition-all"
+                        >
+                            {loadingOp === 'IMPORT_CENSUS' ? <Icon name="loader" className="animate-spin" size={16}/> : <Icon name="file-text" size={18}/>}
+                            Importar Excel
+                        </button>
+                    </div>
+                    <input type="file" ref={censusInputRef} className="hidden" accept=".xlsx" onChange={handleCensusImport} />
+                </div>
+            </div>
+        </div>
+
+        {/* COLUMNA DERECHA: SEGURIDAD (1/3 ANCHO) */}
         <div className="space-y-6">
-          <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Respaldo y Recuperación</h3>
-          
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-full">
-            <div className="mb-4">
-              <h4 className="font-bold text-slate-700">Copia de Seguridad (Backup)</h4>
-              <p className="text-xs text-slate-500 mt-1">Descarga un archivo encriptado (.json) con toda la información local.</p>
-            </div>
-            <button onClick={handleBackup} disabled={isBusy} className="w-full py-3 bg-slate-900 text-white font-bold text-sm rounded-lg hover:bg-slate-800 flex items-center justify-center gap-2 disabled:opacity-50 transition-all">
-                {loadingOp === 'BACKUP' ? <Icon name="loader" className="animate-spin"/> : <Icon name="download" size={16}/>} Generar Copia
-            </button>
-          </div>
+            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                <Icon name="shield" size={14}/> SEGURIDAD DE DATOS
+            </h3>
 
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-full">
-            <div className="mb-4">
-              <h4 className="font-bold text-slate-700">Restaurar Copia</h4>
-              <p className="text-xs text-slate-500 mt-1">Importa un archivo de respaldo. <span className="text-red-500 font-bold">Sobrescribirá los datos actuales.</span></p>
-            </div>
-            <button onClick={handleRestoreClick} disabled={isBusy} className="w-full py-3 bg-white text-slate-700 font-bold text-sm rounded-lg border-2 border-slate-200 hover:border-slate-300 flex items-center justify-center gap-2 disabled:opacity-50 transition-all">
-                {loadingOp === 'RESTORE' ? <Icon name="loader" className="animate-spin"/> : <Icon name="upload" size={16}/>} Seleccionar Archivo
-            </button>
-            <input type="file" ref={fileInputRef} className="hidden" accept=".json" onChange={handleFileChange} />
-          </div>
-        </div>
-
-        {/* DATA SECTION */}
-        <div className="space-y-6">
-          <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Base de Datos Maestra</h3>
-          
-          <div className="bg-white p-5 rounded-xl border border-blue-100 shadow-sm flex flex-col justify-between h-full relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-2 bg-blue-100 rounded-bl-xl text-blue-600"><Icon name="database" size={20}/></div>
-            <div className="mb-4">
-              <h4 className="font-bold text-blue-900">Base de Datos INVIMA (CUM)</h4>
-              <p className="text-xs text-blue-700/70 mt-1">Importar archivo maestro (.xlsx) para validación offline.</p>
-            </div>
-            <button onClick={() => requestAction({ type: 'LOAD_CUM' })} disabled={isBusy} className="w-full py-3 bg-blue-600 text-white font-bold text-sm rounded-lg hover:bg-blue-700 shadow-lg shadow-blue-200 flex items-center justify-center gap-2 disabled:opacity-50 transition-all">
-                {loadingOp === 'IMPORT_CUM' ? <Icon name="loader" className="animate-spin"/> : <Icon name="file-plus" size={16}/>}
-                {loadingOp === 'IMPORT_CUM' ? 'Indexando CUM...' : 'Cargar CUM (Excel)'}
-            </button>
-            <input type="file" ref={cumInputRef} className="hidden" accept=".xlsx" onChange={handleCumImport} />
-          </div>
-
-          <div className="bg-white p-5 rounded-xl border border-emerald-100 shadow-sm flex flex-col justify-between h-full">
-            <div className="mb-4">
-              <h4 className="font-bold text-emerald-900">Gestión de Censo</h4>
-              <p className="text-xs text-emerald-700/70 mt-1">Cargar base de establecimientos (Real o Prueba).</p>
-            </div>
-            <div className="flex gap-2">
-                <button onClick={() => requestAction({ type: 'LOAD_CENSUS' })} disabled={isBusy} className="flex-1 py-3 bg-emerald-600 text-white font-bold text-xs rounded-lg hover:bg-emerald-700 shadow-lg flex items-center justify-center gap-1 disabled:opacity-50">
-                    {loadingOp === 'IMPORT_CENSUS' ? <Icon name="loader" className="animate-spin"/> : <Icon name="upload-cloud" size={14}/>} Cargar Excel
+            {/* PANEL BLANCO DE ACCIONES DE RESPALDO */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden p-2">
+                <button 
+                    onClick={handleBackup} 
+                    disabled={isBusy}
+                    className="w-full p-4 hover:bg-slate-50 transition-colors text-left flex items-center gap-4 group disabled:opacity-50 rounded-xl"
+                >
+                    <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center text-slate-500 group-hover:bg-white group-hover:shadow-sm transition-all border border-transparent group-hover:border-slate-200">
+                        {loadingOp === 'BACKUP' ? <Icon name="loader" className="animate-spin" size={20}/> : <Icon name="download" size={20}/>}
+                    </div>
+                    <div>
+                        <h5 className="font-bold text-slate-700 text-sm group-hover:text-blue-700">Crear Copia de Seguridad</h5>
+                        <p className="text-xs text-slate-400 mt-0.5">Descargar .json encriptado</p>
+                    </div>
                 </button>
-                <button onClick={() => requestAction({ type: 'SEED_CENSUS' })} disabled={isBusy} className="flex-1 py-3 bg-emerald-50 text-emerald-700 font-bold text-xs rounded-lg hover:bg-emerald-100 border border-emerald-200 flex items-center justify-center gap-1 disabled:opacity-50">
-                    <Icon name="database" size={14}/> Demo
+
+                <div className="h-px bg-slate-100 mx-4 my-1"></div>
+
+                <button 
+                    onClick={handleRestoreClick} 
+                    disabled={isBusy}
+                    className="w-full p-4 hover:bg-slate-50 transition-colors text-left flex items-center gap-4 group disabled:opacity-50 rounded-xl"
+                >
+                    <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center text-slate-500 group-hover:bg-white group-hover:shadow-sm transition-all border border-transparent group-hover:border-slate-200">
+                        {loadingOp === 'RESTORE' ? <Icon name="loader" className="animate-spin" size={20}/> : <Icon name="refresh-cw" size={20}/>}
+                    </div>
+                    <div>
+                        <h5 className="font-bold text-slate-700 text-sm group-hover:text-blue-700">Restaurar Sistema</h5>
+                        <p className="text-xs text-slate-400 mt-0.5">Desde archivo local</p>
+                    </div>
                 </button>
+                <input type="file" ref={fileInputRef} className="hidden" accept=".json" onChange={handleFileChange} />
             </div>
-            <input type="file" ref={censusInputRef} className="hidden" accept=".xlsx" onChange={handleCensusImport} />
-          </div>
+
+            {/* PANEL ROJO DE PELIGRO */}
+            <div className="bg-red-50 p-6 rounded-2xl border border-red-100">
+                <div className="flex items-center gap-2 mb-3 text-red-700">
+                    <Icon name="alert-triangle" size={18}/>
+                    <h4 className="text-xs font-black uppercase tracking-wider">ZONA DE PELIGRO</h4>
+                </div>
+                <p className="text-xs text-red-800/80 mb-6 leading-relaxed">
+                    Estas acciones son destructivas. Se requerirá autenticación mediante PIN de seguridad.
+                </p>
+                <div className="space-y-3">
+                    <button 
+                        onClick={() => requestAction({ type: 'RESET_CENSUS' })} 
+                        disabled={isBusy}
+                        className="w-full py-3 bg-white border border-red-200 text-red-700 rounded-lg text-sm font-bold hover:bg-red-50 transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-sm"
+                    >
+                        {loadingOp === 'RESET_CENSUS' ? <Icon name="loader" className="animate-spin" size={16}/> : <Icon name="trash-2" size={16}/>}
+                        Limpiar Datos Operativos
+                    </button>
+                    <button 
+                        onClick={() => requestAction({ type: 'RESET_ALL' })} 
+                        disabled={isBusy}
+                        className="w-full py-3 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-all flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
+                    >
+                        {loadingOp === 'RESET_ALL' ? <Icon name="loader" className="animate-spin" size={16}/> : <Icon name="alert-octagon" size={16}/>}
+                        Restablecimiento de Fábrica
+                    </button>
+                </div>
+            </div>
         </div>
       </div>
 
-      <div className="pt-8 border-t border-slate-200">
-        <h3 className="text-xs font-black text-red-600 uppercase tracking-widest mb-6 flex items-center gap-2"><Icon name="alert-triangle" size={16}/> Zona de Peligro</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-white p-5 rounded-xl border border-red-100 shadow-sm flex flex-col justify-between h-full">
-            <div className="mb-4"><h4 className="font-bold text-red-900">Limpiar Base de Datos</h4><p className="text-xs text-red-700/70 mt-1">Elimina establecimientos y base de medicamentos.</p></div>
-            <button onClick={() => requestAction({ type: 'RESET_CENSUS' })} disabled={isBusy} className="w-full py-3 bg-red-50 text-red-700 font-bold text-sm rounded-lg hover:bg-red-100 border border-red-200 flex items-center justify-center gap-2 disabled:opacity-50 transition-all">
-                {loadingOp === 'RESET_CENSUS' ? <Icon name="loader" className="animate-spin"/> : <Icon name="trash-2" size={16}/>} Eliminar Censo
-            </button>
-          </div>
-          <div className="bg-white p-5 rounded-xl border border-red-100 shadow-sm flex flex-col justify-between h-full">
-            <div className="mb-4"><h4 className="font-bold text-red-900">Restablecimiento de Fábrica</h4><p className="text-xs text-red-700/70 mt-1">Elimina TODO excepto los usuarios.</p></div>
-            <button onClick={() => requestAction({ type: 'RESET_ALL' })} disabled={isBusy} className="w-full py-3 bg-red-600 text-white font-bold text-sm rounded-lg hover:bg-red-700 shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 transition-all">
-                {loadingOp === 'RESET_ALL' ? <Icon name="loader" className="animate-spin"/> : <Icon name="refresh-ccw" size={16}/>} Resetear Sistema
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <PinGuardModal isOpen={guardOpen} onClose={() => { setGuardOpen(false); setPendingAction(null); }} onSuccess={executePendingAction} title="Confirmación de Seguridad" message="Esta acción es sensible. Por favor ingrese su PIN de seguridad para continuar." />
+      <PinGuardModal
+        isOpen={guardOpen}
+        onClose={() => { setGuardOpen(false); setPendingAction(null); }}
+        onSuccess={executePendingAction}
+        title="Confirmación de Seguridad"
+        message="Esta acción es sensible. Ingrese su PIN de seguridad para autorizar."
+      />
     </div>
   );
 };
