@@ -313,82 +313,75 @@ const PRODUCT_RULES: InternalRule[] = [
 ];
 
 // =============================================================================
-// 4. EL MOTOR LÓGICO
+// REEMPLAZO DE LA CLASE NarrativeBuilder (LÓGICA JURÍDICA)
 // =============================================================================
-
 class NarrativeBuilder {
-  private static OPENERS = ["Se evidencia", "Se observa", "Se constata", "Se verifica", "Se identifica"];
-  private static CONNECTORS = ["Adicionalmente,", "Por otro lado,", "Aunado a lo anterior,", "Así mismo,", "En lo referente a"];
-  private static CLOSERS = ["Lo anterior configura un riesgo sanitario.", "Se requiere subsanación inmediata.", "Dichos hallazgos contravienen la norma.", "Situación que compromete la inocuidad."];
-
   static build(failedItems: InspectionItem[], products: ProductFinding[]): string {
     const seized = products.filter(p => p.seizureType !== 'NINGUNO');
 
+    // CASO PERFECTO
     if (failedItems.length === 0 && seized.length === 0) {
-      return "No se evidencian hallazgos críticos al momento de la visita. El establecimiento cumple con las condiciones sanitarias evaluadas conforme a la normatividad vigente.";
+      return "Realizada la visita de inspección, vigilancia y control, se evidencia que el establecimiento CUMPLE con las condiciones sanitario-locativas, de almacenamiento y documentación evaluadas al momento de la diligencia, conforme a la normatividad sanitaria vigente.";
     }
 
-    let narrative = "";
+    let narrative = "Durante el recorrido de inspección se evidencian los siguientes hallazgos que configuran incumplimiento normativo:\n\n";
 
-    // Agrupación por Bloque
+    // 1. HALLAZGOS DE LISTA DE CHEQUEO (Agrupados por Bloque para coherencia)
     const groups: Record<string, string[]> = {};
     failedItems.forEach(item => {
       if (!groups[item.block]) groups[item.block] = [];
-      // Limpiar texto para fluidez (eliminar puntos finales, etc)
-      const cleanText = item.text.trim().replace(/\.$/, '').toLowerCase();
-      groups[item.block].push(cleanText);
+      // Limpieza: quitar punto final si existe y poner minúscula inicial (salvo nombres propios)
+      let text = item.text.trim();
+      if (text.endsWith('.')) text = text.slice(0, -1);
+      groups[item.block].push(text);
     });
 
-    // Construcción de Oraciones (Loop Determinista)
-    const blocks = Object.keys(groups);
-    blocks.forEach((block, index) => {
+    Object.keys(groups).forEach((block) => {
       const findings = groups[block];
-      let prefix = "";
-
-      if (index === 0) {
-        prefix = this.OPENERS[Math.floor(Math.random() * this.OPENERS.length)];
-      } else {
-        prefix = this.CONNECTORS[Math.floor(Math.random() * this.CONNECTORS.length)];
-      }
-
-      // Unir hallazgos con comas y 'y' final
-      let findingsText = "";
-      if (findings.length === 1) {
-          findingsText = findings[0];
-      } else {
-          const last = findings.pop();
-          findingsText = findings.join(", ") + " y " + last;
-      }
-
       const blockName = block.replace(/_/g, ' ');
-      narrative += `${prefix} en el subsistema de ${blockName} ${findingsText}. `;
+
+      narrative += `EN CUANTO A ${blockName}: `;
+
+      // Lógica de enumeración natural
+      if (findings.length === 1) {
+          narrative += `Se observa que ${findings[0].toLowerCase()}. `;
+      } else {
+          narrative += "Se evidencian falencias en: ";
+          narrative += findings.map((f, i) => {
+             // Formato lista dentro del párrafo
+             return `(${i + 1}) ${f}`;
+          }).join("; ") + ". ";
+      }
+      narrative += "\n";
     });
 
-    // Productos
+    // 2. HALLAZGOS DE PRODUCTO (Inventario)
     if (seized.length > 0) {
-        const total = seized.reduce((acc, p) => acc + p.quantity, 0);
-        const types = [...new Set(seized.map(p => p.type))].join(', ');
-        narrative += `En relación a los productos, se aplicó Medida Sanitaria a ${total} unidades (${types}) debido a incumplimientos de calidad y seguridad. `;
+        narrative += "\nEN RELACIÓN A LOS PRODUCTOS E INSUMOS:\n";
+        // Agrupar por causal para no repetir
+        const causes = new Set<string>();
+        let totalQty = 0;
+
+        seized.forEach(p => {
+            totalQty += p.quantity;
+            (p.riskFactors || []).forEach(r => causes.add(r.replace(/_/g, ' ')));
+        });
+
+        narrative += `Se aplicó Medida Sanitaria de Seguridad a ${totalQty} unidades de productos por presentar: ${Array.from(causes).join(', ')}. `;
+        narrative += "Dichos productos fueron objeto de inventario y separación inmediata (ver detalle en sección de medidas).";
     }
 
-    // Cierre
-    if (narrative.length > 0) {
-        narrative += this.CLOSERS[Math.floor(Math.random() * this.CLOSERS.length)];
-    }
+    // 3. CIERRE TÉCNICO
+    narrative += "\n\nCONCEPTO TÉCNICO:\n";
+    narrative += "Teniendo en cuenta los hallazgos descritos, los cuales afectan la inocuidad y seguridad sanitaria, se emite concepto DESFAVORABLE / CON REQUERIMIENTOS, otorgándose los plazos de ley para su subsanación.";
 
     return narrative;
   }
 }
 
-const mockCloudGeneration = async (establishment: Establishment, failedItems: InspectionItem[]): Promise<string> => {
-    return new Promise((resolve) => {
-        setTimeout(() => {
-            const count = failedItems.length;
-            const riskLevel = count > 3 ? "ALTO" : "MODERADO";
-            resolve(`[IA CLOUD] De acuerdo con la evaluación técnica realizada en ${establishment.name}, se identifican ${count} no conformidades que configuran un nivel de riesgo ${riskLevel}. La inteligencia artificial sugiere intervención prioritaria en los procesos críticos para garantizar el cumplimiento normativo y la seguridad sanitaria.`);
-        }, 1500);
-    });
-};
+// =============================================================================
+// 4. EL MOTOR LÓGICO (API PÚBLICA)
+// =============================================================================
 
 export const inspectionEngine = {
   /**
@@ -516,93 +509,82 @@ export const inspectionEngine = {
     return 'FAVORABLE';
   },
 
-  /**
-   * Genera el relato de hechos (Híbrido IA/Local).
-   * Contexto: Tablero de Cierre.
-   */
+  // --- FUNCIÓN UNIFICADA Y CORREGIDA ---
   generateHybridNarrative: async (
     checklistResponses: Record<string, { status: string }>,
     products: ProductFinding[],
     establishment: Establishment
   ): Promise<{ narrativeSuggestion: string; legalBasisSuggestion: string; violatedNorms: string[] }> => {
 
-    // Recopilar hallazgos para el motor
+    // 1. Recalcular Items Fallidos (Fuente de la Verdad)
     const allItems = inspectionEngine.generate(establishment);
     const failedItems = allItems.filter(item => {
       const resp = checklistResponses[item.id];
       return resp && resp.status === 'NO_CUMPLE';
     });
 
-    let narrative = "";
+    // 2. Generar Narrativa Determinista (Adiós IA Mock)
+    const narrative = NarrativeBuilder.build(failedItems, products);
 
-    // ESTRATEGIA: PROGRESSIVE ENHANCEMENT
-    if (navigator.onLine) {
-        try {
-            console.log("☁️ Intentando generación Cloud AI...");
-            narrative = await mockCloudGeneration(establishment, failedItems);
-        } catch (e) {
-            console.warn("⚠️ Fallo Cloud. Degradando a Local...");
-            narrative = NarrativeBuilder.build(failedItems, products);
-        }
-    } else {
-        console.log("🔋 Modo Offline. Usando Motor Local...");
-        narrative = NarrativeBuilder.build(failedItems, products);
-    }
-
-    // PLANTILLA FORMAL
-    const date = new Intl.DateTimeFormat('es-CO', { dateStyle: 'full', timeStyle: 'short' }).format(new Date());
-    const city = establishment.city || 'Barranquilla';
-
-    const header = `En la ciudad de ${city}, siendo las ${date}, se constituyó el funcionario competente en las instalaciones del establecimiento de comercio denominado ${establishment.name}.`;
-    const footer = "Se suscribe la presente acta en constancia de lo anterior, informando al atendido sobre el derecho de contradicción y defensa.";
-
-    const fullNarrative = `${header}\n\n${narrative}\n\n${footer}`;
-
-    // --- GENERACIÓN DE FUNDAMENTOS LEGALES (Reutilizando lógica legacy) ---
-    // (Simplificado para evitar duplicación masiva, extraemos lo esencial del método anterior)
+    // 3. Generar Fundamentos Legales y Lista de Normas
     const violatedNorms: string[] = [];
     const legalBasisParts: Set<string> = new Set();
 
     failedItems.forEach(item => {
-        const citation = item.legalCitation || 'Normatividad Sanitaria Vigente';
-        violatedNorms.push(`• [${citation}]: ${item.text}`);
+        // Formato para la lista de UI: "Norma: Descripción del hallazgo"
+        const citation = item.legalCitation || 'Norma Sanitaria General';
+        violatedNorms.push(`${citation}: ${item.text}`);
+
         if (item.legalCitation) legalBasisParts.add(item.legalCitation);
     });
 
+    // Productos
     const seizedProducts = products.filter(p => p.seizureType !== 'NINGUNO');
     if (seizedProducts.length > 0) {
         legalBasisParts.add("Ley 9 de 1979 (Código Sanitario Nacional)");
         seizedProducts.forEach(p => {
-             violatedNorms.push(`• [PRODUCTO]: ${p.name} presenta factores de riesgo sanitario.`);
+             // Agregar a la lista visual también
+             const risks = (p.riskFactors || []).join(', ');
+             violatedNorms.push(`PRODUCTO (${p.name}): ${risks}`);
         });
     }
 
+    // Encabezado Legal
+    const date = new Intl.DateTimeFormat('es-CO', { dateStyle: 'full', timeStyle: 'short' }).format(new Date());
+    const header = `En la ciudad de ${establishment.city || 'Barranquilla'}, siendo las ${date}, en las instalaciones de ${establishment.name}...`;
+    const footer = "Se firma la presente acta por quienes en ella intervinieron.";
+
     return {
-      narrativeSuggestion: fullNarrative,
+      narrativeSuggestion: `${header}\n\n${narrative}\n\n${footer}`,
       legalBasisSuggestion: Array.from(legalBasisParts).join('.\n'),
-      violatedNorms
+      violatedNorms: violatedNorms // <--- AHORA SÍ DEVUELVE LA LISTA REAL
     };
   },
 
-  /**
-   * @deprecated Usar generateHybridNarrative (Async)
-   */
+  // Wrapper de compatibilidad para UI síncrona (Deprecated pero necesario para que no rompa el render)
   generateLegalContext: (
     checklistResponses: Record<string, { status: string }>,
     products: ProductFinding[],
     establishment: Establishment
   ): { narrativeSuggestion: string; legalBasisSuggestion: string; violatedNorms: string[] } => {
-      // Wrapper síncrono para mantener compatibilidad si algo falla,
-      // pero idealmente todo debe migrar a async.
-      // Retornamos el builder local directamente.
+
       const allItems = inspectionEngine.generate(establishment);
       const failedItems = allItems.filter(item => checklistResponses[item.id]?.status === 'NO_CUMPLE');
-      const narrative = NarrativeBuilder.build(failedItems, products);
 
+      // Reutilizamos la lógica de extracción para la cajita azul
+      const violatedNorms: string[] = [];
+      failedItems.forEach(item => {
+         violatedNorms.push(`${item.legalCitation || 'Norma'}: ${item.text}`);
+      });
+      products.filter(p => p.seizureType !== 'NINGUNO').forEach(p => {
+          violatedNorms.push(`PRODUCTO: ${p.name} (${(p.riskFactors||[]).join(',')})`);
+      });
+
+      // No llamamos a NarrativeBuilder.build aquí porque es sync y no necesitamos la narrativa completa
       return {
-          narrativeSuggestion: narrative,
-          legalBasisSuggestion: "Ver fundamentos en modo asíncrono.",
-          violatedNorms: []
+          narrativeSuggestion: "Ver detalle en acta final.",
+          legalBasisSuggestion: "Normatividad vigente.",
+          violatedNorms: violatedNorms
       };
   }
 };
