@@ -699,10 +699,13 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
   const renderProductForm = () => {
       const isTypeSelected = !!newProduct.type && !!newProduct.subtype;
       const isIdentityFilled = !!newProduct.name;
-      // Trazabilidad llena si tiene Lote Y Vencimiento (o si es Dispositivo/Reactivo que a veces no tiene vencimiento explícito pero asumamos que sí para simplificar, o ajustamos la lógica)
-      // Para MVP Focus Flow: Lote es clave.
       const isTraceabilityFilled = !!newProduct.lot;
       
+      const currentSchema = PRODUCT_SCHEMAS[newProduct.type as string] || PRODUCT_SCHEMAS['OTRO'];
+      const technicalFieldsKeys = ['atcCode', 'viaAdministration', 'activePrinciple', 'pharmaceuticalForm'];
+      const technicalFields = currentSchema.fields.filter(f => technicalFieldsKeys.includes(f.key));
+      const hasField = (key: string) => currentSchema.fields.some(f => f.key === key);
+
       return (
         <div className="space-y-8">
             {/* BLOCK 0: SEARCH & CLASSIFICATION */}
@@ -1031,19 +1034,6 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
   };
 
   if (!establishment) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="text-center"><Icon name="loader" className="animate-spin text-blue-600 mx-auto mb-4" size={40}/><h2 className="text-slate-600 font-bold">Cargando Expediente...</h2></div></div>;
-  const currentSchema = PRODUCT_SCHEMAS[newProduct.type as string] || PRODUCT_SCHEMAS['OTRO'];
-
-  // [NEW] FILTER FIELDS FOR GROUPING
-  // Identity: Name, Manufacturer, Reg, Presentation (Handled by Card if CUM)
-  // Technical: ATC, Via, ActivePrinciple, Unit (Accordion)
-  // Operational: Lot, Expiration, Quantity (Always Visible)
-
-  // Modificado: Eliminamos 'concentration' y 'unit' porque ahora tienen UI dedicada en el bloque de identidad
-  const technicalFieldsKeys = ['atcCode', 'viaAdministration', 'activePrinciple', 'pharmaceuticalForm'];
-
-  // Operational are the rest (minus Technical and Identity)
-  // Technical fields definition
-  const technicalFields = currentSchema.fields.filter(f => technicalFieldsKeys.includes(f.key));
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-24 animate-in fade-in relative">
@@ -1053,7 +1043,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                 <div className="flex items-center gap-2 mb-2">
                     <Badge label={establishment.category} variant="neutral"/>
                     <Badge label={establishment.type} variant="neutral"/>
-                    {hasSeizures && <Badge label="MEDIDA SANITARIA" className="bg-red-600 text-white animate-pulse"/>}
+                    {hasSeizures && <Badge label="MEDIDA SANITARIA" className="bg-red-600 text-white"/>}
                 </div>
                 <h1 className="text-2xl font-black text-slate-800 tracking-tight uppercase">{establishment.name}</h1>
                 <p className="text-xs font-bold text-slate-500 flex items-center gap-2 mt-1"><Icon name="map-pin" size={12}/> {establishment.address} • NIT: {establishment.nit}</p>
@@ -1265,6 +1255,9 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                             <Icon name={navigator.onLine ? "cloud-lightning" : "cpu"} size={18}/>
                             {loading ? "Redactando..." : "GENERAR NARRATIVA Y FUNDAMENTOS"}
                         </Button>
+                        <p className="text-[10px] text-slate-400 text-center mt-2 max-w-md mx-auto">
+                            * La generación automática es una herramienta de apoyo. El inspector debe verificar y ajustar el contenido final.
+                        </p>
                     </div>
 
                     <Card title="Relato de los Hechos" icon="book-open">
