@@ -316,7 +316,7 @@ const PRODUCT_RULES: InternalRule[] = [
 // REEMPLAZO DE LA CLASE NarrativeBuilder (LÓGICA JURÍDICA)
 // =============================================================================
 class NarrativeBuilder {
-  static build(failedItems: InspectionItem[], products: ProductFinding[]): string {
+  static build(failedItems: InspectionItem[], products: ProductFinding[], concept: ConceptType): string {
     const seized = products.filter(p => p.seizureType !== 'NINGUNO');
     
     // CASO PERFECTO
@@ -373,7 +373,7 @@ class NarrativeBuilder {
 
     // 3. CIERRE TÉCNICO
     narrative += "\n\nCONCEPTO TÉCNICO:\n";
-    narrative += "Teniendo en cuenta los hallazgos descritos, los cuales afectan la inocuidad y seguridad sanitaria, se emite concepto DESFAVORABLE / CON REQUERIMIENTOS, otorgándose los plazos de ley para su subsanación.";
+    narrative += `Teniendo en cuenta los hallazgos descritos, los cuales afectan la inocuidad y seguridad sanitaria, se emite concepto ${concept.replace(/_/g, ' ')}, otorgándose los plazos de ley para su subsanación.`;
 
     return narrative;
   }
@@ -522,9 +522,16 @@ export const inspectionEngine = {
       const resp = checklistResponses[item.id];
       return resp && resp.status === 'NO_CUMPLE';
     });
+
+    // 1.1. Calcular Score y Concepto en Tiempo Real (para consistencia narrativa)
+    const simpleResponses: Record<string, string> = {};
+    Object.keys(checklistResponses).forEach(key => simpleResponses[key] = checklistResponses[key].status);
+    const score = inspectionEngine.calculateRisk(allItems, simpleResponses);
+    const hasCriticalFindings = products.some(p => p.riskFactors && p.riskFactors.length > 0);
+    const concept = inspectionEngine.getConcept(score, hasCriticalFindings);
     
     // 2. Generar Narrativa Determinista (Adiós IA Mock)
-    const narrative = NarrativeBuilder.build(failedItems, products);
+    const narrative = NarrativeBuilder.build(failedItems, products, concept);
 
     // 3. Generar Fundamentos Legales y Lista de Normas
     const violatedNorms: string[] = [];

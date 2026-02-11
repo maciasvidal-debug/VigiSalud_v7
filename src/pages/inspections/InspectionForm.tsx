@@ -741,24 +741,26 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                         </div>
                     </div>
                     
-                    <div className="relative group">
-                         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                            <Icon name="search" className="text-slate-400 group-focus-within:text-blue-500 transition-colors" size={24}/>
-                         </div>
-                         <input 
-                            className="w-full h-16 pl-14 pr-24 rounded-2xl border-2 border-slate-200 text-lg font-bold text-slate-700 shadow-sm focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all outline-none"
-                            placeholder="Escanee CUM o Digite Nombre/Expediente..."
-                            value={newProduct.cum || ''}
-                            onChange={(e) => setNewProduct(prev => ({...prev, cum: e.target.value}))}
-                            onKeyDown={(e) => { if(e.key === 'Enter') { setCumQuery(newProduct.cum || ''); setShowCumModal(true); } }}
-                         />
-                         <button 
-                            onClick={() => { setCumQuery(newProduct.cum || ''); setShowCumModal(true); }}
-                            className="absolute right-3 top-3 h-10 px-6 bg-slate-900 text-white rounded-xl font-bold text-xs hover:bg-slate-800 transition-colors shadow-lg"
-                         >
-                            BUSCAR
-                         </button>
-                    </div>
+                    {newProduct.type === 'MEDICAMENTO' && (
+                        <div className="relative group">
+                             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                <Icon name="search" className="text-slate-400 group-focus-within:text-blue-500 transition-colors" size={24}/>
+                             </div>
+                             <input
+                                className="w-full h-16 pl-14 pr-24 rounded-2xl border-2 border-slate-200 text-lg font-bold text-slate-700 shadow-sm focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all outline-none"
+                                placeholder="Escanee CUM o Digite Nombre/Expediente..."
+                                value={newProduct.cum || ''}
+                                onChange={(e) => setNewProduct(prev => ({...prev, cum: e.target.value}))}
+                                onKeyDown={(e) => { if(e.key === 'Enter') { setCumQuery(newProduct.cum || ''); setShowCumModal(true); } }}
+                             />
+                             <button
+                                onClick={() => { setCumQuery(newProduct.cum || ''); setShowCumModal(true); }}
+                                className="absolute right-3 top-3 h-10 px-6 bg-slate-900 text-white rounded-xl font-bold text-xs hover:bg-slate-800 transition-colors shadow-lg"
+                             >
+                                BUSCAR
+                             </button>
+                        </div>
+                    )}
                 </div>
             </FocusSection>
 
@@ -856,16 +858,43 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                                 <Icon name="chevron-down" size={16} className="group-open:rotate-180 transition-transform text-slate-400"/>
                             </summary>
                             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-slate-200">
-                                {technicalFields.map(field => (
-                                     <SmartField 
-                                        key={field.key}
-                                        label={field.label}
-                                        value={newProduct[field.key as keyof ProductFinding] as string || ''}
-                                        onChange={e => setNewProduct({...newProduct, [field.key]: e.target.value})}
-                                        isAutoFilled={!!newProduct.originalCumData}
-                                        isLocked={!isEditingMasterData && !!newProduct.originalCumData}
-                                     />
-                                ))}
+                                {technicalFields.map(field => {
+                                    if (field.type === 'select' && field.options) {
+                                        return (
+                                            <div key={field.key} className={field.colSpan ? `md:col-span-${Math.ceil(field.colSpan / 6)}` : ''}>
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1.5 flex items-center justify-between">
+                                                    {field.label}
+                                                </label>
+                                                <div className="relative">
+                                                    <select
+                                                        aria-label={field.label}
+                                                        value={newProduct[field.key as keyof ProductFinding] as string || ''}
+                                                        onChange={e => setNewProduct({...newProduct, [field.key]: e.target.value})}
+                                                        disabled={!isEditingMasterData && !!newProduct.originalCumData}
+                                                        className="w-full h-11 px-4 rounded-xl border border-slate-300 font-bold text-sm text-slate-700 bg-white outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 transition-all appearance-none cursor-pointer"
+                                                    >
+                                                        <option value="">Seleccione...</option>
+                                                        {field.options.map(opt => (
+                                                            <option key={opt} value={opt}>{opt.replace(/_/g, ' ')}</option>
+                                                        ))}
+                                                    </select>
+                                                    <div className="absolute right-4 top-3.5 text-slate-400 pointer-events-none"><Icon name="chevron-down" size={16}/></div>
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+                                    return (
+                                        <SmartField
+                                            key={field.key}
+                                            label={field.label}
+                                            value={newProduct[field.key as keyof ProductFinding] as string || ''}
+                                            onChange={e => setNewProduct({...newProduct, [field.key]: e.target.value})}
+                                            isAutoFilled={!!newProduct.originalCumData}
+                                            isLocked={!isEditingMasterData && !!newProduct.originalCumData}
+                                            className={field.colSpan ? `md:col-span-${Math.ceil(field.colSpan / 6)}` : ''}
+                                        />
+                                    );
+                                })}
                             </div>
                         </details>
                     )}
@@ -1046,11 +1075,11 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
   // Operational: Lot, Expiration, Quantity (Always Visible)
   
   // Modificado: Eliminamos 'concentration' y 'unit' porque ahora tienen UI dedicada en el bloque de identidad
-  const technicalFieldsKeys = ['atcCode', 'viaAdministration', 'activePrinciple', 'pharmaceuticalForm'];
+  const excludedFromAccordionKeys = ['name', 'invimaReg', 'manufacturer', 'presentation', 'concentration', 'unit', 'cum', 'type', 'subtype', 'lot', 'expirationDate', 'quantity'];
   
   // Operational are the rest (minus Technical and Identity)
   // Technical fields definition
-  const technicalFields = currentSchema.fields.filter(f => technicalFieldsKeys.includes(f.key));
+  const technicalFields = currentSchema.fields.filter(f => f.section === 'TECHNICAL' && !excludedFromAccordionKeys.includes(f.key));
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-24 animate-in fade-in relative">
@@ -1067,7 +1096,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
             </div>
             <div className={`flex flex-col items-end`}>
                 <div className={`text-3xl font-black px-5 py-2 rounded-xl border-2 shadow-sm ${score < 60 ? 'bg-red-50 border-red-100 text-red-600' : 'bg-teal-50 border-teal-100 text-teal-600'}`}>{score}%</div>
-                <span className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">{concept}</span>
+                <span className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">{concept.replace(/_/g, ' ')}</span>
             </div>
         </header>
 
