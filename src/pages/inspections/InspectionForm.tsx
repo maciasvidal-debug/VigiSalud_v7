@@ -710,6 +710,22 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       // Para MVP Focus Flow: Lote es clave.
       const isTraceabilityFilled = !!newProduct.lot; 
       
+      const currentSchema = PRODUCT_SCHEMAS[newProduct.type as string] || PRODUCT_SCHEMAS['OTRO'];
+      const hasField = (key: string) => currentSchema.fields.some(f => f.key === key);
+
+      const namePlaceholder = currentSchema.fields.find(f => f.key === 'name')?.placeholder || "Descripción del producto...";
+      const regPlaceholder = currentSchema.fields.find(f => f.key === 'invimaReg')?.placeholder || "Número de registro / Notificación...";
+
+      const getTechnicalTitle = (type: string) => {
+        switch(type) {
+            case 'MEDICAMENTO': return "Información Farmacológica (ATC, Principio Activo)";
+            case 'DISPOSITIVO_MEDICO': return "Especificaciones Técnicas (Serie, Modelo, Riesgo)";
+            case 'ALIMENTO': return "Detalles de Lote y Fechas";
+            case 'REACTIVO_DIAGNOSTICO': return "Cadena de Frío y Técnica";
+            default: return "Detalles Técnicos Específicos";
+        }
+      };
+
       return (
         <div className="space-y-8">
             {/* BLOCK 0: SEARCH & CLASSIFICATION */}
@@ -741,24 +757,26 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                         </div>
                     </div>
                     
-                    <div className="relative group">
-                         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                            <Icon name="search" className="text-slate-400 group-focus-within:text-blue-500 transition-colors" size={24}/>
-                         </div>
-                         <input 
-                            className="w-full h-16 pl-14 pr-24 rounded-2xl border-2 border-slate-200 text-lg font-bold text-slate-700 shadow-sm focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all outline-none"
-                            placeholder="Escanee CUM o Digite Nombre/Expediente..."
-                            value={newProduct.cum || ''}
-                            onChange={(e) => setNewProduct(prev => ({...prev, cum: e.target.value}))}
-                            onKeyDown={(e) => { if(e.key === 'Enter') { setCumQuery(newProduct.cum || ''); setShowCumModal(true); } }}
-                         />
-                         <button 
-                            onClick={() => { setCumQuery(newProduct.cum || ''); setShowCumModal(true); }}
-                            className="absolute right-3 top-3 h-10 px-6 bg-slate-900 text-white rounded-xl font-bold text-xs hover:bg-slate-800 transition-colors shadow-lg"
-                         >
-                            BUSCAR
-                         </button>
-                    </div>
+                    {newProduct.type === 'MEDICAMENTO' && (
+                        <div className="relative group">
+                             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                <Icon name="search" className="text-slate-400 group-focus-within:text-blue-500 transition-colors" size={24}/>
+                             </div>
+                             <input
+                                className="w-full h-16 pl-14 pr-24 rounded-2xl border-2 border-slate-200 text-lg font-bold text-slate-700 shadow-sm focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all outline-none"
+                                placeholder="Escanee CUM o Digite Nombre/Expediente..."
+                                value={newProduct.cum || ''}
+                                onChange={(e) => setNewProduct(prev => ({...prev, cum: e.target.value}))}
+                                onKeyDown={(e) => { if(e.key === 'Enter') { setCumQuery(newProduct.cum || ''); setShowCumModal(true); } }}
+                             />
+                             <button
+                                onClick={() => { setCumQuery(newProduct.cum || ''); setShowCumModal(true); }}
+                                className="absolute right-3 top-3 h-10 px-6 bg-slate-900 text-white rounded-xl font-bold text-xs hover:bg-slate-800 transition-colors shadow-lg"
+                             >
+                                BUSCAR
+                             </button>
+                        </div>
+                    )}
                 </div>
             </FocusSection>
 
@@ -766,7 +784,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
             <FocusSection 
                 title="2. Identificación del Producto" 
                 icon="tag" 
-                isActive={isTypeSelected && (!!newProduct.cum || isIdentityFilled || newProduct.name !== '')} 
+                isActive={isTypeSelected && (newProduct.type !== 'MEDICAMENTO' || !!newProduct.cum || isIdentityFilled || newProduct.name !== '')}
                 isDone={isIdentityFilled && !!newProduct.invimaReg}
             >
                 <div className="space-y-6">
@@ -778,94 +796,133 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                             isAutoFilled={!!newProduct.originalCumData}
                             isLocked={!isEditingMasterData && !!newProduct.originalCumData}
                             onUnlock={() => setIsEditingMasterData(true)}
-                            placeholder="Ej: DOLEX 500MG..."
+                            placeholder={namePlaceholder}
                             className="md:col-span-2"
                         />
                         <SmartField 
-                            label="Registro Sanitario / INVIMA" 
+                            label={currentSchema.fields.find(f => f.key === 'invimaReg')?.label || "Registro Sanitario / INVIMA"}
                             value={newProduct.invimaReg || ''} 
                             onChange={e => setNewProduct({...newProduct, invimaReg: e.target.value})}
                             isAutoFilled={!!newProduct.originalCumData}
                             isLocked={!isEditingMasterData && !!newProduct.originalCumData}
-                        />
-                         <SmartField 
-                            label="Laboratorio Titular" 
-                            value={newProduct.manufacturer || ''} 
-                            onChange={e => setNewProduct({...newProduct, manufacturer: e.target.value})}
-                            isAutoFilled={!!newProduct.originalCumData}
-                            isLocked={!isEditingMasterData && !!newProduct.originalCumData}
-                        />
-                         <SmartField 
-                            label="Presentación Comercial" 
-                            value={newProduct.presentation || ''} 
-                            onChange={e => setNewProduct({...newProduct, presentation: e.target.value})}
-                            isAutoFilled={!!newProduct.originalCumData}
-                            isLocked={!isEditingMasterData && !!newProduct.originalCumData}
-                            className="md:col-span-2"
+                            placeholder={regPlaceholder}
                         />
 
-                        {/* NUEVO DISEÑO: CONCENTRACIÓN + SELECTOR DE UNIDAD */}
-                        <div className="md:col-span-2">
-                            <label className="text-[10px] font-bold text-slate-400 uppercase mb-1.5 flex items-center gap-1">
-                               Concentración / Dosis {newProduct.originalCumData && <span className="text-[9px] text-blue-500 bg-blue-50 px-1 rounded">AUTO</span>}
-                            </label>
-                            <div className="flex shadow-sm rounded-xl overflow-hidden border border-slate-300 focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-50 transition-all">
-                                {/* INPUT VALOR (70%) */}
-                                <input 
-                                    type="text" 
-                                    value={newProduct.concentration || ''}
-                                    onChange={e => setNewProduct({...newProduct, concentration: e.target.value})}
-                                    placeholder="Valor (Ej: 500)"
-                                    disabled={!isEditingMasterData && !!newProduct.originalCumData} 
-                                    className={`flex-1 h-11 pl-4 pr-2 font-bold text-lg outline-none border-r border-slate-200 ${
-                                        (!isEditingMasterData && !!newProduct.originalCumData) ? 'bg-blue-50/30 text-slate-700' : 'bg-white'
-                                    }`}
-                                />
-                                
-                                {/* DROPDOWN UNIDAD (30%) - SIEMPRE FUNCIONAL SI SE DESBLOQUEA */}
-                                <div className="relative w-32 bg-slate-50">
-                                    <select
-                                        aria-label="Unidad de Medida"
-                                        value={newProduct.unit || ''}
-                                        onChange={e => setNewProduct({...newProduct, unit: e.target.value})}
+                         {/* CONDICIONAL: Solo si el esquema lo pide o es Medicamento */}
+                         {(hasField('manufacturer') || newProduct.type === 'MEDICAMENTO') && (
+                             <SmartField
+                                label="Laboratorio Titular"
+                                value={newProduct.manufacturer || ''}
+                                onChange={e => setNewProduct({...newProduct, manufacturer: e.target.value})}
+                                isAutoFilled={!!newProduct.originalCumData}
+                                isLocked={!isEditingMasterData && !!newProduct.originalCumData}
+                            />
+                         )}
+
+                         {(hasField('presentation') || newProduct.type === 'MEDICAMENTO') && (
+                             <SmartField
+                                label="Presentación Comercial"
+                                value={newProduct.presentation || ''}
+                                onChange={e => setNewProduct({...newProduct, presentation: e.target.value})}
+                                isAutoFilled={!!newProduct.originalCumData}
+                                isLocked={!isEditingMasterData && !!newProduct.originalCumData}
+                                className="md:col-span-2"
+                            />
+                         )}
+
+                        {/* CONDICIONAL CRÍTICO: BLOQUE DE CONCENTRACIÓN SOLO PARA MEDICAMENTOS */}
+                        {newProduct.type === 'MEDICAMENTO' && (
+                            <div className="md:col-span-2">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1.5 flex items-center gap-1">
+                                   Concentración / Dosis {newProduct.originalCumData && <span className="text-[9px] text-blue-500 bg-blue-50 px-1 rounded">AUTO</span>}
+                                </label>
+                                <div className="flex shadow-sm rounded-xl overflow-hidden border border-slate-300 focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-50 transition-all">
+                                    {/* INPUT VALOR (70%) */}
+                                    <input
+                                        type="text"
+                                        value={newProduct.concentration || ''}
+                                        onChange={e => setNewProduct({...newProduct, concentration: e.target.value})}
+                                        placeholder="Valor (Ej: 500)"
                                         disabled={!isEditingMasterData && !!newProduct.originalCumData}
-                                        className={`w-full h-full pl-3 pr-8 font-bold text-xs uppercase outline-none appearance-none cursor-pointer ${
-                                             (!isEditingMasterData && !!newProduct.originalCumData) ? 'bg-blue-50/30 text-slate-600' : 'bg-slate-50 hover:bg-slate-100 text-slate-700'
+                                        className={`flex-1 h-11 pl-4 pr-2 font-bold text-lg outline-none border-r border-slate-200 ${
+                                            (!isEditingMasterData && !!newProduct.originalCumData) ? 'bg-blue-50/30 text-slate-700' : 'bg-white'
                                         }`}
-                                    >
-                                        <option value="">UNID</option>
-                                        {['MG', 'G', 'ML', 'L', 'MCG', 'UI', '%', 'MG/ML', 'G/100G', 'TABLETAS', 'CAPSULAS'].map(u => (
-                                            <option key={u} value={u}>{u}</option>
-                                        ))}
-                                        {/* Opción de preservación si la BD trae algo exótico */}
-                                        {newProduct.unit && !['MG', 'G', 'ML', 'L', 'MCG', 'UI', '%', 'MG/ML', 'G/100G', 'TABLETAS', 'CAPSULAS'].includes(newProduct.unit) && (
-                                            <option value={newProduct.unit}>{newProduct.unit}</option>
-                                        )}
-                                    </select>
-                                    <div className="absolute right-3 top-3.5 text-slate-400 pointer-events-none"><Icon name="chevron-down" size={14}/></div>
+                                    />
+
+                                    {/* DROPDOWN UNIDAD (30%) - SIEMPRE FUNCIONAL SI SE DESBLOQUEA */}
+                                    <div className="relative w-32 bg-slate-50">
+                                        <select
+                                            aria-label="Unidad de Medida"
+                                            value={newProduct.unit || ''}
+                                            onChange={e => setNewProduct({...newProduct, unit: e.target.value})}
+                                            disabled={!isEditingMasterData && !!newProduct.originalCumData}
+                                            className={`w-full h-full pl-3 pr-8 font-bold text-xs uppercase outline-none appearance-none cursor-pointer ${
+                                                 (!isEditingMasterData && !!newProduct.originalCumData) ? 'bg-blue-50/30 text-slate-600' : 'bg-slate-50 hover:bg-slate-100 text-slate-700'
+                                            }`}
+                                        >
+                                            <option value="">UNID</option>
+                                            {['MG', 'G', 'ML', 'L', 'MCG', 'UI', '%', 'MG/ML', 'G/100G', 'TABLETAS', 'CAPSULAS'].map(u => (
+                                                <option key={u} value={u}>{u}</option>
+                                            ))}
+                                            {/* Opción de preservación si la BD trae algo exótico */}
+                                            {newProduct.unit && !['MG', 'G', 'ML', 'L', 'MCG', 'UI', '%', 'MG/ML', 'G/100G', 'TABLETAS', 'CAPSULAS'].includes(newProduct.unit) && (
+                                                <option value={newProduct.unit}>{newProduct.unit}</option>
+                                            )}
+                                        </select>
+                                        <div className="absolute right-3 top-3.5 text-slate-400 pointer-events-none"><Icon name="chevron-down" size={14}/></div>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        )}
                     </div>
 
                      {/* Technical Accordion (Reusing existing logic somewhat) */}
                     {technicalFields.length > 0 && (
                         <details className="group border border-slate-200 rounded-xl overflow-hidden bg-slate-50/50">
                             <summary className="p-4 font-bold text-slate-600 cursor-pointer flex justify-between items-center hover:bg-slate-100 transition-colors select-none">
-                                <span className="flex items-center gap-2 text-xs uppercase tracking-wider"><Icon name="sliders" size={16}/> Ver Ficha Técnica (Principio Activo, ATC...)</span>
+                                <span className="flex items-center gap-2 text-xs uppercase tracking-wider"><Icon name="sliders" size={16}/> {getTechnicalTitle(newProduct.type as string)}</span>
                                 <Icon name="chevron-down" size={16} className="group-open:rotate-180 transition-transform text-slate-400"/>
                             </summary>
                             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-slate-200">
-                                {technicalFields.map(field => (
-                                     <SmartField 
-                                        key={field.key}
-                                        label={field.label}
-                                        value={newProduct[field.key as keyof ProductFinding] as string || ''}
-                                        onChange={e => setNewProduct({...newProduct, [field.key]: e.target.value})}
-                                        isAutoFilled={!!newProduct.originalCumData}
-                                        isLocked={!isEditingMasterData && !!newProduct.originalCumData}
-                                     />
-                                ))}
+                                {technicalFields.map(field => {
+                                    if (field.type === 'select' && field.options) {
+                                        return (
+                                            <div key={field.key} className={field.colSpan ? `md:col-span-${Math.ceil(field.colSpan / 6)}` : ''}>
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1.5 flex items-center justify-between">
+                                                    {field.label}
+                                                </label>
+                                                <div className="relative">
+                                                    <select
+                                                        aria-label={field.label}
+                                                        value={newProduct[field.key as keyof ProductFinding] as string || ''}
+                                                        onChange={e => setNewProduct({...newProduct, [field.key]: e.target.value})}
+                                                        disabled={!isEditingMasterData && !!newProduct.originalCumData}
+                                                        className="w-full h-11 px-4 rounded-xl border border-slate-300 font-bold text-sm text-slate-700 bg-white outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 transition-all appearance-none cursor-pointer"
+                                                    >
+                                                        <option value="">Seleccione...</option>
+                                                        {field.options.map(opt => (
+                                                            <option key={opt} value={opt}>{opt.replace(/_/g, ' ')}</option>
+                                                        ))}
+                                                    </select>
+                                                    <div className="absolute right-4 top-3.5 text-slate-400 pointer-events-none"><Icon name="chevron-down" size={16}/></div>
+                                                </div>
+                                                {field.hint && <p className="text-[9px] text-slate-400 mt-1 flex items-center gap-1"><Icon name="info" size={10}/> {field.hint}</p>}
+                                            </div>
+                                        );
+                                    }
+                                    return (
+                                        <SmartField
+                                            key={field.key}
+                                            label={field.label}
+                                            value={newProduct[field.key as keyof ProductFinding] as string || ''}
+                                            onChange={e => setNewProduct({...newProduct, [field.key]: e.target.value})}
+                                            isAutoFilled={!!newProduct.originalCumData}
+                                            isLocked={!isEditingMasterData && !!newProduct.originalCumData}
+                                            className={field.colSpan ? `md:col-span-${Math.ceil(field.colSpan / 6)}` : ''}
+                                            hint={field.hint}
+                                        />
+                                    );
+                                })}
                             </div>
                         </details>
                     )}
@@ -1046,11 +1103,11 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
   // Operational: Lot, Expiration, Quantity (Always Visible)
   
   // Modificado: Eliminamos 'concentration' y 'unit' porque ahora tienen UI dedicada en el bloque de identidad
-  const technicalFieldsKeys = ['atcCode', 'viaAdministration', 'activePrinciple', 'pharmaceuticalForm'];
+  const excludedFromAccordionKeys = ['name', 'invimaReg', 'manufacturer', 'presentation', 'concentration', 'unit', 'cum', 'type', 'subtype', 'lot', 'expirationDate', 'quantity'];
   
   // Operational are the rest (minus Technical and Identity)
   // Technical fields definition
-  const technicalFields = currentSchema.fields.filter(f => technicalFieldsKeys.includes(f.key));
+  const technicalFields = currentSchema.fields.filter(f => f.section === 'TECHNICAL' && !excludedFromAccordionKeys.includes(f.key));
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-24 animate-in fade-in relative">
@@ -1067,7 +1124,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
             </div>
             <div className={`flex flex-col items-end`}>
                 <div className={`text-3xl font-black px-5 py-2 rounded-xl border-2 shadow-sm ${score < 60 ? 'bg-red-50 border-red-100 text-red-600' : 'bg-teal-50 border-teal-100 text-teal-600'}`}>{score}%</div>
-                <span className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">{concept}</span>
+                <span className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">{concept.replace(/_/g, ' ')}</span>
             </div>
         </header>
 
@@ -1535,7 +1592,8 @@ const SmartField: React.FC<{
     type?: string;
     className?: string;
     readOnly?: boolean;
-}> = ({ label, value, onChange, isAutoFilled, isLocked, onUnlock, placeholder, type = 'text', className, readOnly }) => {
+    hint?: string;
+}> = ({ label, value, onChange, isAutoFilled, isLocked, onUnlock, placeholder, type = 'text', className, readOnly, hint }) => {
     return (
         <div className={className}>
             <label className="text-[10px] font-bold text-slate-400 uppercase mb-1.5 flex items-center justify-between">
@@ -1575,6 +1633,7 @@ const SmartField: React.FC<{
                      </div>
                  )}
             </div>
+            {hint && <p className="text-[9px] text-slate-400 mt-1 flex items-center gap-1"><Icon name="info" size={10}/> {hint}</p>}
         </div>
     );
 };
