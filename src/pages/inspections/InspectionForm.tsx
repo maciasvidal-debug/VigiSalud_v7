@@ -768,7 +768,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
             <FocusSection 
                 title="2. Identificación del Producto" 
                 icon="tag" 
-                isActive={isTypeSelected && (!!newProduct.cum || isIdentityFilled || newProduct.name !== '')} 
+                isActive={isTypeSelected && (newProduct.type !== 'MEDICAMENTO' || !!newProduct.cum || isIdentityFilled || newProduct.name !== '')}
                 isDone={isIdentityFilled && !!newProduct.invimaReg}
             >
                 <div className="space-y-6">
