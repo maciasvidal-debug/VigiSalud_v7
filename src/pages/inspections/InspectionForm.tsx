@@ -710,6 +710,9 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       // Para MVP Focus Flow: Lote es clave.
       const isTraceabilityFilled = !!newProduct.lot; 
       
+      const currentSchema = PRODUCT_SCHEMAS[newProduct.type as string] || PRODUCT_SCHEMAS['OTRO'];
+      const hasField = (key: string) => currentSchema.fields.some(f => f.key === key);
+
       return (
         <div className="space-y-8">
             {/* BLOCK 0: SEARCH & CLASSIFICATION */}
@@ -780,74 +783,83 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                             isAutoFilled={!!newProduct.originalCumData}
                             isLocked={!isEditingMasterData && !!newProduct.originalCumData}
                             onUnlock={() => setIsEditingMasterData(true)}
-                            placeholder="Ej: DOLEX 500MG..."
+                            placeholder={newProduct.type === 'DISPOSITIVO_MEDICO' ? "Ej: Equipo de Órganos..." : "Ej: DOLEX 500MG..."}
                             className="md:col-span-2"
                         />
                         <SmartField 
-                            label="Registro Sanitario / INVIMA" 
+                            label={newProduct.type === 'ALIMENTO' ? "Notificación Sanitaria / RSA" : "Registro Sanitario / INVIMA"}
                             value={newProduct.invimaReg || ''} 
                             onChange={e => setNewProduct({...newProduct, invimaReg: e.target.value})}
                             isAutoFilled={!!newProduct.originalCumData}
                             isLocked={!isEditingMasterData && !!newProduct.originalCumData}
                         />
-                         <SmartField 
-                            label="Laboratorio Titular" 
-                            value={newProduct.manufacturer || ''} 
-                            onChange={e => setNewProduct({...newProduct, manufacturer: e.target.value})}
-                            isAutoFilled={!!newProduct.originalCumData}
-                            isLocked={!isEditingMasterData && !!newProduct.originalCumData}
-                        />
-                         <SmartField 
-                            label="Presentación Comercial" 
-                            value={newProduct.presentation || ''} 
-                            onChange={e => setNewProduct({...newProduct, presentation: e.target.value})}
-                            isAutoFilled={!!newProduct.originalCumData}
-                            isLocked={!isEditingMasterData && !!newProduct.originalCumData}
-                            className="md:col-span-2"
-                        />
 
-                        {/* NUEVO DISEÑO: CONCENTRACIÓN + SELECTOR DE UNIDAD */}
-                        <div className="md:col-span-2">
-                            <label className="text-[10px] font-bold text-slate-400 uppercase mb-1.5 flex items-center gap-1">
-                               Concentración / Dosis {newProduct.originalCumData && <span className="text-[9px] text-blue-500 bg-blue-50 px-1 rounded">AUTO</span>}
-                            </label>
-                            <div className="flex shadow-sm rounded-xl overflow-hidden border border-slate-300 focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-50 transition-all">
-                                {/* INPUT VALOR (70%) */}
-                                <input 
-                                    type="text" 
-                                    value={newProduct.concentration || ''}
-                                    onChange={e => setNewProduct({...newProduct, concentration: e.target.value})}
-                                    placeholder="Valor (Ej: 500)"
-                                    disabled={!isEditingMasterData && !!newProduct.originalCumData} 
-                                    className={`flex-1 h-11 pl-4 pr-2 font-bold text-lg outline-none border-r border-slate-200 ${
-                                        (!isEditingMasterData && !!newProduct.originalCumData) ? 'bg-blue-50/30 text-slate-700' : 'bg-white'
-                                    }`}
-                                />
-                                
-                                {/* DROPDOWN UNIDAD (30%) - SIEMPRE FUNCIONAL SI SE DESBLOQUEA */}
-                                <div className="relative w-32 bg-slate-50">
-                                    <select
-                                        aria-label="Unidad de Medida"
-                                        value={newProduct.unit || ''}
-                                        onChange={e => setNewProduct({...newProduct, unit: e.target.value})}
+                         {/* CONDICIONAL: Solo si el esquema lo pide o es Medicamento */}
+                         {(hasField('manufacturer') || newProduct.type === 'MEDICAMENTO') && (
+                             <SmartField
+                                label="Laboratorio Titular"
+                                value={newProduct.manufacturer || ''}
+                                onChange={e => setNewProduct({...newProduct, manufacturer: e.target.value})}
+                                isAutoFilled={!!newProduct.originalCumData}
+                                isLocked={!isEditingMasterData && !!newProduct.originalCumData}
+                            />
+                         )}
+
+                         {(hasField('presentation') || newProduct.type === 'MEDICAMENTO') && (
+                             <SmartField
+                                label="Presentación Comercial"
+                                value={newProduct.presentation || ''}
+                                onChange={e => setNewProduct({...newProduct, presentation: e.target.value})}
+                                isAutoFilled={!!newProduct.originalCumData}
+                                isLocked={!isEditingMasterData && !!newProduct.originalCumData}
+                                className="md:col-span-2"
+                            />
+                         )}
+
+                        {/* CONDICIONAL CRÍTICO: BLOQUE DE CONCENTRACIÓN SOLO PARA MEDICAMENTOS */}
+                        {newProduct.type === 'MEDICAMENTO' && (
+                            <div className="md:col-span-2">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1.5 flex items-center gap-1">
+                                   Concentración / Dosis {newProduct.originalCumData && <span className="text-[9px] text-blue-500 bg-blue-50 px-1 rounded">AUTO</span>}
+                                </label>
+                                <div className="flex shadow-sm rounded-xl overflow-hidden border border-slate-300 focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-50 transition-all">
+                                    {/* INPUT VALOR (70%) */}
+                                    <input
+                                        type="text"
+                                        value={newProduct.concentration || ''}
+                                        onChange={e => setNewProduct({...newProduct, concentration: e.target.value})}
+                                        placeholder="Valor (Ej: 500)"
                                         disabled={!isEditingMasterData && !!newProduct.originalCumData}
-                                        className={`w-full h-full pl-3 pr-8 font-bold text-xs uppercase outline-none appearance-none cursor-pointer ${
-                                             (!isEditingMasterData && !!newProduct.originalCumData) ? 'bg-blue-50/30 text-slate-600' : 'bg-slate-50 hover:bg-slate-100 text-slate-700'
+                                        className={`flex-1 h-11 pl-4 pr-2 font-bold text-lg outline-none border-r border-slate-200 ${
+                                            (!isEditingMasterData && !!newProduct.originalCumData) ? 'bg-blue-50/30 text-slate-700' : 'bg-white'
                                         }`}
-                                    >
-                                        <option value="">UNID</option>
-                                        {['MG', 'G', 'ML', 'L', 'MCG', 'UI', '%', 'MG/ML', 'G/100G', 'TABLETAS', 'CAPSULAS'].map(u => (
-                                            <option key={u} value={u}>{u}</option>
-                                        ))}
-                                        {/* Opción de preservación si la BD trae algo exótico */}
-                                        {newProduct.unit && !['MG', 'G', 'ML', 'L', 'MCG', 'UI', '%', 'MG/ML', 'G/100G', 'TABLETAS', 'CAPSULAS'].includes(newProduct.unit) && (
-                                            <option value={newProduct.unit}>{newProduct.unit}</option>
-                                        )}
-                                    </select>
-                                    <div className="absolute right-3 top-3.5 text-slate-400 pointer-events-none"><Icon name="chevron-down" size={14}/></div>
+                                    />
+
+                                    {/* DROPDOWN UNIDAD (30%) - SIEMPRE FUNCIONAL SI SE DESBLOQUEA */}
+                                    <div className="relative w-32 bg-slate-50">
+                                        <select
+                                            aria-label="Unidad de Medida"
+                                            value={newProduct.unit || ''}
+                                            onChange={e => setNewProduct({...newProduct, unit: e.target.value})}
+                                            disabled={!isEditingMasterData && !!newProduct.originalCumData}
+                                            className={`w-full h-full pl-3 pr-8 font-bold text-xs uppercase outline-none appearance-none cursor-pointer ${
+                                                 (!isEditingMasterData && !!newProduct.originalCumData) ? 'bg-blue-50/30 text-slate-600' : 'bg-slate-50 hover:bg-slate-100 text-slate-700'
+                                            }`}
+                                        >
+                                            <option value="">UNID</option>
+                                            {['MG', 'G', 'ML', 'L', 'MCG', 'UI', '%', 'MG/ML', 'G/100G', 'TABLETAS', 'CAPSULAS'].map(u => (
+                                                <option key={u} value={u}>{u}</option>
+                                            ))}
+                                            {/* Opción de preservación si la BD trae algo exótico */}
+                                            {newProduct.unit && !['MG', 'G', 'ML', 'L', 'MCG', 'UI', '%', 'MG/ML', 'G/100G', 'TABLETAS', 'CAPSULAS'].includes(newProduct.unit) && (
+                                                <option value={newProduct.unit}>{newProduct.unit}</option>
+                                            )}
+                                        </select>
+                                        <div className="absolute right-3 top-3.5 text-slate-400 pointer-events-none"><Icon name="chevron-down" size={14}/></div>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        )}
                     </div>
 
                      {/* Technical Accordion (Reusing existing logic somewhat) */}
