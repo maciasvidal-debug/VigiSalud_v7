@@ -19,6 +19,7 @@ import { PRODUCT_SCHEMAS } from '../../utils/productSchemas';
 import { generateInspectionPDF } from '../../utils/PdfGenerator'; 
 import { parsePresentation } from '../../utils/PharmaParser';
 import { validateColdChain, validateExpiration, validateInstitucional } from '../../utils/specializedValidators';
+import { sectorialValidators } from '../../utils/sectorialValidators';
 import type { 
     Report, 
     ProductFinding, 
@@ -567,6 +568,32 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
             if (isConform) throw new Error(`⛔ ${instVal.message}`);
             if (!effectiveRisks.includes('USO_INSTITUCIONAL')) effectiveRisks.push('USO_INSTITUCIONAL');
         }
+
+        // --- VALIDACIONES SECTORIALES (SPRINT 5) ---
+        const sectorialResult = sectorialValidators.analyze(newProduct as ProductFinding, products);
+
+        // Procesar Alertas
+        sectorialResult.alerts.forEach(alert => {
+            showToast(alert.message, alert.severity === 'ERROR' ? 'error' : 'warning');
+            if (isConform && alert.severity === 'ERROR') {
+                 // Si es error crítico y usuario intenta "Conforme", bloqueamos
+                 throw new Error(`⛔ BLOQUEO SECTORIAL: ${alert.message}`);
+            }
+        });
+
+        // Procesar Riesgos Sugeridos
+        sectorialResult.suggestedRisks.forEach(risk => {
+            if (!effectiveRisks.includes(risk)) {
+                effectiveRisks.push(risk);
+            }
+        });
+
+        // Si se agregaron riesgos críticos nuevos, verificar consistencia
+        if (isConform && effectiveRisks.length > 0) {
+             throw new Error("Inconsistencia: Detectados riesgos sectoriales. No puede ser Conforme.");
+        }
+        // --- FIN VALIDACIONES SECTORIALES ---
+
         // --- FIN VALIDACIONES ESPECIALIZADAS ---
 
         // Lógica de Modal de Evidencia (Fix Deadlock anterior)
