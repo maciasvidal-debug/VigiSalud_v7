@@ -284,6 +284,7 @@ export const MaintenanceCenter = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+<<<<<<< HEAD
         
         {/* TARJETA 1: GESTIÓN DE DATOS (RESPALDO) */}
         <Card title="Respaldo de Información" icon="save">
@@ -303,6 +304,27 @@ export const MaintenanceCenter = () => {
                   </div>
               </div>
 
+=======
+
+        {/* TARJETA 1: GESTIÓN DE DATOS (RESPALDO) */}
+        <Card title="Respaldo de Información" icon="save">
+            <div className="space-y-4 p-1">
+              {/* Opción Backup */}
+              <div className="bg-blue-50/50 p-3 rounded-xl border border-blue-100">
+                  <div className="flex items-start gap-3">
+                      <div className="p-2 bg-white rounded-lg text-blue-600 shadow-sm"><Icon name="download" size={18}/></div>
+                      <div className="flex-1">
+                          <h4 className="text-sm font-bold text-slate-700">Crear Copia de Seguridad</h4>
+                          <p className="text-xs text-slate-500 mt-1 mb-3 leading-relaxed">Guarde una copia completa de su trabajo actual en un archivo seguro.</p>
+                          <Button onClick={handleBackup} disabled={isBusy} variant="primary" className="w-full h-9 text-xs shadow-sm">
+                              {loadingOp === 'BACKUP' ? <Icon name="loader" className="animate-spin"/> : <Icon name="save" size={14}/>}
+                              Descargar Copia
+                          </Button>
+                      </div>
+                  </div>
+              </div>
+
+>>>>>>> 262520164d3350cc3825eaf394ac5eda3c23f3ca
               {/* Opción Restaurar */}
               <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
                   <div className="flex items-start gap-3">
@@ -369,7 +391,11 @@ export const MaintenanceCenter = () => {
                 <Icon name="alert-triangle" size={16} className="text-red-500"/>
                 <h3 className="text-xs font-black text-red-600 uppercase tracking-widest">Zona de Operaciones Sensibles</h3>
              </div>
+<<<<<<< HEAD
              
+=======
+
+>>>>>>> 262520164d3350cc3825eaf394ac5eda3c23f3ca
              <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                  <div className="flex items-center justify-between p-3 bg-white border border-red-100 rounded-xl shadow-sm">
                      <div className="mr-4">

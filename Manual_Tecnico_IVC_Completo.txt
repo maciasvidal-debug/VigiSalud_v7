@@ -1,0 +1,2484 @@
+===== LIMPIO_SECCION_1.TXT =====
+
+SECCIÓN 1 ARQUITECTURA IA DEL DOCUMENTO
+SECCIÓN 1.1 PRINCIPIOS DE DISEÑO IA
+##META: section=1.1;tema=arquitectura_IA;tipo=estructura;version=1.0
+##[CHUNK_START:id_0001]
+
+Este documento ha sido diseñado para maximizar la comprensión por modelos 
+LLM de alta complejidad, específicamente Gemini 3 Pro. 
+Sus características son:
+
+1. Chunking extremo (150250 palabras por bloque)
+2. Metadatos explícitos por chunk para mejorar la indexación semántica
+3. Referencias internas REF que conectan temas normativos y técnicos
+4. Diagramas ASCII estilo flujo técnico que pueden convertirse en BPMN
+5. Código de reglas en formatos JSON, YAML y pseudocódigo compatibles con RAG
+6. Ausencia de elementos no parseables (imágenes incrustadas)
+7. Estructura jerárquica H1H4 reconocible por IA
+8. Separadores diseñados para ingestion pipelines.
+
+Este modelo permite a Gemini 3 Pro:
+- Construir grafos regulatorios automáticos
+- Realizar razonamiento jurídico-técnico
+- Generar flujos de inspección
+- Detectar contradicciones normativas
+- Aplicar RAG de alta precisión.
+
+##[CHUNK_END:id_0001]
+________________________________________
+SECCIÓN 1.2 ESTRUCTURA GENERAL DEL DOCUMENTO
+##META: section=1.2;tema=estructura_documental;tipo=definicion;version=1.0
+##[CHUNK_START:id_0002]
+
+La estructura se compone de los siguientes niveles:
+
+NIVEL 1 Grandes Títulos (H1)
+ Representan bloques normativos: Leyes, Decretos, Resoluciones.
+
+NIVEL 2 Subtítulos Técnicos (H2)
+ Describen temas: Registro Sanitario, Buenas Prácticas, IVC, Almacenamiento, 
+ Decomiso, Condiciones Fisicoquímicas, etc.
+
+NIVEL 3 Subtítulos Operativos (H3)
+ Aplican a reglas prácticas: Validación documental, verificaciones, cálculos.
+
+NIVEL 4 Subtítulos IA (H4)
+ Instrucciones específicas para IA, metadata, flujo lógico.
+
+Referencias internas:
+ ##REF: referencia a otro chunk por id para navegación semántica.
+
+##[CHUNK_END:id_0002]
+________________________________________
+SECCIÓN 1.3 ASÍ SE LEEN LAS REFERENCIAS INTERNAS
+##META: section=1.3;tema=referencias;tipo=IA;version=1.0
+##[CHUNK_START:id_0003]
+
+Este documento utiliza referencias internas del tipo:
+
+##REF:id_0033
+##REF:(tema=registro_sanitario)
+##REF:(norma=decreto_677)
+
+Propósito:
+- Permiten a Gemini rastrear conceptos normativos a través de todo el documento.
+- Funcionan como anclas semánticas.
+- Soportan reasoning avanzado y consultas compuestas.
+
+Ejemplo de uso:
+ Un chunk sobre decomiso puede referirse a:
+ ##REF:id_0040 (definición legal)
+ ##REF:id_0120 (reglas de documentación)
+
+Esto permite reconstruir automáticamente:
+- Contexto jurídico
+- Procedimientos
+- Árboles de decisión regulatorios
+
+##[CHUNK_END:id_0003]
+
+===== LIMPIO_SECCION_2.TXT =====
+
+2.0 Introducción al Marco Normativo Sanitario en Colombia
+##META: section=2.0;tema=marco_normativo;tipo=introduccion;version=1.0
+##[CHUNK_START:id_0200]
+
+El sistema de Inspección, Vigilancia y Control Sanitario (IVC) en Colombia se basa 
+en un conjunto robusto de leyes, decretos y resoluciones que regulan la producción, 
+circulación, comercialización, distribución, almacenamiento, importación y 
+vigilancia posconsumo de productos sometidos a vigilancia sanitaria.
+
+Ejes normativos principales:
+- Ley 9 de 1979 (Código Sanitario Nacional)
+- Decreto 677 de 1995 (Medicamentos)
+- Decreto 4725 de 2005 (Dispositivos Médicos)
+- Decreto 780 de 2016, Libro 2 (Sistema de Inspección, Vigilancia y Control)
+- Resolución 1229 de 2013 (Modelo de IVC)
+- Resolución 2674 de 2013 (Alimentos y BPM)
+- Resolución 2190 de 2022 (Tecnovigilancia)
+- Otras normas sectoriales específicas
+
+Este marco normativo se articula con la operación de entidades como:
+- Ministerio de Salud y Protección Social
+- INVIMA
+- Secretarías de Salud Departamentales y Distritales
+
+##REF:id_0001
+##[CHUNK_END:id_0200]
+2.1 LEY 9 DE 1979 (Código Sanitario Nacional)
+Resumen técnico, interpretado y organizado para IA.
+##META: section=2.1;norma=ley_9_1979;tema=principios_generales;version=1.0
+##[CHUNK_START:id_0201]
+
+La Ley 9 de 1979 constituye la base del sistema sanitario colombiano e introduce 
+los principios esenciales:
+
+1. Protección de la salud pública como bien de interés general.
+2. Regulación de alimentos, bebidas, medicamentos y establecimientos.
+3. Inspección y control obligatorio por parte de autoridades sanitarias.
+4. Obligatoriedad de condiciones higiénicas y de calidad en productos.
+5. Responsabilidad legal del fabricante, proveedor y comercializador.
+
+Para efectos del IVC:
+- Todo producto sujeto a control debe cumplir requisitos de inocuidad.
+- Las autoridades pueden realizar decomisos preventivos.
+- La vigilancia incluye locales, bodegas, transporte y puntos de venta.
+- El incumplimiento genera medidas sanitarias de seguridad.
+
+##REF:(tema=IVC);REF:(decomiso=true)
+##[CHUNK_END:id_0201]
+2.2 DECRETO 677 DE 1995 (REGULACIÓN DE MEDICAMENTOS)
+##META: section=2.2;norma=decreto_677;tema=medicamentos;nivel=critico
+##[CHUNK_START:id_0202]
+
+Este decreto regula todos los aspectos relacionados con medicamentos de síntesis, 
+biológicos, fitoterapéuticos y homeopáticos.
+
+Puntos críticos:
+
+1. Registro Sanitario obligatorio
+ - Evaluación de seguridad, calidad y eficacia.
+ - Requisitos técnicos, administrativos y farmacológicos.
+
+2. Condiciones para la fabricación
+ - Cumplimiento de BPM (Buenas Prácticas de Manufactura).
+ - Validación de procesos y aseguramiento de calidad.
+
+3. Rotulado
+ - Debe incluir lote, vencimiento, composición, vía de administración.
+ - Información indeleble y verificable.
+
+4. Almacenamiento y distribución
+ - Condiciones ambientales obligatorias.
+ - Trazabilidad del producto en toda la cadena logística.
+ - Reglas estrictas para medicamentos termolábiles.
+
+5. Autoridades de control
+ - INVIMA: Autoridad nacional
+ - Secretarías de Salud: Ejecución de IVC territorial
+
+##FLOW: verificacion_registro_sanitario_medicamentos
+START
+--> CHECK(registro_sanitario_existe)
+ --> IF(valid=true) THEN step:verificar_condiciones_bpm
+ --> IF(valid=false) THEN step:medida_sanitaria_decomiso
+--> END
+
+##REF:id_0002;REF:(tema=registro_sanitario)
+##[CHUNK_END:id_0202]
+2.3 DECRETO 4725 DE 2005 (DISPOSITIVOS MÉDICOS)
+##META: section=2.3;norma=decreto_4725;tema=dispositivos_medicos;criticidad=alta
+##[CHUNK_START:id_0203]
+
+El Decreto 4725 establece el sistema de clasificación, evaluación y control 
+de dispositivos médicos y equipos biomédicos.
+
+Elementos esenciales:
+
+1. Clasificación por riesgo (I, IIa, IIb, III)
+2. Registro Sanitario obligatorio
+3. Evaluación de seguridad y desempeño
+4. Normas para importadores, distribuidores y fabricantes
+5. Eventos adversos y Tecnovigilancia
+6. Trazabilidad mediante lotes o números de serie
+
+Principios operativos para IVC:
+- Mayor riesgo mayor intensidad de vigilancia.
+- Verificación de manuales técnicos, certificados de conformidad.
+- Evaluación de etiquetado técnico y marcado CE/ISO (cuando aplique).
+
+##REF:(tema=tecnovigilancia);REF:id_0300
+##[CHUNK_END:id_0203]
+2.4 DECRETO 780 DE 2016 (DECRETO ÚNICO DEL SECTOR SALUD)
+##META: section=2.4;norma=decreto_780;tema=DUSE;tipo=macro
+##[CHUNK_START:id_0204]
+
+Este decreto compila la normatividad sanitaria vigente e incluye:
+
+- Organización del Sistema General de Seguridad Social en Salud
+- Reglas generales de IVC
+- Condiciones para laboratorios, fabricantes y comerciantes
+- Interacción entre entidades territoriales e INVIMA
+
+Puntos claves para IVC:
+1. Obligación de reportes de vigilancia sanitaria.
+2. Procedimientos de inspección.
+3. Autoridades competentes y jerarquías.
+4. Medidas sanitarias de seguridad.
+5. Régimen sancionatorio.
+
+Se usa como referencia marco para interpretar decretos específicos como el 677 y 4725.
+
+##REF:id_0200
+##[CHUNK_END:id_0204]
+2.5 RESOLUCIÓN 1229 DE 2013 (MODELO DE IVC)
+##META: section=2.5;norma=resolucion_1229_2013;tema=IVC;version=1.0;nivel=maximo
+##[CHUNK_START:id_0205]
+
+La Resolución 1229 define la estructura operativa del sistema de Inspección, 
+Vigilancia y Control en Colombia.
+
+Ejes operativos:
+
+1. Programación de actividades de IVC.
+2. Inspección basada en riesgo.
+3. Tipología de establecimientos: minoristas, mayoristas, fabricantes.
+4. Herramientas de vigilancia:
+ - visitas
+ - muestreos
+ - decomisos
+ - medidas sanitarias de seguridad
+5. Metodología para manejo de hallazgos.
+6. Procedimientos para visitas integrales.
+
+Esta resolución es fundamental para construir:
+- Matrices de validación
+- Flujos de decisión
+- Motores de reglas
+
+##REF:id_0500 (matriz)
+##REF:id_0700 (flujos ASCII)
+##[CHUNK_END:id_0205]
+2.6 RESOLUCIÓN 2190 DE 2022 (TECNOVIGILANCIA)
+##META: section=2.6;norma=res_2190_2022;tema=tecnovigilancia;nivel=alto
+##[CHUNK_START:id_0206]
+
+Establece los lineamientos técnicos para la vigilancia de dispositivos médicos 
+posteriores a su comercialización.
+
+Componentes:
+
+1. Reporte obligatorio de eventos adversos.
+2. Clasificación de eventos:
+ - serios
+ - no serios
+ - inesperados
+3. Responsabilidades de:
+ - titulares
+ - distribuidores
+ - prestadores de servicios de salud
+4. Acciones correctivas y preventivas (CAPA).
+5. Medidas de seguridad en salud.
+
+Uso en tu app:
+- Generación de reglas automáticas para análisis de riesgos.
+- Integración con modelos IA para predecir patrones adversos.
+- Validación dinámica de criticidad del producto.
+
+##REF:id_0203
+##[CHUNK_END:id_0206]
+2.7 RESOLUCIÓN 2674 DE 2013 (ALIMENTOS)
+##META: section=2.7;norma=res_2674_2013;tema=alimentos;tipo=BPM
+##[CHUNK_START:id_0207]
+
+Regula las condiciones sanitarias de alimentos y bebidas.
+
+Elementos relevantes para tu sistema:
+
+- Buenas Prácticas de Manufactura obligatorias.
+- Higiene del personal.
+- Condiciones de sustancias alimentarias.
+- Validación de rotulado, fechas, lotes.
+- Control de temperatura.
+- Procedimientos de decomiso de alimentos alterados o fraudulentos.
+
+Aunque no es el foco de tu app, sirve para módulos de productos no farmacéuticos.
+
+##REF:(tema=alimentos)
+##[CHUNK_END:id_0207]
+2.8 OTRAS NORMAS APLICABLES
+##META: section=2.8;tema=otras_normas;tipo=resumen_global
+##[CHUNK_START:id_0208]
+
+Incluye:
+
+- Normas de Cosméticos (Comunicado INVIMA 2014 + Reglamentos Andinos).
+- Resolución 1441 de 2013 (Habilitación IPS).
+- Ley 1751 de 2015 (Derecho Fundamental a la Salud).
+- Reglamentos técnicos de buenas prácticas de laboratorio.
+- Normas sobre suplementos dietarios.
+- Reglamentación para fitoterapéuticos y homeopáticos.
+
+Estas normas serán utilizadas en:
+- la matriz de validación (Sección 5),
+- el motor de reglas (Sección 6).
+
+##REF:id_0202;REF:id_0203
+##[CHUNK_END:id_0208]
+
+===== LIMPIO_SECCION_3.TXT =====
+
+ 3.0 Introducción a la matriz de validación
+##META: section=3.0;tema=matriz_validacion;tipo=introduccion;version=1.0
+##[CHUNK_START:id_0300]
+
+La matriz de validación sanitaria es el conjunto estructurado de reglas que 
+determinan si un producto, establecimiento, proceso o documento cumple con los 
+estándares exigidos en Colombia para productos sometidos a vigilancia sanitaria:
+
+- Medicamentos
+- Dispositivos médicos
+- Cosméticos
+- Suplementos dietarios
+- Fitoterapéuticos
+- Homeopáticos
+- Alimentos
+- Productos de aseo
+- Productos de higiene
+
+Esta matriz combina normas de:
+- Ley 9 de 1979
+- Decreto 677 de 1995
+- Decreto 4725 de 2005
+- Resolución 1229 de 2013 (IVC)
+- Decreto 780 de 2016
+- Resolución 2190 de 2022
+- Resolución 2674 de 2013
+
+Incluye validaciones:
+- Legales
+- Documentales
+- Técnicas
+- Cuantitativas
+- Cualitativas
+- Operativas
+- De trazabilidad
+- De riesgo
+
+##REF:id_0200;REF:id_0205
+##[CHUNK_END:id_0300]
+________________________________________
+ 3.1 Validaciones legales (REG L001 a REG L030)
+##META: section=3.1;tema=validaciones_legales;nivel=alto
+##[CHUNK_START:id_0301]
+
+REG-L001: El producto debe contar con Registro Sanitario vigente expedido por INVIMA.
+REG-L002: El número de RS debe coincidir exactamente con su categoría (PUM, PUMV, etc.).
+REG-L003: El RS debe estar asociado al titular correcto.
+REG-L004: El producto no puede encontrarse con RS cancelado.
+REG-L005: El producto no puede constar como "Suspendido por medida sanitaria".
+REG-L006: No se permite comercialización sin RS o con RS vencido.
+REG-L007: Todo producto debe estar amparado bajo una norma sectorial aplicable.
+REG-L008: El titular debe tener existencia real y verificación en listas INVIMA.
+REG-L009: El país de origen debe coincidir con el rotulado.
+REG-L010: El importador debe estar registrado ante INVIMA.
+REG-L011: Productos de control especial deben tener permisos FRE.
+REG-L012: Productos estupefacientes requieren recetario oficial.
+REG-L013: Las autoridades territoriales deben estar acreditadas para IVC.
+REG-L014: El establecimiento debe poseer requisitos legales de operación.
+REG-L015: Para dispositivos médicos: RS acorde a clasificación de riesgo.
+REG-L016: No se permiten etiquetas con logos falsos o adulterados.
+REG-L017: El RS debe buscarse en bases oficiales (consulta INVIMA).
+REG-L018: El producto no puede estar reportado en alerta sanitaria.
+REG-L019: Para importados, debe existir declaración de importación.
+REG-L020: Decomiso inmediato si existe falsificación documentada.
+REG-L021: Productos investigacionales requieren autorización ética.
+REG-L022: El lote debe estar declarado ante autoridades si aplica.
+REG-L023: La fecha de vencimiento debe ser igual al empaque primario.
+REG-L024: Los medicamentos termolábiles deben tener certificación de cadena de frío.
+REG-L025: Productos sin rotulado en español se consideran irregulares.
+REG-L026: Debe existir soporte técnico del titular.
+REG-L027: La marca debe estar registrada.
+REG-L028: Debe coincidir la forma farmacéutica entre RS y empaque.
+REG-L029: Prohíbe venta de muestras médicas.
+REG-L030: Requiere licencia de comercialización cuando aplique.
+
+##REF:id_0201;REF:id_0202
+##[CHUNK_END:id_0301]
+________________________________________
+ 3.2 Validaciones documentales (REG D001 a REG D040)
+##META: section=3.2;tema=documental;tipo=validacion
+##[CHUNK_START:id_0302]
+
+REG-D001: El rótulo debe coincidir con el contenido real.
+REG-D002: La forma farmacéutica debe estar explícita.
+REG-D003: El lote debe ser legible.
+REG-D004: La fecha de vencimiento debe ser legible.
+REG-D005: El empaque debe estar íntegro.
+REG-D006: Debe existir manual de uso (dispositivos médicos).
+REG-D007: Productos cosméticos requieren advertencias reglamentarias.
+REG-D008: Suplementos requieren tabla nutricional obligatoria.
+REG-D009: Homeopáticos requieren diluciones declaradas.
+REG-D010: Fitoterapéuticos requieren planta fuente identificada.
+REG-D011: Debe existir fecha de fabricación.
+REG-D012: Todo rótulo debe cumplir idioma oficial.
+REG-D013: Dispositivos deben tener instructivos.
+REG-D014: Leyendas de riesgo deben estar visibles.
+REG-D015: Empleo de pictogramas GHS cuando aplique.
+REG-D016: Para alimentos: lote + fecha en zona visible.
+REG-D017: Validación del código de barras.
+REG-D018: Declaración de ingredientes obligatoria.
+REG-D019: Debe existir unidad de medida coherente.
+REG-D020: Certificados de análisis deben existir si aplica.
+REG-D021: Certificado BPM para fabricantes.
+REG-D022: Certificado BPD para distribuidores.
+REG-D023: Declaración de contenido neto.
+REG-D024: Advertencias para embarazadas (según producto).
+REG-D025: Manual de armado para DM tipo equipo.
+REG-D026: Ficha técnica disponible.
+REG-D027: No se permite tachaduras en etiqueta.
+REG-D028: Información debe coincidir con ficha de RS.
+REG-D029: Leyendas de conservación obligatorias.
+REG-D030: Unidad primaria debe coincidir con presentación declarada.
+REG-D031: La rotulación debe respetar tamaño mínimo de letra.
+REG-D032: Se prohíben claims engañosos.
+REG-D033: Se prohíbe curar salvo que RS lo permita.
+REG-D034: Para DM debe haber número de serie.
+REG-D035: Para medicamentos debe haber concentración exacta.
+REG-D036: Cosméticos deben declarar lote de fabricación.
+REG-D037: Productos de aseo deben declarar composición.
+REG-D038: No puede haber doble etiquetado.
+REG-D039: No puede haber etiqueta sobre etiqueta.
+REG-D040: Las fechas no pueden ser manipuladas.
+
+##REF:id_0202
+##[CHUNK_END:id_0302]
+________________________________________
+ 3.3 Validaciones de cantidades y presentación (REG Q001 a REG Q050)
+(Esta parte está diseñada específicamente para tu app VigiSalud)
+##META: section=3.3;tema=cantidades_presentacion;tipo=cuantitativo;version=1.0
+##[CHUNK_START:id_0303]
+
+REG-Q001: La unidad primaria debe ser clara (mL, g, tabletas).
+REG-Q002: La unidad secundaria debe coincidir (frascos, cajas, blíster).
+REG-Q003: No puede haber inconsistencia entre cantidad y volumen total.
+REG-Q004: Frascos volumen declarado debe coincidir.
+REG-Q005: Tabletas conteo debe coincidir.
+REG-Q006: Ampollas conteo por caja debe coincidir.
+REG-Q007: Ampollas volumen por unidad no puede variar.
+REG-Q008: Cajas mixtas deben declararse como tal.
+REG-Q009: El factor multiplicador debe estar acorde a la presentación.
+REG-Q010: Todo cálculo debe convertirse a SI (mLL).
+REG-Q011: Error en cálculo = bandera roja automática.
+REG-Q012: Unidades revisadas deben registrarse individualmente.
+REG-Q013: Cálculos deben permitir subniveles (caja ampolla mL).
+REG-Q014: El sistema debe detectar inconsistencias matemáticas.
+REG-Q015: Presentaciones como frasco x 120 mL deben dividirse en: unidad primaria + primaria SI.
+REG-Q016: No se acepta cantidad parcial sin justificar.
+REG-Q017: Debe existir volumen total calculado.
+REG-Q018: Debe existir masa total calculada cuando aplique.
+REG-Q019: Los decimales deben redondearse según INVIMA.
+REG-Q020: La presentación debe coincidir con RS.
+REG-Q021: Debe validarse si el tamaño del envase coincide.
+REG-Q022: Unidades incompletas deben registrarse como abiertas.
+REG-Q023: Para DM desechables, unidades deben coincidir con empaque técnico.
+REG-Q024: Sistemas deben aceptar multi-nivel: Caja->Blister->Tableta.
+REG-Q025: Productos líquidos densidad no se altera (si no aplica).
+REG-Q026: Para polvos gramos totales deben coincidir.
+REG-Q027: Para jarabes mL exactos deben existir.
+REG-Q028: Para inyectables volumen por ampolla obligatorio.
+REG-Q029: No se aceptan presentaciones redondeadas.
+REG-Q030: No se permiten estimaciones.
+REG-Q031: Debe verificarse número de lote por unidad.
+REG-Q032: Debe verificarse vencimiento por unidad.
+REG-Q033: El número de unidades revisadas no puede superar al inventario real.
+REG-Q034: Debe detectarse inconsistencia entre número de cajas y total unidades.
+REG-Q035: Presentaciones multipack deben tratarse como estructuras polimórficas.
+REG-Q036: Productos termosensibles validar contenido vs. condiciones.
+REG-Q037: DM validar número de unidades por empaque según manual técnico.
+REG-Q038: Cosméticos validar volumen total.
+REG-Q039: Aseo validar contenido neto.
+REG-Q040: Suplementos validar cantidad por cápsula/tableta.
+REG-Q041: Sobres validar gramos por sobre.
+REG-Q042: Multivitamínicos validar múltiple unidad.
+REG-Q043: Homeopáticos validar potencias y frascos.
+REG-Q044: Fitoterapéuticos validar mg de extracto.
+REG-Q045: Productos infantiles validación doble (peso + volumen).
+REG-Q046: Medicamentos control especial conteo estricto.
+REG-Q047: Verificación de contenido neto y declarado.
+REG-Q048: Empaques abiertos fórmula de ajuste.
+REG-Q049: Cantidades deben respetar integridad del empaque.
+REG-Q050: Inconsistencias severas decomiso inmediato.
+
+##REF:id_0202;REF:id_0003
+##[CHUNK_END:id_0303]
+________________________________________
+ 3.4 Validaciones técnicas (REG T001 a REG T050)
+##META: section=3.4;tema=validaciones_tecnicas;tipo=tecnico
+##[CHUNK_START:id_0304]
+
+REG-T001: Condiciones de almacenamiento deben cumplir con rotulado.
+REG-T002: Termolábiles validar cadena de frío.
+REG-T003: Debe evaluarse humedad relativa del área.
+REG-T004: Debe evaluarse integridad estructural del empaque.
+REG-T005: Contaminación visible implica decomiso.
+REG-T006: Presencia de partículas en líquidos no conforme.
+REG-T007: Olores anormales no conforme.
+REG-T008: Coloración alterada no conforme.
+REG-T009: Cristalización anormal señal de inestabilidad.
+REG-T010: Separación de fases en suspensiones no conforme.
+REG-T011: DM cables, electrodos o piezas dañadas no conforme.
+REG-T012: DM verificar calibración.
+REG-T013: Cosméticos verificar estabilidad física.
+REG-T014: Alimentos verificar pH.
+REG-T015: Todo producto vencido decomiso.
+REG-T016: Condiciones sanitarias del establecimiento deben superar umbral IVC.
+REG-T017: Validación de almacenamiento según normas BPM.
+REG-T018: Validación de transporte según BPD.
+REG-T019: Validación de higiene del personal.
+REG-T020: Validación de áreas de almacenamiento.
+REG-T021: Validación de control de plagas.
+REG-T022: Validación de cadena logística.
+REG-T023: Productos presurizados verificar presión.
+REG-T024: Polvos verificar humedad.
+REG-T025: Cremas verificar consistencia.
+REG-T026: Ampollas verificar integridad del vidrio.
+REG-T027: Jeringas verificar sellos.
+REG-T028: Insulinas verificar color y flotantes.
+REG-T029: Refrigerados verificar temperatura mínima y máxima.
+REG-T030: Validación de fotosensibilidad.
+REG-T031: Validación de aditivos.
+REG-T032: Validación de manipulación.
+REG-T033: Verificación de certificados de esterilidad.
+REG-T034: Validación de envase primario.
+REG-T035: Validación de torque de tapas.
+REG-T036: Validación de condiciones de seguridad.
+REG-T037: Validación de transporte refrigerado.
+REG-T038: Validación de temperatura de bodega.
+REG-T039: Validación de ventilación.
+REG-T040: Validación de áreas limpias.
+REG-T041: Validación de equipos en contacto con producto.
+REG-T042: Validación de almacenamiento separado de peligrosos.
+REG-T043: Validación técnica de etiquetas termoimpresas.
+REG-T044: Validación de ausencia de precipitados.
+REG-T045: Validación de hermeticidad.
+REG-T046: Validación de integridad de blister.
+REG-T047: Validación de vida útil remanente.
+REG-T048: Validación de reenvasado.
+REG-T049: Validación de evidencia de adulteración.
+REG-T050: Validación de apariencia general.
+
+##REF:id_0204
+##[CHUNK_END:id_0304]
+________________________________________
+ 3.5 Validaciones operativas de IVC (REG O001 a REG O040)
+(Basadas en Resolución 1229 de 2013)
+##META: section=3.5;tema=operativo_ivc;norma=res_1229_2013
+##[CHUNK_START:id_0305]
+
+REG-O001: La visita debe estar programada bajo criterios de riesgo.
+REG-O002: El inspector debe estar acreditado.
+REG-O003: El establecimiento debe ser notificado cuando aplique.
+REG-O004: Debe existir apertura formal de la visita.
+REG-O005: Se debe identificar al responsable del lugar.
+REG-O006: Debe realizarse recorrido inicial del establecimiento.
+REG-O007: Deben revisarse documentos sanitarios obligatorios.
+REG-O008: Deben compararse documentos con evidencias físicas.
+REG-O009: Debe completarse acta de inspección.
+REG-O010: Todo hallazgo debe clasificarse como:
+ - crítico
+ - mayor
+ - menor
+REG-O011: Debe generarse plan de mejora cuando aplique.
+REG-O012: Debe registrarse evidencia fotográfica.
+REG-O013: Debe verificarse la capacitación del personal.
+REG-O014: Debe verificarse limpieza y desinfección.
+REG-O015: Debe revisarse almacenamiento.
+REG-O016: Debe revisarse control de temperaturas.
+REG-O017: Debe revisarse trazabilidad documental.
+REG-O018: Debe verificarse transporte.
+REG-O019: Debe verificarse control de plagas.
+REG-O020: Debe verificarse manejo de residuos.
+REG-O021: Debe revisarse cadena de frío.
+REG-O022: Debe revisarse espacio físico.
+REG-O023: Debe verificarse cumplimiento RS.
+REG-O024: Debe verificarse integridad de productos.
+REG-O025: Debe revisarse dispensación.
+REG-O026: Deben revisarse vencimientos.
+REG-O027: Debe revisarse almacenamiento superior al permitido.
+REG-O028: Debe verificarse BPM.
+REG-O029: Debe verificarse BPD.
+REG-O030: Debe verificarse Buenas Prácticas de Higiene.
+REG-O031: Se deben registrar recomendaciones.
+REG-O032: El acta debe ser firmada.
+REG-O033: El inspector debe entregar copia.
+REG-O034: Se deben registrar no conformidades.
+REG-O035: Se debe determinar si procede medida sanitaria.
+REG-O036: El inspector debe generar informe final.
+REG-O037: Debe reportarse al sistema territorial.
+REG-O038: Debe notificarse a INVIMA si aplica.
+REG-O039: Debe clasificarse el establecimiento por nivel de riesgo.
+REG-O040: Deben archivarse soportes conforme a DUAS del Decreto 780.
+
+##REF:id_0205
+##[CHUNK_END:id_0305]
+________________________________________
+ 3.6 Validaciones de riesgo y decomiso (REG R001 a REG R030)
+##META: section=3.6;tema=riesgo_decomiso;tipo=critico
+##[CHUNK_START:id_0306]
+
+REG-R001: Producto sin RS decomiso inmediato.
+REG-R002: Producto falsificado decomiso.
+REG-R003: Producto adulterado decomiso.
+REG-R004: Producto vencido decomiso.
+REG-R005: Producto con manipulación evidente decomiso.
+REG-R006: Producto sin rotulado decomiso.
+REG-R007: Producto con riesgo para la salud decomiso.
+REG-R008: Producto con desviaciones críticas decomiso.
+REG-R009: Producto con contaminación visible decomiso.
+REG-R010: Producto de cadena de frío rota decomiso.
+REG-R011: Producto sin evidencia de origen decomiso.
+REG-R012: Producto sin trazabilidad decomiso.
+REG-R013: DM sin manual decomiso.
+REG-R014: DM sin número de serie decomiso.
+REG-R015: Producto bajo alerta sanitaria decomiso.
+REG-R016: Productos control especial sin soporte FRE decomiso.
+REG-R017: Productos cosméticos con errores de rotulado decomiso.
+REG-R018: Productos de aseo adulterados decomiso.
+REG-R019: Productos con fecha tachada decomiso.
+REG-R020: Productos reenvasados sin autorización decomiso.
+REG-R021: Productos con envase abierto decomiso.
+REG-R022: Productos con evidencia de fraude decomiso.
+REG-R023: Productos decomisados deben registrarse con acta.
+REG-R024: Debe registrarse cantidad exacta decomisada.
+REG-R025: Debe registrarse condición del producto al decomiso.
+REG-R026: Debe registrarse lote por unidad decomisada.
+REG-R027: Debe fotografiarse evidencia.
+REG-R028: Debe emitirse medida sanitaria formal.
+REG-R029: Debe notificarse al nivel territorial.
+REG-R030: Debe notificarse a INVIMA si aplica.
+
+##REF:id_0303;REF:id_0201
+##[CHUNK_END:id_0306]
+________________________________________
+ 3.7 Validaciones transversales (REG X001 a REG X020)
+##META: section=3.7;tema=validaciones_transversales;tipo=general
+##[CHUNK_START:id_0307]
+
+REG-X001: Toda validación debe quedar registrada en acta.
+REG-X002: Todo hallazgo debe tener evidencia.
+REG-X003: Todo cálculo debe ser reproducible.
+REG-X004: El inspector debe registrar firma.
+REG-X005: El responsable del establecimiento debe firmar.
+REG-X006: Las observaciones deben ser claras.
+REG-X007: Las fotos deben tener correlación con hallazgos.
+REG-X008: Todo decomiso debe tener soporte legal.
+REG-X009: Todo decomiso debe entregarse al responsable territorial.
+REG-X010: Toda medida sanitaria debe citar la norma.
+REG-X011: La clasificación del riesgo debe estar soportada.
+REG-X012: Las decisiones deben ser proporcionales al riesgo.
+REG-X013: La evidencia debe conservarse mínimo 5 años.
+REG-X014: Debe generarse informe final.
+REG-X015: Debe enviarse al sistema territorial.
+REG-X016: Debe verificarse cumplimiento de visitas previas.
+REG-X017: Debe hacerse seguimiento de planes de mejora.
+REG-X018: Las inconsistencias deben resolverse en sitio.
+REG-X019: Todo dato debe ser verificable.
+REG-X020: Debe garantizarse integridad de la información.
+
+##REF:id_0305
+##[CHUNK_END:id_0307]
+
+===== LIMPIO_SECCION_4.TXT =====
+
+ 4.0 Introducción al motor de reglas
+##META: section=4.0;tema=motor_reglas;tipo=introduccion;version=1.0
+##[CHUNK_START:id_0400]
+
+El motor de reglas sanitario es la representación lógica del marco normativo 
+y operativo del IVC, convertida en estructuras procesables por sistemas de IA 
+(Gemini 3 Pro), RAG y motores de inferencia.
+
+Un motor de reglas permite:
+
+1. Interpretar automáticamente normas sanitarias.
+2. Validar productos y establecimientos.
+3. Identificar riesgos y no conformidades.
+4. Aplicar decisiones (decomiso, alerta, seguimiento).
+5. Integrar IA para predicciones o análisis avanzados.
+
+Este motor es una abstracción de:
+- Ley 9 de 1979
+- Decreto 677 de 1995
+- Decreto 4725 de 2005
+- Decreto 780 de 2016
+- Resolución 1229 de 2013 (IVC)
+- Resolución 2190 de 2022
+- Resolución 2674 de 2013
+
+##REF:id_0300
+##[CHUNK_END:id_0400]
+ 4.1 Motor de Reglas en JSON (versión IA Ready)
+(Estructura ideal para Gemini 3 Pro y pipelines RAG)
+##META: section=4.1;tema=motor_json;tipo=estructura;version=1.0
+##[CHUNK_START:id_0401]
+
+{
+ "motor_reglas": {
+ "version": "1.0",
+ "categorias": [
+ "medicamentos",
+ "dispositivos_medicos",
+ "cosmeticos",
+ "suplementos",
+ "alimentos",
+ "fitoterapeuticos",
+ "homeopaticos"
+ ],
+ "reglas": [
+ {
+ "id": "REG-L001",
+ "descripcion": "El producto debe contar con Registro Sanitario vigente.",
+ "accion_si": "continuar",
+ "accion_no": "generar_alerta;medida_sanitaria_decomiso",
+ "norma": "Decreto 677 de 1995",
+ "nivel_riesgo": "critico"
+ },
+ {
+ "id": "REG-Q003",
+ "descripcion": "No puede haber inconsistencia entre cantidad y volumen total.",
+ "accion_no": "bloquear_registro;alerta_cuantitativa",
+ "tipo": "cuantitativa"
+ },
+ {
+ "id": "REG-T010",
+ "descripcion": "Separación de fases en suspensiones no conforme.",
+ "accion_no": "marcar_no_conforme;proceder_decomiso",
+ "tipo": "tecnica"
+ },
+ {
+ "id": "REG-R004",
+ "descripcion": "Producto vencido decomiso obligatorio.",
+ "accion_no": "decomiso_inmediato",
+ "tipo": "riesgo"
+ }
+ ]
+ }
+}
+
+##REF:id_0301;REF:id_0303
+##[CHUNK_END:id_0401]
+ 4.2 Motor de Reglas en YAML (Gemini friendly)
+##META: section=4.2;tema=motor_yaml;tipo=estructura;version=1.0
+##[CHUNK_START:id_0402]
+
+motor_reglas:
+ version: "1.0"
+ categorias:
+ - medicamentos
+ - dispositivos_medicos
+ - cosmeticos
+ - suplementos
+ - alimentos
+ - fitoterapeuticos
+ - homeopaticos
+
+ reglas:
+ - id: REG-L001
+ descripcion: "El producto debe contar con Registro Sanitario vigente."
+ norma: "Decreto 677 de 1995"
+ nivel_riesgo: critico
+ if_false:
+ - generar_alerta
+ - medida_sanitaria_decomiso
+
+ - id: REG-Q050
+ descripcion: "Inconsistencias severas decomiso inmediato."
+ tipo: cuantitativa
+ if_false:
+ - decomiso_inmediato
+
+ - id: REG-T004
+ descripcion: "El empaque debe estar íntegro."
+ if_false:
+ - producto_no_conforme
+
+ - id: REG-R030
+ descripcion: "Notificar a INVIMA cuando aplica decomiso."
+ if_true:
+ - notificar_invima
+
+##REF:id_0304
+##[CHUNK_END:id_0402]
+ 4.3 Motor de reglas en pseudocódigo (versión razonamiento lógico)
+##META: section=4.3;tema=pseudocodigo;tipo=reglas;version=1.0
+##[CHUNK_START:id_0403]
+
+RULESET IVC_COLOMBIA:
+
+RULE CheckRegistroSanitario:
+ IF producto.registro_sanitario.existe = false THEN
+ ACTION Decomiso
+ ACTION GenerarAlerta("RS inexistente")
+ ENDIF
+
+RULE ValidateCantidad:
+ IF cantidad.total != (unidades * factor_presentacion) THEN
+ ACTION GenerarAlerta("Inconsistencia cuantitativa")
+ ACTION BloquearRegistro
+ ENDIF
+
+RULE CheckVencimiento:
+ IF producto.fecha_vencimiento < fecha_actual THEN
+ ACTION Decomiso
+ ENDIF
+
+RULE CheckEmpaque:
+ IF producto.empaque.integridad = "daniado" THEN
+ ACTION ProductoNoConforme
+ ENDIF
+
+RULE DM_VerificarSerie:
+ IF dispositivo_medico.numero_serie = null THEN
+ ACTION Decomiso
+ ENDIF
+
+RULE ReportesTecnovigilancia:
+ IF evento_adverso.serio = true THEN
+ ACTION NotificarINVIMA
+ ENDIF
+
+END RULESET
+
+##REF:id_0306;REF:id_0203
+##[CHUNK_END:id_0403]
+ 4.4 Flujos ASCII del motor de reglas (versión técnica)
+(Formato extremadamente compatible con Gemini 3 Pro)
+4.4.1 Flujo general de verificación sanitaria
+##META: section=4.4.1;tema=flujos;tipo=ascii;version=1.0
+##[CHUNK_START:id_0404]
+
+##FLOW: flujo_validacion_general
+
+START
+--> CHECK(registro_sanitario)
+ --> IF(valid=false) THEN step:DECOMISO_RS
+--> CHECK(rotulado)
+ --> IF(conforme=false) THEN step:ALERTA_ROTULADO
+--> CHECK(cantidad_vs_presentacion)
+ --> IF(inconsistente=true) THEN step:ALERTA_CUANTITATIVA
+--> CHECK(condiciones_tecnicas)
+ --> IF(falla_critica=true) THEN step:DECOMISO_TECNICO
+--> CHECK(riesgo)
+ --> IF(riesgo_alto=true) THEN step:MEDIDA_SANITARIA
+--> END
+
+##REF:id_0303;REF:id_0403
+##[CHUNK_END:id_0404]
+4.4.2 Flujo para medicamentos (Decreto 677)
+##META: section=4.4.2;norma=decreto_677;tema=flujos_medicamentos
+##[CHUNK_START:id_0405]
+
+##FLOW: inspeccion_medicamentos
+
+START
+--> CHECK(registro_sanitario)
+ --> IF(valid=false) THEN step:DECOMISO
+--> CHECK(concentracion)
+ --> IF(mismatch=true) THEN step:ALERTA_CALIDAD
+--> CHECK(forma_farmaceutica)
+ --> IF(no_coincide_RS=true) THEN step:NO_CONFORME
+--> CHECK(almacenamiento)
+ --> IF(temperatura_fuera_rango=true) THEN step:ALERTA_CADENA_FRIO
+--> CHECK(integridad_empaque)
+ --> IF(daniado=true) THEN step:PRODUCTO_NO_CONFORME
+--> END
+
+##REF:id_0202
+##[CHUNK_END:id_0405]
+4.4.3 Flujo para dispositivos médicos (Decreto 4725)
+##META: section=4.4.3;norma=decreto_4725;tema=flujos_dm
+##[CHUNK_START:id_0406]
+
+##FLOW: inspeccion_dispositivos_medicos
+
+START
+--> CHECK(clasificacion_riesgo)
+--> CHECK(registro_sanitario)
+ --> IF(invalido=true) THEN step:DECOMISO
+--> CHECK(numero_serie)
+ --> IF(falta=true) THEN step:DECOMISO
+--> CHECK(manual_tecnico)
+ --> IF(no_existe=true) THEN step:NO_CONFORME
+--> CHECK(calibracion)
+ --> IF(vencida=true) THEN step:ALERTA_TECNICA
+--> END
+
+##REF:id_0203
+##[CHUNK_END:id_0406]
+ 4.5 Estructura del motor de reglas para integración con tu app (VigiSalud)
+##META: section=4.5;tema=integracion_app;tipo=modelo;version=1.0
+##[CHUNK_START:id_0407]
+
+El motor de reglas se integra a VigiSalud mediante:
+
+1. Servicio interno:
+ motor.validar(producto, establecimiento)
+
+2. Métodos principales:
+ - validar_registro_sanitario()
+ - validar_rotulado()
+ - validar_presentacion()
+ - validar_cantidades()
+ - validar_almacenamiento()
+ - validar_riesgo()
+
+3. Resultado estándar:
+ {
+ "estado": "conforme | no_conforme | decomiso",
+ "riesgo": "alto | medio | bajo",
+ "reglas_incumplidas": [],
+ "acciones_requeridas": []
+ }
+
+4. Soporte IA:
+ - El motor se exporta a JSON/YAML para Gemini 3 Pro.
+ - Cada chunk semántico se asocia a un bloque de reglas.
+ - Flujo ASCII se convierte automáticamente a BPMN.
+
+##REF:id_0303
+##[CHUNK_END:id_0407]
+
+===== LIMPIO_SECCION_5.TXT =====
+
+ 5.0 Introducción a los diagramas ASCII
+##META: section=5.0;tema=diagramas_ascii;tipo=introduccion;version=1.0
+##[CHUNK_START:id_0500]
+
+Los diagramas ASCII incluidos en esta sección sirven como representaciones 
+abstractas de procesos regulatorios complejos del sistema sanitario colombiano 
+(IVC, INVIMA, MinSalud). Están diseñados con formato tipo DSL, de alta 
+compatibilidad para que modelos avanzados como Gemini 3 Pro los conviertan 
+fácilmente en:
+
+- flujos BPMN
+- diagramas UML
+- motores de decisión (DMN)
+- árboles de decisión regulatorios
+- esquemas lógicos exportables
+
+Cada diagrama refleja:
+- pasos obligatorios del inspector sanitario,
+- decisiones basadas en el marco normativo consolidado,
+- condiciones que conducen a medidas sanitarias.
+
+##REF:id_0305
+##[CHUNK_END:id_0500]
+ 5.1 Flujo ASCII general del Sistema IVC
+##META: section=5.1;tema=flujo_general_ivc;tipo=ascii_flow
+##[CHUNK_START:id_0501]
+
+##FLOW: sistema_ivc_general
+
+START
+--> STEP(identificacion_establecimiento)
+--> STEP(apertura_visita)
+--> CHECK(documentos_legales)
+ --> IF(faltantes=true) THEN step:hallazgo_mayor
+--> CHECK(condiciones_sanitarias)
+ --> IF(riesgo_alto=true) THEN step:medida_sanitaria
+--> CHECK(productos)
+ --> IF(no_conforme=true) THEN step:decomiso_productos
+--> STEP(cierre_visita)
+--> STEP(acta_firmada)
+--> END
+
+##REF:id_0305
+##[CHUNK_END:id_0501]
+ 5.2 Flujo ASCII para inspección de medicamentos (Decreto 677)
+##META: section=5.2;tema=flujo_medicamentos;norma=decreto_677
+##[CHUNK_START:id_0502]
+
+##FLOW: inspeccion_medicamentos
+
+START
+--> CHECK(registro_sanitario)
+ --> IF(invalido=true) THEN step:DECOMISO_RS
+--> CHECK(rotulado)
+ --> IF(no_conforme=true) THEN step:ALERTA_ROTULADO
+--> CHECK(formula)
+ --> IF(inconsistencia=true) THEN step:ALERTA_CALIDAD
+--> CHECK(almacenamiento)
+ --> IF(temp_fuera_rango=true) THEN step:CADENA_FRIO_RUPTURA
+--> CHECK(integridad_empaque)
+ --> IF(daniado=true) THEN step:PRODUCTO_NO_CONFORME
+--> END
+
+##REF:id_0405
+##[CHUNK_END:id_0502]
+ 5.3 Flujo ASCII para inspección de dispositivos médicos (Decreto 4725)
+##META: section=5.3;tema=flujo_dm;norma=decreto_4725
+##[CHUNK_START:id_0503]
+
+##FLOW: inspeccion_dispositivos_medicos
+
+START
+--> CHECK(clasificacion_riesgo)
+--> CHECK(registro_sanitario)
+ --> IF(invalido=true) THEN step:DECOMISO
+--> CHECK(numero_serie)
+ --> IF(faltante=true) THEN step:DECOMISO
+--> CHECK(manual_usuario)
+ --> IF(no_existe=true) THEN step:NO_CONFORME
+--> CHECK(calibracion)
+ --> IF(vencida=true) THEN step:ALERTA_TECNICA
+--> CHECK(estado_fisico)
+ --> IF(defectuoso=true) THEN step:NO_CONFORME
+--> END
+
+##REF:id_0406
+##[CHUNK_END:id_0503]
+ 5.4 Flujo ASCII para Tecnovigilancia (Resolución 2190 de 2022)
+##META: section=5.4;tema=tecnovigilancia;norma=res_2190_2022
+##[CHUNK_START:id_0504]
+
+##FLOW: tecnovigilancia_evento_adverso
+
+START
+--> STEP(recepcion_reporte)
+--> CHECK(evento_es_serio)
+ --> IF(true) THEN step:notificar_invima_inmediato
+--> CHECK(evento_inesperado)
+ --> IF(true) THEN step:analisis_causalidad
+--> STEP(analisis_riesgo)
+--> STEP(plan_CAPA)
+--> STEP(seguimiento)
+--> END
+
+##REF:id_0206
+##[CHUNK_END:id_0504]
+ 5.5 Flujo ASCII para inspección de alimentos (Resolución 2674)
+##META: section=5.5;tema=flujo_alimentos;norma=res_2674_2013
+##[CHUNK_START:id_0505]
+
+##FLOW: inspeccion_alimentos
+
+START
+--> CHECK(condiciones_higienicas)
+ --> IF(falla_critica=true) THEN step:MEDIDA_SANITARIA
+--> CHECK(rotulado)
+ --> IF(no_conforme=true) THEN step:ALERTA_ROTULADO
+--> CHECK(fecha_vencimiento)
+ --> IF(vencido=true) THEN step:DECOMISO
+--> CHECK(lote)
+ --> IF(ilegible=true) THEN step:PRODUCTO_NO_CONFORME
+--> CHECK(condiciones_temperatura)
+ --> IF(fuera_rango=true) THEN step:ALERTA_TEMPERATURA
+--> END
+
+##REF:id_0207
+##[CHUNK_END:id_0505]
+ 5.6 Flujo ASCII para decomiso sanitario
+##META: section=5.6;tema=decomiso;tipo=ascii;version=1.0
+##[CHUNK_START:id_0506]
+
+##FLOW: decomiso_sanitario
+
+START
+--> CONDITION(producto_no_conforme OR riesgo_inminente)
+ --> THEN step:activar_medida_sanitaria
+--> STEP(registro_cantidades)
+--> STEP(registro_lotes)
+--> STEP(evidencia_fotografica)
+--> STEP(acta_decomiso)
+--> STEP(entrega_a_autoridad_territorial)
+--> END
+
+##REF:id_0306
+##[CHUNK_END:id_0506]
+ 5.7 Flujo ASCII de validación cuantitativa (para tu app VigiSalud)
+##META: section=5.7;tema=validacion_cuantitativa;tipo=ascii;version=1.0
+##[CHUNK_START:id_0507]
+
+##FLOW: validacion_cuantitativa_vigisalud
+
+START
+--> CHECK(presentacion_declarada)
+--> COMPUTE(unidades_totales = unidades_empaque * unidades_internas)
+--> CHECK(consistencia)
+ --> IF(inconsistente=true) THEN step:ALERTA_CUANTITATIVA
+--> COMPUTE(volumen_total = unidades_totales * volumen_unitario)
+--> CHECK(unidad_SI)
+--> END
+
+##REF:id_0303
+##[CHUNK_END:id_0507]
+ 5.8 Flujo ASCII para inspección basada en riesgo (Resolución 1229)
+##META: section=5.8;tema=riesgo;norma=res_1229_2013
+##[CHUNK_START:id_0508]
+
+##FLOW: inspeccion_basada_riesgo
+
+START
+--> STEP(clasificacion_establecimiento)
+--> CHECK(nivel_riesgo)
+ --> IF(riesgo_alto=true) THEN step:visita_prioritaria
+--> STEP(plan_visita)
+--> STEP(visita_en_sitio)
+--> CHECK(hallazgos)
+ --> IF(critico=true) THEN step:MEDIDA_SANITARIA
+--> STEP(seguimiento)
+--> END
+
+##REF:id_0305
+##[CHUNK_END:id_0508]
+ 5.9 Diagrama ASCII maestro (todos los flujos integrados)
+(Ideal para que Gemini construya un mega BPMN del sistema sanitario)
+##META: section=5.9;tema=diagrama_maestro;tipo=ascii_integrado
+##[CHUNK_START:id_0509]
+
+##FLOW: sistema_sanitario_colombia_maestro
+
+START
+--> subprocess(sistema_ivc_general) ##REF:id_0501
+--> subprocess(inspeccion_medicamentos) ##REF:id_0502
+--> subprocess(inspeccion_dispositivos_medicos) ##REF:id_0503
+--> subprocess(tecnovigilancia_evento_adverso) ##REF:id_0504
+--> subprocess(inspeccion_alimentos) ##REF:id_0505
+--> subprocess(decomiso_sanitario) ##REF:id_0506
+--> subprocess(validacion_cuantitativa_vigisalud) ##REF:id_0507
+--> subprocess(inspeccion_basada_riesgo) ##REF:id_0508
+--> END
+
+##[CHUNK_END:id_0509]
+
+===== LIMPIO_SECCION_6.TXT =====
+
+ 6.0 Introducción al modelo de datos
+##META: section=6.0;tema=modelo_datos;tipo=introduccion;version=1.0
+##[CHUNK_START:id_0600]
+
+El modelo de datos diseñado para VigiSalud debe representar la complejidad 
+regulatoria sanitaria colombiana, permitiendo:
+
+1. Polimorfismo de presentaciones farmacéuticas.
+2. Validación automatizada del marco normativo.
+3. Representación jerárquica de empaques (caja blíster tableta).
+4. Cálculo automático de cantidades.
+5. Trazabilidad completa (producto lote unidad).
+6. Integración con un motor de reglas (Sección 4).
+7. Representación de flujos ASCII (Sección 5) en formato computable.
+8. Compatibilidad con estructuras RAG + LLM (Gemini 3 Pro, Jules).
+
+El resultado es un metamodelo altamente estructurado y flexible.
+
+##REF:id_0407
+##[CHUNK_END:id_0600]
+
+ 6.1 Metamodelo general del sistema (Arquitectura polimórfica)
+(Ideal para productos con múltiples niveles de empaque)
+##META: section=6.1;tema=metamodelo;tipo=arquitectura;version=1.0
+##[CHUNK_START:id_0601]
+
+El metamodelo base se organiza en niveles conceptuales:
+
+NIVEL 1 Producto
+NIVEL 2 Presentación Comercial
+NIVEL 3 Empaque Multinivel
+NIVEL 4 Unidad Primaria
+NIVEL 5 Trazabilidad por Lote
+
+Relaciones clave:
+
+Producto 1..N Presentaciones
+Presentación 1..N Empaques
+Empaque 1..N Empaques Hijo
+Unidad Primaria (forma farmacéutica) pertenece a empaque final.
+
+Este metamodelo soporta:
+- Frascos
+- Tabletas
+- Cápsulas
+- Ampollas
+- Sobres
+- Jeringas precargadas
+- Dispositivos médicos en kit
+- Cosméticos multiunidad
+- Suplementos en cápsula o polvo
+
+##REF:id_0303
+##[CHUNK_END:id_0601]
+
+ 6.2 Modelo ENTIDADRELACIÓN (ER) ASCII optimizado para IA
+##META: section=6.2;tema=ER;tipo=ascii;version=1.0
+##[CHUNK_START:id_0602]
+
+##ER_DIAGRAM: vigisalud_model
+
+[PRODUCTO] 
+ |-- id_producto (PK)
+ |-- nombre
+ |-- categoria (medicamento, DM, cosmético)
+
+[PRODUCTO] 1---N [PRESENTACION]
+ |-- id_presentacion (PK)
+ |-- descripcion
+ |-- unidad_primaria (mL, tabletas, g)
+
+[PRESENTACION] 1---N [EMPAQUE]
+ |-- id_empaque (PK)
+ |-- tipo_empaque (caja, blister, frasco)
+ |-- cantidad_interna
+
+[EMPAQUE] N---N [LOTE]
+ |-- id_lote (PK)
+ |-- numero_lote
+ |-- fecha_vencimiento
+
+[INSPECCION]
+ |-- id_inspeccion
+ |-- fecha
+ |-- tipo
+ |-- inspector
+ |-- hallazgos
+
+[INSPECCION] 1---N [REGISTRO_CANTIDADES]
+ |-- unidades_revisadas
+ |-- volumen_total
+ |-- masa_total
+ |-- consistencia
+
+##REF:id_0507
+##[CHUNK_END:id_0602]
+
+ 6.3 Modelo de clases (UML ASCII) para tu app
+##META: section=6.3;tema=uml;tipo=ascii;version=1.0
+##[CHUNK_START:id_0603]
+
+##UML: vigisalud
+
+class Producto {
+ id
+ nombre
+ categoria
+ getPresentaciones()
+}
+
+class Presentacion {
+ id
+ descripcion
+ unidad_primaria
+ getEstructuraEmpaque()
+}
+
+class Empaque {
+ id
+ tipo
+ cantidad_interna
+ child: Empaque
+ computeTotal()
+}
+
+class Lote {
+ id
+ numero
+ fecha_vencimiento
+}
+
+class Inspeccion {
+ id
+ fecha
+ inspector
+ tipo
+ registrarHallazgo()
+}
+
+class MotorReglas {
+ reglas[]
+ validar(Producto, Inspeccion)
+}
+
+Producto -> Presentacion
+Presentacion -> Empaque
+Empaque -> Lote
+Inspeccion -> Producto
+
+##REF:id_0407
+##[CHUNK_END:id_0603]
+
+ 6.4 Modelo polimórfico multinivel (caja blister tableta)
+##META: section=6.4;tema=polimorfismo;tipo=estructura;version=1.0
+##[CHUNK_START:id_0604]
+
+Ejemplo de representación polimórfica:
+
+Producto: Ibuprofeno 400 mg
+Presentación: Caja x 10 blíster x 10 tabletas
+
+Estructura:
+
+EMPAQUE {
+ tipo: caja
+ cantidad_interna: 10
+ child: EMPAQUE {
+ tipo: blister
+ cantidad_interna: 10
+ child: EMPAQUE {
+ tipo: tableta
+ cantidad_interna: 1
+ child: null
+ }
+ }
+}
+
+Total unidades = 10 * 10 = 100 tabletas.
+
+Este modelo permite:
+- Representar estructuras complejas.
+- Validar consistencia cuantitativa.
+- Integrar reglas del motor.
+- Permitir cálculos automáticos.
+
+##REF:id_0303
+##[CHUNK_END:id_0604]
+
+ 6.5 Modelo para dispositivos médicos (DM) con parámetros técnicos
+##META: section=6.5;tema=dispositivos_medicos;tipo=modelo;version=1.0
+##[CHUNK_START:id_0605]
+
+Para dispositivos médicos, el modelo debe incluir:
+
+class DispositivoMedico extends Producto {
+ riesgo (I, IIa, IIb, III)
+ manual_tecnico
+ numero_serie
+ calibracion
+}
+
+Reglas integradas:
+- Riesgo alto nivel de inspección intensiva
+- Manual faltante no conforme
+- Serie faltante decomiso
+- Calibración vencida alerta técnica
+
+Aplica a:
+- Monitores
+- Bombas de infusión
+- Jeringas de autoinyección
+- Sistemas diagnósticos
+
+##REF:id_0203
+##[CHUNK_END:id_0605]
+
+ 6.6 Modelo de datos para decomiso sanitario
+##META: section=6.6;tema=decomiso;tipo=modelo;version=1.0
+##[CHUNK_START:id_0606]
+
+El modelo de decomiso debe capturar:
+
+class Decomiso {
+ id
+ motivo
+ producto
+ cantidad
+ evidencia_fotografica[]
+ fecha
+ inspector
+ autoridad_traslado
+}
+
+Motivos comunes:
+- Producto vencido
+- Producto adulterado
+- Falsificado
+- Termolábil sin cadena de frío
+- Sin RS
+- Rotulado irregular
+
+Cada registro debe mantener un enlace con:
+- Inspeccion
+- MotorReglas
+- Matriz de Validación
+
+##REF:id_0306
+##[CHUNK_END:id_0606]
+
+ 6.7 Modelo de datos para evidencia fotográfica
+##META: section=6.7;tema=evidencia;tipo=modelo;version=1.0
+##[CHUNK_START:id_0607]
+
+class EvidenciaFotografica {
+ id
+ id_inspeccion
+ url_archivo
+ descripcion
+ fecha_captura
+ referencia_chunk (para IA)
+}
+
+Propósito para IA:
+- Permite hacer embeddings multimodales.
+- Geminis 3 Pro puede correlacionar imagen con texto.
+- Se puede entrenar un agente de inspección visual.
+
+##REF:id_0307
+##[CHUNK_END:id_0607]
+
+ 6.8 Modelo de integración con IA (Gemini 3 Pro)
+##META: section=6.8;tema=IA_integracion;version=1.0
+##[CHUNK_START:id_0608]
+
+La integración IA requiere:
+
+class IAInterface {
+ cargarMotorReglas(JSON)
+ cargarChunks(Documento)
+ generarEmbeddings()
+ validarProducto(producto)
+ sugerirMedidaSanitaria()
+}
+
+Flujo ideal:
+1. Se cargan chunks (Secciones 1-5).
+2. IA crea embeddings.
+3. Se integra motor de reglas.
+4. IA ejecuta validación.
+5. Se generan decisiones.
+
+Compatibilidad:
+- Gemini 3 Pro
+- Gemini Flash
+- Jules
+- LlamaIndex
+- LangChain
+
+##REF:id_0509
+##[CHUNK_END:id_0608]
+
+ 6.9 Modelo final consolidado (DSL para IA)
+(Todos los modelos anteriores comprimidos en una estructura que Gemini puede convertir en código)
+##META: section=6.9;tema=modelo_final;tipo=DSL;version=1.0
+##[CHUNK_START:id_0609]
+
+##DSL_MODEL: vigisalud_integrado
+
+ENTITY Producto:
+ nombre
+ categoria
+ presentaciones[]
+
+ENTITY Presentacion:
+ descripcion
+ unidad_primaria
+ empaques[]
+
+ENTITY Empaque:
+ tipo
+ cantidad
+ child
+
+ENTITY Lote:
+ numero
+ vencimiento
+
+ENTITY Inspeccion:
+ fecha
+ inspector
+ hallazgos[]
+
+ENTITY Decomiso:
+ motivo
+ producto
+ cantidad
+
+ENTITY IAInterface:
+ cargarMotorReglas()
+ cargarChunks()
+ generarEmbeddings()
+ validar()
+
+RELATIONS:
+ Producto->Presentacion
+ Presentacion->Empaque
+ Empaque->Lote
+ Inspeccion->Producto
+ Inspeccion->Decomiso
+
+##REF:id_0601;REF:id_0604
+##[CHUNK_END:id_0609]
+
+===== LIMPIO_SECCION_7.TXT =====
+
+ 7.0 Introducción al glosario
+##META: section=7.0;tema=glosario;tipo=introduccion;version=1.0
+##[CHUNK_START:id_0700]
+
+Este glosario contiene más de 250 términos técnicos esenciales para la 
+comprensión, clasificación y validación de productos sometidos a vigilancia 
+sanitaria en Colombia. Está diseñado para:
+
+- IA generativa (Gemini 3 Pro)
+- Sistemas RAG
+- Aplicaciones de inspección sanitaria
+- Procesamiento automático de normatividad
+- Navegación semántica de modelos regulatorios
+
+Cada término está normalizado y articulado con referencias internas (REF) 
+hacia secciones anteriores del documento (motor de reglas, flujos ASCII, 
+matrices y modelos de datos).
+
+##REF:id_0200;REF:id_0300
+##[CHUNK_END:id_0700]
+
+ 7.1 Términos generales del sistema sanitario (G001G050)
+##META: section=7.1;tema=terminos_generales;version=1.0
+##[CHUNK_START:id_0701]
+
+G001 Producto sanitario: Cualquier bien bajo vigilancia INVIMA. 
+G002 IVC: Inspección, vigilancia y control. 
+G003 Medida sanitaria: Acción preventiva o correctiva. 
+G004 Decomiso: Retiro obligatorio del mercado. 
+G005 Trazabilidad: Capacidad de seguimiento del producto. 
+G006 Riesgo sanitario: Probabilidad severidad del daño. 
+G007 Autoridad sanitaria: INVIMA o entidad territorial. 
+G008 Fabricante: Responsable de producción. 
+G009 Distribuidor: Responsable de comercialización. 
+G010 Importador: Responsable de ingreso al país. 
+G011 Análisis de riesgo: Evaluación técnica del peligro. 
+G012 Muestreo: Recolección representativa. 
+G013 Acta de inspección: Documento oficial. 
+G014 Establecimiento: Lugar sujeto a IVC. 
+G015 Alerta sanitaria: Aviso oficial de riesgo. 
+G016 Conformidad: Cumplimiento normativo. 
+G017 No conformidad: Incumplimiento normativo. 
+G018 Hallazgo crítico: Implica riesgo inmediato. 
+G019 Hallazgo mayor: Riesgo intermedio. 
+G020 Hallazgo menor: Desviación leve. 
+G021 Producto fraudulento: No auténtico. 
+G022 Producto adulterado: Modificado ilegalmente. 
+G023 Producto falsificado: Copia ilegal. 
+G024 Producto vencido: Expirado. 
+G025 Evidencia documental: Soporte escrito. 
+G026 Evidencia fotográfica: Imagen probatoria. 
+G027 Flujo sanitario: Secuencia de inspección. 
+G028 Rastreo sanitario: Revisión de cadena. 
+G029 Investigación sanitaria: Proceso formal de revisión. 
+G030 Medida correctiva: Acción de mejora. 
+G031 Acción CAPA: Correctiva y preventiva. 
+G032 Evento adverso: Daño no intencional. 
+G033 Evento serio: Puede causar muerte. 
+G034 Producto no conforme: No apto. 
+G035 Producto irregular: No cumple requisitos. 
+G036 Control de calidad: Verificación técnica. 
+G037 Buenas prácticas: Conjunto normativo. 
+G038 Condición sanitaria: Estado del producto. 
+G039 Sistema logístico: Flujo físico del producto. 
+G040 Título habilitante: Permiso legal. 
+G041 Evaluación técnica: Análisis experto. 
+G042 Inspección documental: Revisión de papeles. 
+G043 Inspección física: Revisión de producto. 
+G044 Rotulado: Información del empaque. 
+G045 Etiqueta: Información adherida. 
+G046 Empaque primario: Contenedor directo. 
+G047 Empaque secundario: Contenedor externo. 
+G048 Zona de almacenamiento: Espacio de bodega. 
+G049 Entorno sanitario: Ambiente. 
+G050 Reclamo sanitario: Queja formal.
+
+##REF:id_0501
+##[CHUNK_END:id_0701]
+
+ 7.2 Términos técnicos para medicamentos (M001M050)
+##META: section=7.2;tema=medicamentos;version=1.0
+##[CHUNK_START:id_0702]
+
+M001 Principio activo: Sustancia responsable del efecto. 
+M002 Excipiente: Sustancia inactiva. 
+M003 Concentración: Cantidad de principio activo. 
+M004 Forma farmacéutica: Tableta, jarabe, cápsula, etc. 
+M005 Vía de administración: Oral, IV, IM 
+M006 Presentación: Frasco, caja, blister. 
+M007 Lugar de fabricación: Planta productora. 
+M008 Estabilidad: Comportamiento con el tiempo. 
+M009 Cadena de frío: 28C. 
+M010 Termolábil: Requiere refrigeración. 
+M011 Liofilizado: Producto deshidratado. 
+M012 Jarabe: Solución dulce. 
+M013 Suspensión: Partículas sólidas dispersas. 
+M014 Ampolla: Envase sellado. 
+M015 Frasco ámpula: Frasco multidosis. 
+M016 Blíster: Empaque termoformado. 
+M017 Tableta: Forma sólida. 
+M018 Cápsula: Gelatina. 
+M019 Gragea: Recubierta. 
+M020 Gotero: Dosificador. 
+M021 Parches: Liberación transdérmica. 
+M022 Concentración mg/mL: Medida clave. 
+M023 Convertibilidad SI: Cambio a L, g. 
+M024 Estupefaciente: Control especial. 
+M025 Psicotrópico: Regulación estricta. 
+M026 Muestra médica: Prohibida comercialización. 
+M027 Medicamento fraudulento: No auténtico. 
+M028 Medicamento adulterado: Manipulado ilegal. 
+M029 Medicamento falsificado: Copia ilegal. 
+M030 Ensayo de disolución: Verificación de liberación. 
+M031 Ensayo de pureza: Verificación química. 
+M032 Vida útil: Tiempo permitido. 
+M033 Lote: Identificador de fabricación. 
+M034 Control de esterilidad: Prueba microbiológica. 
+M035 Interacción: Efecto al combinarse. 
+M036 Contraindicación: Situación prohibida. 
+M037 Advertencia: Precaución. 
+M038 Bioequivalencia: Igual biodisponibilidad. 
+M039 Biodisponibilidad: Cantidad absorbida. 
+M040 Evaluación farmacéutica: Análisis INVIMA. 
+M041 Trazabilidad del lote: Seguimiento. 
+M042 Revisión cuantitativa: Cálculo de unidades. 
+M043 Medicamento vencido: Debe decomisarse. 
+M044 Medicamento deteriorado: No apto. 
+M045 Medicamento ilegal: Sin RS. 
+M046 Medicamento en trámite: No comercializable. 
+M047 Medicamento magistral: Preparación personalizada. 
+M048 Medicamento huérfano: Baja incidencia. 
+M049 Riesgo farmacológico: Probabilidad de daño. 
+M050 Integridad del empaque: Condición física.
+
+##REF:id_0502
+##[CHUNK_END:id_0702]
+
+ 7.3 Términos para dispositivos médicos (D001D050)
+(Basado en Decreto 4725)
+##META: section=7.3;tema=dispositivos_medicos;version=1.0
+##[CHUNK_START:id_0703]
+
+D001 Dispositivo médico: Equipo para diagnóstico/tratamiento. 
+D002 Clasificación de riesgo: IIII. 
+D003 Accesorio médico: Complemento. 
+D004 Equipo biomédico: Instrumento tecnológico. 
+D005 Manual técnico: Instrucción obligatoria. 
+D006 Número de serie: Identificador único. 
+D007 Calibración: Ajuste técnico. 
+D008 Mantenimiento preventivo: Revisión programada. 
+D009 Mantenimiento correctivo: Reparación. 
+D010 Trazabilidad técnica: Registro de parámetros. 
+D011 Ensayo de funcionamiento: Validación. 
+D012 Ensayo de seguridad eléctrica: Prueba crítica. 
+D013 Validación de software: Equipo computarizado. 
+D014 Marcado CE: Certificación europea. 
+D015 Certificación ISO 13485: Gestión DM. 
+D016 Biocompatibilidad: Seguridad biológica. 
+D017 Accesorios: Partes no esenciales. 
+D018 Consumibles: Uso único. 
+D019 Componentes: Partes. 
+D020 Riesgo residual: Riesgo restante. 
+D021 Evento adverso DM: Fallo. 
+D022 Evento serio DM: Daño severo. 
+D023 Tecnovigilancia: Vigilancia poscomercialización. 
+D024 Acción correctiva de seguridad: Retiro. 
+D025 Retiro de producto: Recall. 
+D026 Equipo crítico: Implica vida o muerte. 
+D027 Equipo no crítico: Uso no vital. 
+D028 Equipo semiartefacto: Requiere calibración. 
+D029 Condición física: Estado. 
+D030 Compatibilidad eléctrica: Estándar IEC. 
+D031 Compatibilidad electromagnética: EMC. 
+D032 Software embebido: Programa interno. 
+D033 Interpretación sanitaria: Evaluación DM. 
+D034 Integridad del equipo: Sin daños. 
+D035 Conectividad: Interfaces. 
+D036 Parámetros clínicos: Indicadores. 
+D037 Fallo crítico: Implica riesgo. 
+D038 Log técnico: Registro digital. 
+D039 Procedimiento de uso: Obligatorio. 
+D040 Verificación documental DM: Revisión. 
+D041 Uso seguro: Reglas. 
+D042 Evaluación normativa DM: Análisis. 
+D043 Ensayo de estabilidad DM: Verificación tiempo. 
+D044 Evaluación premarket: Antes de vender. 
+D045 Evaluación posmarket: Después de vender. 
+D046 Sistema de alarma: Notificación. 
+D047 Dispositivo implantable: Implantes. 
+D048 Dispositivo invasivo: Contacto interno. 
+D049 Dispositivo activo: Energía. 
+D050 Equipo de diagnostico: Prueba clínica.
+
+##REF:id_0503
+##[CHUNK_END:id_0703]
+
+ 7.4 Términos para alimentos (A001A040)
+##META: section=7.4;tema=alimentos;version=1.0
+##[CHUNK_START:id_0704]
+
+A001 Alimento: Sustancia para consumo humano. 
+A002 BPM: Buenas prácticas de manufactura. 
+A003 Lote: Identificador. 
+A004 Fecha de vencimiento: Expiración. 
+A005 Alimento perecedero: Sensible. 
+A006 Alimento no perecedero: Estable. 
+A007 Cadena de frío: Refrigeración. 
+A008 Temperatura de almacenamiento: Condición. 
+A009 Contaminación cruzada: Riesgo. 
+A010 Microorganismos patógenos: Bacterias. 
+A011 Inocuo: Seguro. 
+A012 pH: Acidez. 
+A013 Actividad de agua: Parámetro. 
+A014 Procedencia: Origen. 
+A015 Declaración nutricional: Tabla. 
+A016 Ingrediente: Componente. 
+A017 Alergénico: Riesgo. 
+A018 Buenas prácticas de manipulación. 
+A019 Infraestructura sanitaria. 
+A020 Envasado. 
+A021 Refrigeración. 
+A022 Estiba. 
+A023 Limpieza. 
+A024 Desinfección. 
+A025 Control de plagas. 
+A026 Toma de muestras. 
+A027 Manipulador. 
+A028 POES: Procedimientos operativos. 
+A029 Peligro sanitario. 
+A030 Alimento contaminado. 
+A031 Alimento alterado. 
+A032 Alimento adulterado. 
+A033 Alimento fraudulento. 
+A034 Etiquetado nutricional. 
+A035 Información obligatoria. 
+A036 Condiciones higiénicas. 
+A037 Decomiso. 
+A038 Pérdida de cadena de frío. 
+A039 Color/olor anormal. 
+A040 Riesgo alimentario.
+
+##REF:id_0505
+##[CHUNK_END:id_0704]
+
+ 7.5 Términos para cosméticos (C001C030)
+##META: section=7.5;tema=cosmeticos;version=1.0
+##[CHUNK_START:id_0705]
+
+C001 Cosmético: Producto no medicinal. 
+C002 Ingrediente cosmético: Sustancia. 
+C003 Composición cosmética. 
+C004 Conservante. 
+C005 Filtro solar. 
+C006 Perfume. 
+C007 Fragancia. 
+C008 Sustancia restringida. 
+C009 Rotulado cosmético. 
+C010 Desodorante. 
+C011 Crema corporal. 
+C012 Loción. 
+C013 Tratamiento capilar. 
+C014 Shampoo. 
+C015 Acondicionador. 
+C016 Aditivo. 
+C017 Producto alterado. 
+C018 Producto fraudulento. 
+C019 Producto adulterado. 
+C020 PH cosmético. 
+C021 Ensayo de seguridad. 
+C022 Conservación. 
+C023 Producto dermatológico. 
+C024 Riesgo cosmético. 
+C025 Claims cosméticos. 
+C026 Etiquetado obligatorio. 
+C027 Uso externo. 
+C028 Medida sanitaria cosmética. 
+C029 Lote. 
+C030 Fecha de fabricación.
+
+##REF:id_0302
+##[CHUNK_END:id_0705]
+
+ 7.6 Términos de decomiso (DCO001DCO040)
+(Integrado con Sección 3.6 y Sección 5.6)
+##META: section=7.6;tema=decomiso;version=1.0
+##[CHUNK_START:id_0706]
+
+DCO001 Decomiso: Retiro obligatorio. 
+DCO002 Causal. 
+DCO003 Riesgo inminente. 
+DCO004 Producto falsificado. 
+DCO005 Producto adulterado. 
+DCO006 Producto fraudulento. 
+DCO007 Producto vencido. 
+DCO008 Producto ilegal. 
+DCO009 Producto sin RS. 
+DCO010 Producto termolábil sin cadena de frío. 
+DCO011 Producto manipulado. 
+DCO012 Producto reenvasado sin autorización. 
+DCO013 Producto abierto. 
+DCO014 Acta de decomiso. 
+DCO015 Evidencia fotográfica. 
+DCO016 Cantidad decomisada. 
+DCO017 Lote decomisado. 
+DCO018 Destino final. 
+DCO019 Inutilización. 
+DCO020 Desnaturalización. 
+DCO021 Retiro del mercado. 
+DCO022 Inspección. 
+DCO023 Autoridad sanitaria. 
+DCO024 Medida sanitaria. 
+DCO025 Procedencia del producto. 
+DCO026 Entrega a autoridad territorial. 
+DCO027 Riesgo crítico. 
+DCO028 Etiqueta anulada. 
+DCO029 Producto peligroso. 
+DCO030 Prueba documental. 
+DCO031 Prueba técnica. 
+DCO032 Soporte evidencial. 
+DCO033 Firma del inspector. 
+DCO034 Firma del responsable. 
+DCO035 Cierre formal del decomiso. 
+DCO036 Reporte a INVIMA. 
+DCO037 Reporte territorial. 
+DCO038 Registro SIGIV. 
+DCO039 No conformidad severa. 
+DCO040 Seguimiento posdecomiso.
+
+##REF:id_0506
+##[CHUNK_END:id_0706]
+
+ 7.7 Términos estadísticos y de bioinformación (E001E030)
+(Para análisis IA, patrones de riesgo, datos poblacionales)
+##META: section=7.7;tema=estadistica;version=1.0
+##[CHUNK_START:id_0707]
+
+E001 Indicador. 
+E002 Prevalencia. 
+E003 Incidencia. 
+E004 Riesgo relativo. 
+E005 Odds ratio. 
+E006 Tasa. 
+E007 Proporción. 
+E008 Mediana. 
+E009 Media. 
+E010 Desviación estándar. 
+E011 Percentil. 
+E012 Cuartil. 
+E013 Varianza. 
+E014 Regresión. 
+E015 Correlación. 
+E016 Sesgo. 
+E017 Error. 
+E018 Umbral. 
+E019 Clasificación. 
+E020 Agrupación (clustering). 
+E021 Series de tiempo. 
+E022 Predicción. 
+E023 Inferencia. 
+E024 Machine learning. 
+E025 Embedding. 
+E026 Tokenización. 
+E027 Chunk. 
+E028 RAG. 
+E029 Conjunto de entrenamiento. 
+E030 Matriz de confusión.
+
+##REF:id_0507
+##[CHUNK_END:id_0707]
+
+ 7.8 Términos de IA y procesamiento semántico (IA001IA040)
+(Para integración con Gemini 3 Pro dentro de VigiSalud)
+##META: section=7.8;tema=IA;version=1.0
+##[CHUNK_START:id_0708]
+
+IA001 Embedding: Representación vectorial. 
+IA002 Chunk: Unidad de análisis. 
+IA003 DSL: Lenguaje específico de dominio. 
+IA004 Prompt: Instrucción textual. 
+IA005 Context window: Ventana de contexto. 
+IA006 RAG: Recuperación + generación. 
+IA007 Indexado semántico: Organización por significado. 
+IA008 Token: Unidad mínima. 
+IA009 LlamaIndex: Framework de indexación. 
+IA010 Gemini: Modelo de IA. 
+IA011 Jules: Motor de asistentes. 
+IA012 Inferencia: Proceso de razonamiento. 
+IA013 Hallucination: Error fabricado por IA. 
+IA014 Pipeline: Flujo IA. 
+IA015 Modelo base: LLM preentrenado. 
+IA016 Fine-tuning: Ajuste de modelo. 
+IA017 Zero-shot: Sin ejemplos. 
+IA018 Few-shot: Con ejemplos. 
+IA019 Multimodal: Texto+imagen. 
+IA020 Vector store: Base vectorial. 
+IA021 Query expansion: Expansión semántica. 
+IA022 Semantic routing: Enrutamiento semántico. 
+IA023 Confidence threshold: Umbral. 
+IA024 Retrieval: Recuperación. 
+IA025 Grounding: Anclaje documental. 
+IA026 Metadata enrichment: Enriquecimiento. 
+IA027 Semantic memory: Memoria semántica. 
+IA028 Context injection: Inyección de contexto. 
+IA029 Safety layer: Capa de seguridad. 
+IA030 Auto-summarization: Resumen automático. 
+IA031 Auto-chunking: Segmentación automática. 
+IA032 Alignment: Alineación normativa. 
+IA033 Knowledge graph: Grafo de conocimiento. 
+IA034 Embedding reduction: Compresión. 
+IA035 Multistep reasoning: Razonamiento múltiple. 
+IA036 Prompt chaining: Encadenamiento. 
+IA037 Prompt routing: Enrutamiento. 
+IA038 Vector quantization: Compresión vectorial. 
+IA039 Ranking semántico: Ordenamiento. 
+IA040 Query rewriting: Reescritura inteligente.
+
+##REF:id_0608
+##[CHUNK_END:id_0708]
+
+ 7.9 Términos regulatorios avanzados (R001R030)
+(Para razonamiento legal con IA)
+##META: section=7.9;tema=regulatorio;version=1.0
+##[CHUNK_START:id_0709]
+
+R001 Interpretación normativa. 
+R002 Jerarquía normativa. 
+R003 Lineamientos técnicos. 
+R004 Especificación sanitaria. 
+R005 Artículo normativo. 
+R006 Numeral técnico. 
+R007 Norma habilitante. 
+R008 Norma de inspección. 
+R009 Competencia sanitaria. 
+R010 Autoridad delegada. 
+R011 Medida de seguridad. 
+R012 Procedimiento administrativo. 
+R013 Apertura formal. 
+R014 Evaluación basada en riesgo. 
+R015 Observancia. 
+R016 Título habilitante. 
+R017 Régimen sancionatorio. 
+R018 Acto administrativo. 
+R019 Informe motivado. 
+R020 Prueba documental. 
+R021 Prueba técnica. 
+R022 Evidencia sanitaria. 
+R023 Cadena de custodia. 
+R024 Trazabilidad documental. 
+R025 Decisión regulatoria. 
+R026 Consistencia normativa. 
+R027 Cumplimiento sanitario. 
+R028 Obligación regulatoria. 
+R029 Condición de venta. 
+R030 Requisito técnico.
+
+##REF:id_0205
+##[CHUNK_END:id_0709]
+
+ 7.10 Cierre del glosario técnico
+##META: section=7.10;tema=glosario;tipo=cierre
+##[CHUNK_START:id_0710]
+
+El presente glosario constituye un compendio técnico de los términos más 
+relevantes para sistemas de Inspección, Vigilancia y Control (IVC), 
+productos sanitarios y motores de validación regulatoria. 
+
+Su estructura IA-friendly permite:
+- generación automática de ontologías,
+- construcción de grafos normativos,
+- consultas complejas por parte de Gemini 3 Pro,
+- soporte a motores de reglas,
+- análisis semántico,
+- integración con RAG.
+
+El glosario es dinámico y se puede expandir con nuevos artefactos regulados.
+
+##REF:id_0700
+##[CHUNK_END:id_0710]
+
+===== LIMPIO_SECCION_8.TXT =====
+
+ 8.0 Introducción a los anexos
+##META: section=8.0;tema=anexos;tipo=introduccion;version=1.0
+##[CHUNK_START:id_0800]
+
+Esta sección reúne materiales técnicos diseñados para potenciar la capacidad 
+de razonamiento de modelos como Gemini 3 Pro al trabajar con el Manual Técnico 
+Extenso de Inspección, Vigilancia y Control (IVC) que estás construyendo.
+
+Incluye:
+- estructuras base para RAG,
+- templates en YAML y JSON,
+- metadatos recomendados,
+- indexación avanzada,
+- un set de instrucciones IA-friendly para 
+ ingestion, chunking, vectorización y grounding.
+
+Es la sección que convierte tu manual en una base de conocimiento plenamente 
+explotable por sistemas inteligentes.
+
+##REF:id_0700
+##[CHUNK_END:id_0800]
+
+ 8.1 Esquema maestro de chunking extremo (para RAG)
+##META: section=8.1;tema=chunking;tipo=esquema;version=1.0
+##[CHUNK_START:id_0801]
+
+Estructura sugerida para cada chunk del documento:
+
+##META: 
+ section: <id_numerico>
+ tema: <tema_principal>
+ subtipo: <subtema>
+ norma_relacionada: <decreto/ley/resolucion>
+ riesgo: <alto/medio/bajo>
+ version_chunk: 1.0
+
+##[CHUNK_START:<id_chunk>]
+ <contenido>
+##[CHUNK_END:<id_chunk>]
+
+Beneficios:
+- Navegación semántica superior
+- Razonamiento normativo más preciso
+- Recuperación contextual sin ruido
+- Facilita ensamblaje de árboles de decisión
+
+##REF:id_0001;REF:id_0608
+##[CHUNK_END:id_0801]
+
+ 8.2 Esquema YAML para indexación en Gemini 3 Pro
+##META: section=8.2;tema=YAML_indexacion;tipo=plantilla;version=1.0
+##[CHUNK_START:id_0802]
+
+index:
+ sistema: "Manual_Tecnico_IVC"
+ version: "1.0"
+ metadata:
+ pais: "Colombia"
+ entidades:
+ - INVIMA
+ - MinSalud
+ - Secretarias de Salud
+ categorias:
+ - medicamentos
+ - dispositivos_medicos
+ - cosmeticos
+ - suplementos
+ - fitoterapeuticos
+ - alimentos
+ chunk_structure:
+ meta_required: true
+ ref_links: true
+ ascii_flows: true
+
+##REF:id_0509
+##[CHUNK_END:id_0802]
+
+ 8.3 Esquema JSON para clasificador IA (riesgo sanitario)
+##META: section=8.3;tema=json_clasificador;tipo=modelo;version=1.0
+##[CHUNK_START:id_0803]
+
+{
+ "clasificador_riesgo_sanitario": {
+ "version": "1.0",
+ "categorias": [
+ "critico",
+ "alto",
+ "medio",
+ "bajo"
+ ],
+ "reglas": [
+ {
+ "condicion": "producto_sin_RS",
+ "riesgo": "critico",
+ "accion": "decomiso_inmediato"
+ },
+ {
+ "condicion": "falla_cadena_frio",
+ "riesgo": "alto",
+ "accion": "medida_sanitaria"
+ },
+ {
+ "condicion": "rotulado_inconsistente",
+ "riesgo": "medio",
+ "accion": "alerta_rotulado"
+ }
+ ]
+ }
+}
+
+##REF:id_0401
+##[CHUNK_END:id_0803]
+
+ 8.4 Plantilla para prompts especiales (Gemini 3 Pro)
+(Para consultas de interpretaciones normativas, flujos y reglas)
+##META: section=8.4;tema=prompting;tipo=plantilla;version=1.0
+##[CHUNK_START:id_0804]
+
+PROMPT TEMPLATE (Norma técnica):
+
+Contexto:
+Eres un asistente regulatorio especializado en IVC, INVIMA y normatividad sanitaria.
+
+Instrucción:
+Analiza el chunk <id_chunk> y responde según:
+
+1. Base normativa
+2. Su relación con estructuras de datos
+3. Reglas que se activan en el motor
+4. Sugerencias técnicas para la app VigiSalud
+
+Formato:
+- Hallazgos:
+- Base legal:
+- Riesgo:
+- Acción recomendada:
+
+##REF:id_0708
+##[CHUNK_END:id_0804]
+
+ 8.5 Prompt de razonamiento complejo (motor de reglas + flujos ASCII)
+##META: section=8.5;tema=prompt_avanzado;tipo=IA;version=1.0
+##[CHUNK_START:id_0805]
+
+PROMPT TEMPLATE (Razonamiento complejo):
+
+Dado el siguiente chunk y su(s) referencia(s):
+<chunk_principal>
+<lista_de_REF>
+
+Genera:
+1. Interpretación normativa.
+2. Flujo de inspección en ASCII.
+3. Acciones sanitarias sugeridas.
+4. Validación cruzada con motor de reglas.
+
+Usa la siguiente sintaxis:
+
+##FLOW: analisis_regulatorio
+START
+--> paso_1
+--> paso_2
+--> END
+
+##REF:id_XXXX
+
+##[CHUNK_END:id_0805]
+
+ 8.6 Estructura recomendada de RAG para tu app
+##META: section=8.6;tema=RAG;tipo=arquitectura;version=1.0
+##[CHUNK_START:id_0806]
+
+Arquitectura mínima para RAG en VigiSalud:
+
+1. DocumentLoader:
+ - PDF técnico-extenso
+ - Secciones en texto plano
+ - Metadata embeddings
+
+2. Chunker:
+ - 150250 palabras
+ - Incluir META + REF
+
+3. VectorStore:
+ - FAISS / Pinecone / Chroma
+
+4. Retriever:
+ - similarity_top_k: 5
+ - semantic_routing activado
+
+5. LLM:
+ - Gemini 3 Pro (preferido)
+ - Modo jurisprudencia-sanitaria
+
+6. Memory:
+ - ConversationalMemory
+ - DocumentMemory
+
+7. Grounding Layer:
+ - Motor de reglas (Sección 4)
+ - Matriz de validación (Sección 3)
+
+##REF:id_0608
+##[CHUNK_END:id_0806]
+
+ 8.7 Archivo maestro (.yaml) para iniciar un proyecto IA regulatorio
+##META: section=8.7;tema=proyecto_IA;tipo=template;version=1.0
+##[CHUNK_START:id_0807]
+
+project:
+ name: "VigiSalud_IA"
+ description: "Sistema IA para IVC e inspección sanitaria Colombia"
+ version: "1.0"
+ modules:
+ - ingestion
+ - embeddings
+ - motor_reglas
+ - razonamiento_normativo
+ - flujos_ascii
+ ingestion:
+ source:
+ - PDF_A4
+ - PDF_Letter
+ - PDF_Compacto
+ chunk_size: 200
+ include_meta: true
+ include_ref: true
+ llm:
+ model: "Gemini-3-Pro"
+ mode: "regulatorio"
+ rag:
+ similarity_metric: "cosine"
+ rerank: true
+ outputs:
+ - decisiones_sanitarias
+ - flujos_bpmn
+ - interpretaciones_normativas
+
+##REF:id_0509
+##[CHUNK_END:id_0807]
+
+ 8.8 Estructura para generar embeddings
+##META: section=8.8;tema=embeddings;tipo=estructura;version=1.0
+##[CHUNK_START:id_0808]
+
+embedding_config:
+ model: "Gemini-3-Pro-Embeddings"
+ dimensions: 3072
+ metadata_fields:
+ - section
+ - tema
+ - norma_relacionada
+ - riesgo
+ normalize: true
+ store_vectors: true
+ batch_size: 32
+
+##REF:id_0708
+##[CHUNK_END:id_0808]
+
+ 8.9 Librería DSL para tus flujos (plantilla editable)
+##META: section=8.9;tema=DSL;tipo=lenguaje;version=1.0
+##[CHUNK_START:id_0809]
+
+FLOW <nombre>:
+ START
+ --> CHECK(<condicion>)
+ --> IF(true) THEN step:<accion1>
+ --> IF(false) THEN step:<accion2>
+ --> STEP(<accion_adicional>)
+ --> END
+
+Este DSL permite:
+- construir BPMN automáticos,
+- inferir decisiones regulatorias,
+- relacionar chunks semánticamente.
+
+##REF:id_0501
+##[CHUNK_END:id_0809]
+
+ 8.10 Cierre de anexos
+##META: section=8.10;tema=cierre_anexos;version=1.0
+##[CHUNK_START:id_0810]
+
+Los anexos proveen todo lo necesario para:
+- crear un sistema IA regulatorio completo,
+- emplear el motor de reglas,
+- activar flujos ASCII,
+- usar chunking extremo,
+- trabajar con RAG avanzado,
+- integrar Gemini 3 Pro como analista normativo.
+
+Esta sección es esencial para implementar VigiSalud como plataforma inteligente.
+
+##REF:id_0800
+##[CHUNK_END:id_0810]
+
+===== LIMPIO_SECCION_9.TXT =====
+
+ 9.0 Propósito de la compilación
+##META: section=9.0;tema=compilacion;tipo=introduccion;version=1.0
+##[CHUNK_START:id_0900]
+
+Esta sección consolida las partes previas del Documento TécnicoExtenso 
+(Secciones 1 a 8) y prepara el contenido para generar automáticamente 
+los siguientes artefactos optimizados para IA:
+
+1. PDF Técnica A4 (lectura humana + IA)
+2. PDF Letter (compatibilidad universal)
+3. PDF Compacto embeddingfriendly (máxima precisión semántica)
+
+Los tres archivos contendrán:
+- chunking extremo,
+- metadatos,
+- referencias internas,
+- flujos ASCII,
+- motor de reglas,
+- matrices de validación,
+- glosario multiseccional,
+- modelos de datos,
+- anexos IA.
+
+##REF:id_0800
+##[CHUNK_END:id_0900]
+
+ 9.1 Estructura del documento compilado
+##META: section=9.1;tema=estructura_compilada;tipo=estructura;version=1.0
+##[CHUNK_START:id_0901]
+
+El documento sigue el siguiente orden lógico:
+
+1. Portada
+2. Índice
+3. Arquitectura IA (chunking extremo + REF)
+4. Marco normativo (resumen técnico articulado)
+5. Matriz de validación (200+ reglas sanitarias)
+6. Motor de reglas (JSON, YAML, pseudocódigo)
+7. Diagramas ASCII avanzados del sistema IVC
+8. Modelos de datos (UML, ER, DSL)
+9. Anexos técnicos IA (RAG, embeddings)
+10. Compilación final y exportación
+
+Este orden garantiza:
+- navegación semántica óptima,
+- interpretación estructural por LLMs,
+- capacidad de generar BPMN y reglas automáticas,
+- facilidad de versión.
+
+##REF:id_0700
+##[CHUNK_END:id_0901]
+
+ 9.2 Metadatos obligatorios para exportación
+##META: section=9.2;tema=metadatos_exportacion;tipo=config;version=1.0
+##[CHUNK_START:id_0902]
+
+Los PDFs deben llevar metadatos internos para maximizar la precisión de 
+Gemini 3 Pro en procesos de ingestión y vectorización.
+
+Metadatos sugeridos:
+
+PDF.Title: "Manual Técnico-Extenso IVC Colombia"
+PDF.Subject: "INVIMA, MinSalud, IVC, medicamentos, dispositivos médicos"
+PDF.Keywords:
+ - "sanitario"
+ - "IVC"
+ - "INVIMA"
+ - "normatividad"
+ - "Gemini3Pro"
+PDF.Author: "Generado vía IA"
+PDF.Language: "es-CO"
+PDF.Version: "1.0 IA-Optimized"
+
+Los tres PDFs deben compartir estos metadatos.
+
+##REF:id_0808
+##[CHUNK_END:id_0902]
+
+ 9.3 Reglas de ensamblaje del documento (para Python u otro generador)
+##META: section=9.3;tema=ensamblaje;tipo=metodologia;version=1.0
+##[CHUNK_START:id_0903]
+
+El ensamblaje debe seguir este orden:
+
+1. Crear documento maestro vacío.
+2. Insertar portada con título oficial.
+3. Insertar índice (Sección 2 completa).
+4. Copiar Sección 1 arquitectura documental.
+5. Copiar Sección 2 marco normativo consolidado.
+6. Copiar Sección 3 matriz de validación.
+7. Copiar Sección 4 motor de reglas.
+8. Copiar Sección 5 diagramas ASCII.
+9. Copiar Sección 6 modelos de datos.
+10. Copiar Sección 7 glosario (250 términos).
+11. Copiar Sección 8 anexos IA.
+12. Cerrar con sección 9 (compilación final).
+
+Después:
+- Generar los tres PDFs.
+- Validar integridad del documento.
+- Verificar chunk boundaries y METAs.
+
+##REF:id_0600
+##[CHUNK_END:id_0903]
+
+ 9.4 Esquema para generación de PDFs (interno del sistema)
+##META: section=9.4;tema=pdf_generacion;tipo=esquema;version=1.0
+##[CHUNK_START:id_0904]
+
+El generador debe producir tres PDFs:
+
+1) PDF_IA_A4.pdf
+ - formato A4
+ - márgenes estándar
+ - chunking y metadatos
+
+2) PDF_IA_Letter.pdf
+ - formato Letter
+ - compatibilidad USA
+ - igual estructura textual
+
+3) PDF_IA_Compacto.pdf
+ - formato reducido
+ - márgenes mínimos
+ - especial para embeddings
+ - chunking extremo
+ - sin saltos innecesarios
+
+Todos deben cumplir:
+- texto 100% seleccionable,
+- estructura lineal IAfriendly,
+- encabezado invisible para IA.
+
+##REF:id_0802
+##[CHUNK_END:id_0904]
+
+ 9.5 Validación integral antes de exportar
+##META: section=9.5;tema=validacion_exportacion;tipo=QA;version=1.0
+##[CHUNK_START:id_0905]
+
+Antes de exportar, validar:
+
+1. Que todos los chunks tienen:
+ - ##META
+ - ##[CHUNK_START]
+ - ##[CHUNK_END]
+
+2. Que todas las referencias internas ##REF existen.
+
+3. Que los flujos ASCII no tienen errores estructurales.
+
+4. Que el motor de reglas está completo (JSON + YAML + DSL).
+
+5. Que la matriz de validación tiene más de 200 reglas.
+
+6. Que el glosario tiene más de 250 términos.
+
+7. Que los metadatos del PDF están definidos.
+
+8. Que todo el documento está en UTF8.
+
+##REF:id_0509
+##[CHUNK_END:id_0905]
+
+ 9.6 Sello IA del documento (para modelos avanzados)
+##META: section=9.6;tema=sello_IA;tipo=identidad;version=1.0
+##[CHUNK_START:id_0906]
+
+SEAL_IA: "Documento estructurado para ingestión por modelos LLM regulatoriosanitarios."
+
+Incluye:
+- chunking extremo,
+- estructuras DSL,
+- motor de reglas multiformato,
+- glosario técnico extenso,
+- diagramas ASCII multilínea,
+- enlaces semánticos REF.
+
+Propósito:
+Permitir que IA genere:
+- decisiones sanitarias,
+- diagnósticos regulatorios,
+- BPMN,
+- reglas automáticas,
+- validaciones cuantitativas,
+- interpretaciones normativas.
+
+##REF:id_0809
+##[CHUNK_END:id_0906]
+
+ 9.7 Cierre de la Sección 9
+##META: section=9.7;tema=cierre;version=1.0
+##[CHUNK_START:id_0907]
+
+La Sección 9 completa la preparación necesaria para convertir las Secciones 
+1 a 9 en documentos PDF optimizados. Esta estructura permite:
+
+- ingestión perfecta por Gemini 3 Pro,
+- extracción de chunks de alta fidelidad,
+- razonamiento jurídico robusto,
+- construcción de grafos normativos,
+- generación automática de flujos,
+- integración con motores de reglas sanitarias.
+
+Documento listo para exportar a:
+
+PDF A4 
+PDF Letter 
+PDF Compacto IAFriendly 
+
+##REF:id_0900
+##[CHUNK_END:id_0907]

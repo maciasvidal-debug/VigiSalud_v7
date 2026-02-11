@@ -280,4 +280,8 @@ export const MANUAL_RULES: ManualRule[] = [
   { id: 'REG-X018', description: 'Las inconsistencias deben resolverse en sitio.', type: 'TRANSVERSAL', riskLevel: 'BAJO', norm: 'Resolución 1229/2013' },
   { id: 'REG-X019', description: 'Todo dato debe ser verificable.', type: 'TRANSVERSAL', riskLevel: 'MEDIO', norm: 'Resolución 1229/2013' },
   { id: 'REG-X020', description: 'Debe garantizarse integridad de la información.', type: 'TRANSVERSAL', riskLevel: 'ALTO', norm: 'Ley 1581/2012' }
+<<<<<<< HEAD
 ];
+=======
+];
+>>>>>>> 262520164d3350cc3825eaf394ac5eda3c23f3ca

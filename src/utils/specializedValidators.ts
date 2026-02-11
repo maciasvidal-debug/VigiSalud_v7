@@ -1,41 +1,27 @@
-// Validadores de reglas de negocio para productos farmacéuticos
 import type { ProductFinding } from '../types';
 
 /**
- * Validadores Especializados (Logic Engine v2) - VERSIÓN BLINDADA
+ * Validadores Especializados (Logic Engine v2)
+ * Funciones puras para validación técnica de productos farmacéuticos.
  */
 
 export const validateColdChain = (product: ProductFinding): { isValid: boolean; message?: string } => {
-    // Lista maestra de subtipos que requieren frío (Normalizada)
-    const coldChainSubtypes = ['BIOLOGICO', 'BIOTECNOLOGICO', 'REACTIVO_INVITRO', 'VACUNA', 'SUERO', 'INSULINA'];
-    
-    // Normalización de entradas para evitar errores por mayúsculas/minúsculas
-    const subtype = (product.subtype || '').toUpperCase();
-    const form = (product.pharmaceuticalForm || '').toUpperCase();
-    const type = (product.type || '').toUpperCase();
-
-    const needsColdChain = coldChainSubtypes.includes(subtype) || 
-                           (type === 'MEDICAMENTO' && form.includes('VACUNA'));
+    // Solo aplica a Biológicos, Reactivos In Vitro, etc.
+    const coldChainSubtypes = ['BIOLOGICO', 'BIOTECNOLOGICO', 'REACTIVO_INVITRO', 'VACUNA', 'SUERO'];
+    const needsColdChain = coldChainSubtypes.includes(product.subtype || '') || 
+                           (product.type === 'MEDICAMENTO' && (product.pharmaceuticalForm || '').includes('VACUNA')); // Fallback
 
     if (!needsColdChain) return { isValid: true };
 
-    // ALERTA CRÍTICA: Si requiere frío y no tiene dato registrado
-    if (product.storageTemp === undefined || product.storageTemp === null || product.storageTemp === '') {
-        return { isValid: false, message: 'Producto Termolábil SIN registro de temperatura.' };
-    }
+    if (!product.storageTemp) return { isValid: true }; // Si no hay dato, no podemos validar (o podría ser warning)
 
     const temp = parseFloat(product.storageTemp);
-    
-    // Validación numérica estricta
-    if (isNaN(temp)) {
-        return { isValid: false, message: 'El valor de temperatura no es numérico.' };
-    }
+    if (isNaN(temp)) return { isValid: false, message: 'Temperatura inválida' };
 
-    // Rango estricto 2°C a 8°C (Decreto 1782)
     if (temp < 2.0 || temp > 8.0) {
         return { 
             isValid: false, 
-            message: `⛔ RUPTURA DE CADENA DE FRÍO DETECTADA: ${temp}°C (Rango permitido: 2°C - 8°C). Se requiere inmovilización.` 
+            message: `Ruptura de Cadena de Frío: ${temp}°C (Rango: 2°C - 8°C)` 
         };
     }
 
@@ -45,21 +31,14 @@ export const validateColdChain = (product: ProductFinding): { isValid: boolean; 
 export const validateExpiration = (product: ProductFinding): { isValid: boolean; message?: string } => {
     if (!product.expirationDate) return { isValid: true };
 
-    // Forzar interpretación de zona horaria local para evitar errores de "día anterior"
-    // Asumiendo formato YYYY-MM-DD del input type="date"
-    const expDate = new Date(product.expirationDate + 'T00:00:00'); 
+    const expDate = new Date(product.expirationDate);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-
-    // Validación de fecha corrupta
-    if (isNaN(expDate.getTime())) {
-        return { isValid: false, message: 'Fecha de vencimiento inválida o malformada.' };
-    }
 
     if (expDate < today) {
         return { 
             isValid: false, 
-            message: `⛔ PRODUCTO VENCIDO: Expiró el ${product.expirationDate}.` 
+            message: `Producto VENCIDO (Expira: ${product.expirationDate})` 
         };
     }
 
@@ -67,15 +46,13 @@ export const validateExpiration = (product: ProductFinding): { isValid: boolean;
 };
 
 export const validateInstitucional = (product: ProductFinding): { isValid: boolean; message?: string } => {
-    // Concatenar todos los campos visuales donde podría aparecer la marca
-    const textToCheck = `${product.presentation || ''} ${product.packLabel || ''} ${product.name || ''}`;
+    const textToCheck = (product.presentation || '') + ' ' + (product.packLabel || '');
     const cleanText = textToCheck.toUpperCase();
 
-    // Lógica negativa: Si dice Institucional Y NO dice Comercial
-    if ((cleanText.includes('INSTITUCIONAL') || cleanText.includes('USO EXCLUSIVO')) && !cleanText.includes('COMERCIAL')) {
+    if (cleanText.includes('INSTITUCIONAL') && !cleanText.includes('COMERCIAL')) {
         return { 
             isValid: false, 
-            message: '⚠️ USO INSTITUCIONAL DETECTADO: Prohibida su venta en establecimiento comercial.' 
+            message: 'Uso Institucional detectado (Prohibida su venta comercial)' 
         };
     }
 

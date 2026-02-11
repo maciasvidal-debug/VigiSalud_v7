@@ -133,4 +133,4 @@ export const PRODUCT_SCHEMAS: Record<string, ProductSchema> = {
       { key: 'quantity', label: 'Cantidad', type: 'number', required: true, colSpan: 12, section: 'LOGISTICS' },
     ]
   }
-}
+};

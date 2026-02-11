@@ -18,7 +18,11 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           ref={ref}
           className={`
             w-full h-12 px-4 
+<<<<<<< HEAD
             bg-white border border-surface-border rounded-xl 
+=======
+            bg-white border border-surface-border rounded-xl
+>>>>>>> 262520164d3350cc3825eaf394ac5eda3c23f3ca
             text-content-primary font-medium placeholder:text-content-tertiary
             outline-none transition-all duration-200
             focus:border-brand focus:ring-4 focus:ring-brand/10
