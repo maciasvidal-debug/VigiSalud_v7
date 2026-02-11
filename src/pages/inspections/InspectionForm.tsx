@@ -713,6 +713,9 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       const currentSchema = PRODUCT_SCHEMAS[newProduct.type as string] || PRODUCT_SCHEMAS['OTRO'];
       const hasField = (key: string) => currentSchema.fields.some(f => f.key === key);
 
+      const namePlaceholder = currentSchema.fields.find(f => f.key === 'name')?.placeholder || "Descripción del producto...";
+      const regPlaceholder = currentSchema.fields.find(f => f.key === 'invimaReg')?.placeholder || "Número de registro / Notificación...";
+
       const getTechnicalTitle = (type: string) => {
         switch(type) {
             case 'MEDICAMENTO': return "Información Farmacológica (ATC, Principio Activo)";
@@ -793,7 +796,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                             isAutoFilled={!!newProduct.originalCumData}
                             isLocked={!isEditingMasterData && !!newProduct.originalCumData}
                             onUnlock={() => setIsEditingMasterData(true)}
-                            placeholder={currentSchema.fields.find(f => f.key === 'name')?.placeholder || "Ej: DOLEX 500MG..."}
+                            placeholder={namePlaceholder}
                             className="md:col-span-2"
                         />
                         <SmartField 
@@ -802,7 +805,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                             onChange={e => setNewProduct({...newProduct, invimaReg: e.target.value})}
                             isAutoFilled={!!newProduct.originalCumData}
                             isLocked={!isEditingMasterData && !!newProduct.originalCumData}
-                            placeholder={currentSchema.fields.find(f => f.key === 'invimaReg')?.placeholder || "Ingrese registro..."}
+                            placeholder={regPlaceholder}
                         />
 
                          {/* CONDICIONAL: Solo si el esquema lo pide o es Medicamento */}

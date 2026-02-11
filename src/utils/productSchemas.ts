@@ -65,11 +65,52 @@ export const PRODUCT_SCHEMAS: Record<string, ProductSchema> = {
   'DISPOSITIVO_MEDICO': {
     subtypes: ['EQUIPO_BIOMEDICO', 'INSUMO_MEDICO', 'INSTRUMENTAL', 'SOBRE_MEDIDA'],
     fields: [
-      { key: 'name', label: 'Nombre Dispositivo', type: 'text', required: true, colSpan: 6, section: 'HEADER' },
-      { key: 'invimaReg', label: 'Registro Sanitario', type: 'text', required: true, colSpan: 6, section: 'HEADER' },
-      { key: 'riskClassDM', label: 'Clasificación Riesgo', type: 'select', required: true, options: ['CLASE_I', 'CLASE_IIA', 'CLASE_IIB', 'CLASE_III', 'NO_APLICA'], colSpan: 4, section: 'TECHNICAL', hint: "Verifique la etiqueta trasera del equipo." },
-      { key: 'model', label: 'Modelo / Referencia', type: 'text', required: false, colSpan: 4, section: 'TECHNICAL', placeholder: "Ej: Ref. X500 / Modelo Pro..." },
-      { key: 'serial', label: 'Serie / Lote', type: 'text', required: true, colSpan: 4, section: 'TECHNICAL', placeholder: "S/N del fabricante o Lote..." },
+      {
+        key: 'name',
+        label: 'Nombre del Dispositivo / Equipo',
+        type: 'text',
+        required: true,
+        colSpan: 6,
+        section: 'HEADER',
+        placeholder: "Ej: Tensiómetro Digital, Silla de Ruedas, Gasa Estéril..." // <-- ESPECÍFICO
+      },
+      {
+        key: 'invimaReg',
+        label: 'Registro Sanitario (Vigente)',
+        type: 'text',
+        required: true,
+        colSpan: 6,
+        section: 'HEADER',
+        placeholder: "Ej: 2023DM-0012345" // <-- FORMATO DM
+      },
+      {
+        key: 'riskClassDM',
+        label: 'Clasificación de Riesgo',
+        type: 'select',
+        required: true,
+        options: ['CLASE_I', 'CLASE_IIA', 'CLASE_IIB', 'CLASE_III', 'NO_APLICA'],
+        colSpan: 4,
+        section: 'TECHNICAL',
+        hint: "Verifique la etiqueta trasera o el manual del equipo."
+      },
+      {
+        key: 'model',
+        label: 'Modelo / Referencia',
+        type: 'text',
+        required: false,
+        colSpan: 4,
+        section: 'TECHNICAL',
+        placeholder: "Ref. fabricante"
+      },
+      {
+        key: 'serial',
+        label: 'Serie / Lote',
+        type: 'text',
+        required: true,
+        colSpan: 4,
+        section: 'TECHNICAL',
+        placeholder: "S/N o Lote..."
+      },
       { key: 'expirationDate', label: 'Vida Útil (Si aplica)', type: 'date', required: false, colSpan: 6, section: 'TECHNICAL' },
       // REG-T012: Calibración
       { key: 'calibrationStatus', label: 'Estado de Calibración', type: 'select', required: true, options: ['VIGENTE', 'VENCIDA', 'NO_REQUERIDA'], colSpan: 6, section: 'TECHNICAL', triggerSubtypes: ['EQUIPO_BIOMEDICO'] },
