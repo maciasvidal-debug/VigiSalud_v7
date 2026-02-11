@@ -221,18 +221,18 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
     // Solo actuar si hay datos maestros y no estamos en modo edición manual
     if (newProduct.originalCumData?.concentration && !isEditingMasterData) {
         const raw = newProduct.originalCumData.concentration.trim();
-        // REGEX MEJORADA: Captura grupo 1 (Números, incluyendo decimales) y grupo 2 (Texto restante/Unidad)
-        // Ej: "SOL. 500 MG" -> "500", "MG"
-        const match = raw.match(/(\d+[.,]?\d*)\s*([a-zA-Z%µ./\s]+.*)/);
+
+        // Regex mejorada: Busca números en cualquier posición (Floating Regex)
+        const match = raw.match(/(\d+[.,]?\d*)\s*([a-zA-Z%µ./\s]+.*)?/);
 
         if (match) {
             setNewProduct(prev => ({
                 ...prev,
-                concentration: match[1], // Valor limpio
-                unit: match[2].trim()    // Unidad limpia
+                concentration: match[1],
+                unit: match[2] ? match[2].trim() : ''
             }));
         } else {
-             // Fallback si no hay números claros, deja raw y limpia unidad
+             // Fallback de seguridad: Muestra el dato crudo para no ocultar información
              setNewProduct(prev => ({ ...prev, concentration: raw, unit: '' }));
         }
     }
@@ -431,8 +431,17 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
 
       const parsed = parsePresentation(record.formafarmaceutica, record.descripcioncomercial);
 
+      // --- LOGIC FIX: CUM SANITIZATION ---
+      const cleanExp = record.expediente.trim();
+      const cleanCons = (record.consecutivocum || '').trim();
+
+      // Prevención de doble consecutivo (Ej: "123-1" + "1" -> "123-1")
+      const finalCum = (cleanCons && !cleanExp.endsWith(`-${cleanCons}`))
+          ? `${cleanExp}-${cleanCons}`
+          : cleanExp;
+
       const mappedProduct: Partial<ProductFinding> = {
-          cum: record.expediente + (record.consecutivocum ? `-${record.consecutivocum}` : ''), 
+          cum: finalCum,
           name: record.producto,
           manufacturer: record.titular,
           invimaReg: record.registrosanitario,
