@@ -67,9 +67,9 @@ export const PRODUCT_SCHEMAS: Record<string, ProductSchema> = {
     fields: [
       { key: 'name', label: 'Nombre Dispositivo', type: 'text', required: true, colSpan: 6, section: 'HEADER' },
       { key: 'invimaReg', label: 'Registro Sanitario', type: 'text', required: true, colSpan: 6, section: 'HEADER' },
-      { key: 'riskClassDM', label: 'Clasificación Riesgo', type: 'select', required: true, options: ['CLASE_I', 'CLASE_IIA', 'CLASE_IIB', 'CLASE_III', 'NO_APLICA'], colSpan: 4, section: 'TECHNICAL' },
-      { key: 'model', label: 'Modelo / Referencia', type: 'text', required: false, colSpan: 4, section: 'TECHNICAL' },
-      { key: 'serial', label: 'Serie / Lote', type: 'text', required: true, colSpan: 4, section: 'TECHNICAL' },
+      { key: 'riskClassDM', label: 'Clasificación Riesgo', type: 'select', required: true, options: ['CLASE_I', 'CLASE_IIA', 'CLASE_IIB', 'CLASE_III', 'NO_APLICA'], colSpan: 4, section: 'TECHNICAL', hint: "Verifique la etiqueta trasera del equipo." },
+      { key: 'model', label: 'Modelo / Referencia', type: 'text', required: false, colSpan: 4, section: 'TECHNICAL', placeholder: "Ej: Ref. X500 / Modelo Pro..." },
+      { key: 'serial', label: 'Serie / Lote', type: 'text', required: true, colSpan: 4, section: 'TECHNICAL', placeholder: "S/N del fabricante o Lote..." },
       { key: 'expirationDate', label: 'Vida Útil (Si aplica)', type: 'date', required: false, colSpan: 6, section: 'TECHNICAL' },
       // REG-T012: Calibración
       { key: 'calibrationStatus', label: 'Estado de Calibración', type: 'select', required: true, options: ['VIGENTE', 'VENCIDA', 'NO_REQUERIDA'], colSpan: 6, section: 'TECHNICAL', triggerSubtypes: ['EQUIPO_BIOMEDICO'] },
@@ -95,8 +95,8 @@ export const PRODUCT_SCHEMAS: Record<string, ProductSchema> = {
   'ALIMENTO': { 
     subtypes: ['PERECEDERO', 'NO_PERECEDERO'], 
     fields: [
-      {key:'name', label:'Nombre Alimento', type:'text', required:true, colSpan:6, section:'HEADER'}, 
-      {key:'invimaReg', label:'Notificación/RSA', type:'text', required:true, colSpan:6, section:'HEADER'}, 
+      {key:'name', label:'Nombre Alimento', type:'text', required:true, colSpan:6, section:'HEADER', placeholder: "Descripción exacta (Ej: Queso Mozzarella...)"},
+      {key:'invimaReg', label:'Notificación/RSA', type:'text', required:true, colSpan:6, section:'HEADER', placeholder: "Ej: RSA-001234-2023"},
       {key:'lot', label:'Lote', type:'text', required:true, colSpan:4, section:'TECHNICAL'}, 
       {key:'expirationDate', label:'Vence', type:'date', required:true, colSpan:4, section:'TECHNICAL'}, 
       {key:'quantity', label:'Cant', type:'number', required:true, colSpan:4, section:'LOGISTICS'}
@@ -107,8 +107,8 @@ export const PRODUCT_SCHEMAS: Record<string, ProductSchema> = {
     subtypes: ['GENERAL'], 
     fields: [
       {key:'name', label:'Nombre Producto', type:'text', required:true, colSpan:6, section:'HEADER'}, 
-      {key:'invimaReg', label:'NSO (Notificación)', type:'text', required:true, colSpan:6, section:'HEADER'}, 
-      {key:'lot', label:'Lote', type:'text', required:true, colSpan:4, section:'TECHNICAL'}, 
+      {key:'invimaReg', label:'NSO (Notificación)', type:'text', required:true, colSpan:6, section:'HEADER', placeholder: "Ej: NSOC12345-23CO"},
+      {key:'lot', label:'Lote', type:'text', required:true, colSpan:4, section:'TECHNICAL', placeholder: "Alfanumérico (Base/Empaque)"},
       {key:'quantity', label:'Cant', type:'number', required:true, colSpan:12, section:'LOGISTICS'}
     ] 
   },

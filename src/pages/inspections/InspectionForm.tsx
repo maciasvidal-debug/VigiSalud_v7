@@ -713,6 +713,16 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       const currentSchema = PRODUCT_SCHEMAS[newProduct.type as string] || PRODUCT_SCHEMAS['OTRO'];
       const hasField = (key: string) => currentSchema.fields.some(f => f.key === key);
 
+      const getTechnicalTitle = (type: string) => {
+        switch(type) {
+            case 'MEDICAMENTO': return "Información Farmacológica (ATC, Principio Activo)";
+            case 'DISPOSITIVO_MEDICO': return "Especificaciones Técnicas (Serie, Modelo, Riesgo)";
+            case 'ALIMENTO': return "Detalles de Lote y Fechas";
+            case 'REACTIVO_DIAGNOSTICO': return "Cadena de Frío y Técnica";
+            default: return "Detalles Técnicos Específicos";
+        }
+      };
+
       return (
         <div className="space-y-8">
             {/* BLOCK 0: SEARCH & CLASSIFICATION */}
@@ -783,15 +793,16 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                             isAutoFilled={!!newProduct.originalCumData}
                             isLocked={!isEditingMasterData && !!newProduct.originalCumData}
                             onUnlock={() => setIsEditingMasterData(true)}
-                            placeholder={newProduct.type === 'DISPOSITIVO_MEDICO' ? "Ej: Equipo de Órganos..." : "Ej: DOLEX 500MG..."}
+                            placeholder={currentSchema.fields.find(f => f.key === 'name')?.placeholder || "Ej: DOLEX 500MG..."}
                             className="md:col-span-2"
                         />
                         <SmartField 
-                            label={newProduct.type === 'ALIMENTO' ? "Notificación Sanitaria / RSA" : "Registro Sanitario / INVIMA"}
+                            label={currentSchema.fields.find(f => f.key === 'invimaReg')?.label || "Registro Sanitario / INVIMA"}
                             value={newProduct.invimaReg || ''} 
                             onChange={e => setNewProduct({...newProduct, invimaReg: e.target.value})}
                             isAutoFilled={!!newProduct.originalCumData}
                             isLocked={!isEditingMasterData && !!newProduct.originalCumData}
+                            placeholder={currentSchema.fields.find(f => f.key === 'invimaReg')?.placeholder || "Ingrese registro..."}
                         />
 
                          {/* CONDICIONAL: Solo si el esquema lo pide o es Medicamento */}
@@ -866,7 +877,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                     {technicalFields.length > 0 && (
                         <details className="group border border-slate-200 rounded-xl overflow-hidden bg-slate-50/50">
                             <summary className="p-4 font-bold text-slate-600 cursor-pointer flex justify-between items-center hover:bg-slate-100 transition-colors select-none">
-                                <span className="flex items-center gap-2 text-xs uppercase tracking-wider"><Icon name="sliders" size={16}/> Ver Ficha Técnica (Principio Activo, ATC...)</span>
+                                <span className="flex items-center gap-2 text-xs uppercase tracking-wider"><Icon name="sliders" size={16}/> {getTechnicalTitle(newProduct.type as string)}</span>
                                 <Icon name="chevron-down" size={16} className="group-open:rotate-180 transition-transform text-slate-400"/>
                             </summary>
                             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-slate-200">
@@ -892,6 +903,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                                                     </select>
                                                     <div className="absolute right-4 top-3.5 text-slate-400 pointer-events-none"><Icon name="chevron-down" size={16}/></div>
                                                 </div>
+                                                {field.hint && <p className="text-[9px] text-slate-400 mt-1 flex items-center gap-1"><Icon name="info" size={10}/> {field.hint}</p>}
                                             </div>
                                         );
                                     }
@@ -904,6 +916,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                                             isAutoFilled={!!newProduct.originalCumData}
                                             isLocked={!isEditingMasterData && !!newProduct.originalCumData}
                                             className={field.colSpan ? `md:col-span-${Math.ceil(field.colSpan / 6)}` : ''}
+                                            hint={field.hint}
                                         />
                                     );
                                 })}
@@ -1576,7 +1589,8 @@ const SmartField: React.FC<{
     type?: string;
     className?: string;
     readOnly?: boolean;
-}> = ({ label, value, onChange, isAutoFilled, isLocked, onUnlock, placeholder, type = 'text', className, readOnly }) => {
+    hint?: string;
+}> = ({ label, value, onChange, isAutoFilled, isLocked, onUnlock, placeholder, type = 'text', className, readOnly, hint }) => {
     return (
         <div className={className}>
             <label className="text-[10px] font-bold text-slate-400 uppercase mb-1.5 flex items-center justify-between">
@@ -1616,6 +1630,7 @@ const SmartField: React.FC<{
                      </div>
                  )}
             </div>
+            {hint && <p className="text-[9px] text-slate-400 mt-1 flex items-center gap-1"><Icon name="info" size={10}/> {hint}</p>}
         </div>
     );
 };
