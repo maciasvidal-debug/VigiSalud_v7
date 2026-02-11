@@ -15,7 +15,7 @@ import { generateInspectionHash } from '../../utils/crypto';
 import { inspectionEngine } from '../../utils/inspectionEngine';
 import { TacticalMatrix } from '../../components/inspection/TacticalMatrix';
 import { SeizureCalculator } from '../../components/seizure/SeizureCalculator'; 
-import { PRODUCT_SCHEMAS } from '../../utils/productSchemas';
+import { PRODUCT_SCHEMAS } from '../../utils/productSchemas'; 
 import { generateInspectionPDF } from '../../utils/PdfGenerator'; 
 import { parsePresentation } from '../../utils/PharmaParser';
 import { validateColdChain, validateExpiration, validateInstitucional } from '../../utils/specializedValidators';
@@ -32,7 +32,7 @@ import type {
     CustodyChain, 
     ProductSubtype, 
     SeizureLogistics, 
-    ExtendedCumRecord,
+    ExtendedCumRecord, 
     ConceptType,
     InspectionAttendee
 } from '../../types';
@@ -60,8 +60,8 @@ interface LocalProductFinding extends ProductFinding {
     isExpanded?: boolean;
     hasEvidence?: boolean;
     containerId?: string; 
-    originalCumData?: Partial<ProductFinding>;
-    originalInput?: { packs: number; loose: number };
+    originalCumData?: Partial<ProductFinding>; 
+    originalInput?: { packs: number; loose: number }; 
     validationStatus?: 'VALID' | 'WARNING' | 'ERROR';
     validationMessage?: string;
 }
@@ -70,7 +70,7 @@ interface EvidenceContainer {
     id: string;
     type: 'BOLSA_SEGURIDAD' | 'CAJA_SELLADA' | 'NEVERA_PORTATIL' | 'SOBRE_MANILA';
     code: string; 
-    items: string[];
+    items: string[]; 
     weight?: number;
     sealedAt?: string;
 }
@@ -134,6 +134,8 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
   const [isListening, setIsListening] = useState<string | null>(null); 
   const [isAddingProduct, setIsAddingProduct] = useState(false); // IDEMPOTENCY SHIELD
 
+  console.log("RENDER InspectionForm. packsInput:", packsInput, " isReportingIssue:", isReportingIssue);
+
   const addAttendee = (role: InspectionAttendee['role']) => {
       setAttendees(prev => [...prev, { id: crypto.randomUUID(), name: '', idNumber: '', role, signature: null }]);
   };
@@ -160,11 +162,11 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       atcCode?: string;
       logistics?: SeizureLogistics;
       originalCumData?: Partial<ProductFinding>;
-      calibrationStatus?: string;
+      calibrationStatus?: string; 
   }>({
     type: 'MEDICAMENTO', 
     subtype: 'SINTESIS_QUIMICA', 
-    name: '', manufacturer: '', riskFactors: [], seizureType: 'NINGUNO', quantity: 0,
+    name: '', manufacturer: '', riskFactors: [], seizureType: 'NINGUNO', quantity: 0, 
     cum: '', invimaReg: '', lot: '', serial: '', storageTemp: '', coldChainStatus: '', presentation: '',
     pharmaceuticalForm: '', activePrinciple: '', concentration: '', unit: '', viaAdministration: '', atcCode: '',
     packLabel: '', logistics: undefined, calibrationStatus: ''
@@ -222,14 +224,14 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
     // Solo actuar si hay datos maestros y no estamos en modo edición manual
     if (newProduct.originalCumData?.concentration && !isEditingMasterData) {
         const raw = newProduct.originalCumData.concentration.trim();
-
+        
         // Regex mejorada: Busca números en cualquier posición (Floating Regex)
         const match = raw.match(/(\d+[.,]?\d*)\s*([a-zA-Z%µ./\s]+.*)?/);
-
+        
         if (match) {
             setNewProduct(prev => ({
                 ...prev,
-                concentration: match[1],
+                concentration: match[1], 
                 unit: match[2] ? match[2].trim() : ''
             }));
         } else {
@@ -244,13 +246,13 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
     if (newProduct.expirationDate && !isReportingIssue) {
         const expDate = new Date(newProduct.expirationDate);
         const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        today.setHours(0, 0, 0, 0); 
         if (expDate < today) {
             setIsReportingIssue(true);
-            setNewProduct(prev => ({
-                ...prev,
+            setNewProduct(prev => ({ 
+                ...prev, 
                 riskFactors: Array.from(new Set([...(prev.riskFactors || []), 'VENCIDO'] as RiskFactor[])),
-                seizureType: 'DECOMISO'
+                seizureType: 'DECOMISO' 
             }));
             showToast("⚠️ ALERTA: La fecha indica que el producto está VENCIDO.", "warning");
         }
@@ -258,8 +260,8 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
   }, [newProduct.expirationDate, isReportingIssue, showToast]);
 
   // --- MONITOR CADENA DE FRÍO ---
-  const needsColdChain = useMemo(() =>
-      newProduct.type === 'MEDICAMENTO' &&
+  const needsColdChain = useMemo(() => 
+      newProduct.type === 'MEDICAMENTO' && 
       ['BIOLOGICO', 'BIOTECNOLOGICO', 'REACTIVO_INVITRO'].includes(newProduct.subtype as string),
   [newProduct.type, newProduct.subtype]);
 
@@ -269,8 +271,8 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
           if (!isNaN(temp)) {
               if (temp < 2.0 || temp > 8.0) {
                   if (newProduct.coldChainStatus !== 'INCUMPLE') {
-                      setNewProduct(prev => ({
-                          ...prev,
+                      setNewProduct(prev => ({ 
+                          ...prev, 
                           coldChainStatus: 'INCUMPLE',
                           riskFactors: Array.from(new Set([...(prev.riskFactors || []), 'MAL_ALMACENAMIENTO'] as RiskFactor[]))
                       }));
@@ -278,8 +280,8 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                   }
               } else {
                   if (newProduct.coldChainStatus === 'INCUMPLE') {
-                      setNewProduct(prev => ({
-                          ...prev,
+                      setNewProduct(prev => ({ 
+                          ...prev, 
                           coldChainStatus: 'CUMPLE',
                           riskFactors: (prev.riskFactors || []).filter(r => r !== 'MAL_ALMACENAMIENTO')
                       }));
@@ -295,10 +297,10 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
           const text = newProduct.presentation.toUpperCase();
           if (text.includes("MUESTRA") && !(newProduct.riskFactors || []).includes('MUESTRA_MEDICA') && !isReportingIssue) {
               setIsReportingIssue(true);
-              setNewProduct(prev => ({
-                  ...prev,
+              setNewProduct(prev => ({ 
+                  ...prev, 
                   riskFactors: Array.from(new Set([...(prev.riskFactors || []), 'MUESTRA_MEDICA'] as RiskFactor[])),
-                  seizureType: 'DECOMISO'
+                  seizureType: 'DECOMISO' 
               }));
               showToast("⛔ ALERTA: Prohibida la venta de Muestras Médicas.", "error");
           }
@@ -328,7 +330,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
   const addContainer = () => { 
       if (!newContainer.code) { showToast("⚠️ Código de precinto requerido.", 'warning'); return; } 
       const newId = crypto.randomUUID(); 
-      setContainers(prev => [...prev, { id: newId, type: newContainer.type as any, code: newContainer.code, items: [] }]);
+      setContainers(prev => [...prev, { id: newId, type: newContainer.type as any, code: newContainer.code, items: [] }]); 
       setNewContainer({ ...newContainer, code: '' }); 
       showToast("Contenedor creado.", 'success');
   };
@@ -364,7 +366,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       let results: ExtendedCumRecord[] = [];
       try {
           if (!cleanQuery) { setCumResults([]); setIsSearchingCum(false); return; }
-
+          
           // ESTRATEGIA DE BÚSQUEDA PARALELA
           const promises = [];
 
@@ -387,11 +389,11 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
 
           // Ejecutar en paralelo
           const rawResults = await Promise.all(promises);
-
+          
           // Aplanar y Unificar (Deduplicación por Expediente + Consecutivo)
           const flatResults = rawResults.flat();
           const uniqueMap = new Map();
-
+          
           flatResults.forEach((item: any) => {
               const uniqueKey = `${item.expediente}-${item.consecutivocum}`;
               if (!uniqueMap.has(uniqueKey)) {
@@ -401,7 +403,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
 
           results = Array.from(uniqueMap.values()) as ExtendedCumRecord[];
 
-      } catch (e) { console.error("Error CUM Search:", e); }
+      } catch (e) { console.error("Error CUM Search:", e); } 
       finally {
           setCumResults(results);
           setIsSearchingCum(false);
@@ -411,14 +413,14 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
 
   useEffect(() => {
       if (!showCumModal) return; 
-      const timer = setTimeout(() => { if (cumQuery.length > 2) searchCum(cumQuery); }, 400);
+      const timer = setTimeout(() => { if (cumQuery.length > 2) searchCum(cumQuery); }, 400); 
       return () => clearTimeout(timer);
   }, [cumQuery, showCumModal]);
 
   const selectFromModal = (record: ExtendedCumRecord) => {
       let validation: 'VALID' | 'EXPIRED' | 'SUSPENDED' | 'REVOKED' = 'VALID';
       const status = record.estadoregistro ? record.estadoregistro.toUpperCase() : '';
-      if (status.includes('VENCID') || status.includes('CANCELAD') || status.includes('REVOCAD')) { validation = 'EXPIRED'; }
+      if (status.includes('VENCID') || status.includes('CANCELAD') || status.includes('REVOCAD')) { validation = 'EXPIRED'; } 
       else if (record.fechavencimiento) {
           const expiration = new Date(record.fechavencimiento);
           if (expiration < new Date()) validation = 'EXPIRED';
@@ -435,22 +437,22 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       // --- LOGIC FIX: CUM SANITIZATION ---
       const cleanExp = record.expediente.trim();
       const cleanCons = (record.consecutivocum || '').trim();
-
+      
       // Prevención de doble consecutivo (Ej: "123-1" + "1" -> "123-1")
-      const finalCum = (cleanCons && !cleanExp.endsWith(`-${cleanCons}`))
-          ? `${cleanExp}-${cleanCons}`
+      const finalCum = (cleanCons && !cleanExp.endsWith(`-${cleanCons}`)) 
+          ? `${cleanExp}-${cleanCons}` 
           : cleanExp;
 
       const mappedProduct: Partial<ProductFinding> = {
-          cum: finalCum,
+          cum: finalCum, 
           name: record.producto,
           manufacturer: record.titular,
           invimaReg: record.registrosanitario,
           presentation: parsed.detectedString, // Usar string limpio
           pharmaceuticalForm: record.formafarmaceutica,
           activePrinciple: record.principioactivo,
-          concentration: record.concentracion,
-          unit: record.unidadmedida,
+          concentration: record.concentracion, 
+          unit: record.unidadmedida, 
           viaAdministration: record.viaadministracion,
           atcCode: record.atc,
           riskFactors: validation !== 'VALID' ? [(validation === 'EXPIRED' ? 'VENCIDO' : 'SIN_REGISTRO')] : []
@@ -470,18 +472,22 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
   }, []);
 
   const commitProduct = (overrideEvidence: boolean) => {
+      console.log("COMMIT PRODUCT CALLED. Inputs:", { packsInput, looseInput, manualTotal: (packsInput * parsedModel.packFactor) + looseInput, newProductQty: newProduct.quantity });
       const currentRisks = newProduct.riskFactors || [];
       let finalQuantity = 0;
       let smartLabel = '';
       let currentLogistics = newProduct.logistics;
 
-      if (!isReportingIssue && newProduct.presentation && newProduct.pharmaceuticalForm) {
-          finalQuantity = (packsInput * parsedModel.packFactor) + looseInput;
+      // Hybrid Quantity Logic: Prefer Manual Input if available and valid, unless SeizureCalculator overrides
+      const manualTotal = (packsInput * parsedModel.packFactor) + looseInput;
+      
+      if (manualTotal > 0 && (!newProduct.quantity || newProduct.quantity === 0)) {
+          finalQuantity = manualTotal;
           if (packsInput > 0 && looseInput > 0) smartLabel = `${packsInput} ${parsedModel.packType}s + ${looseInput} ${parsedModel.containerType}s`;
           else if (packsInput > 0) smartLabel = `${packsInput} ${parsedModel.packType}s`;
           else smartLabel = `${looseInput} ${parsedModel.containerType}s`;
-
-          if (!currentLogistics) {
+          
+           if (!currentLogistics) {
               currentLogistics = {
                   presentation: parsedModel,
                   inputs: { packs: packsInput, loose: looseInput },
@@ -490,6 +496,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
               };
           }
       } else {
+          // Fallback to SeizureCalculator or direct quantity state
           finalQuantity = newProduct.quantity || 0;
           smartLabel = newProduct.packLabel || `${finalQuantity} Unidades`;
       }
@@ -524,25 +531,25 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
   };
 
   const handleAddProduct = (isConform: boolean) => {
-    if (isAddingProduct) return;
+    if (isAddingProduct) return; 
     setIsAddingProduct(true); // 🔴 LOCK
 
     setFormError(null); 
-
+    
     // Helper para liberar (Safety Timeout)
     const releaseLock = () => setTimeout(() => setIsAddingProduct(false), 300);
 
     try {
         if (!newProduct.name) { throw new Error("El nombre del producto es obligatorio."); }
-
+        
         // ... (Mantén aquí la lógica de inspectionEngine.validateProduct) ...
         const effectiveRisks = isConform ? [] : (newProduct.riskFactors || []);
         const validation = inspectionEngine.validateProduct({ ...newProduct, riskFactors: effectiveRisks } as ProductFinding);
 
         if (!validation.isValid) {
             const violationsText = validation.violations.map(v => `${v.id}: ${v.description}`).join(' | ');
-            if (isConform && validation.violations.some(v => v.riskLevel === 'CRITICO')) {
-                throw new Error(`⛔ BLOQUEO REGULATORIO: ${violationsText}`);
+            if (isConform && validation.violations.some(v => v.riskLevel === 'CRITICO')) { 
+                throw new Error(`⛔ BLOQUEO REGULATORIO: ${violationsText}`); 
             }
             if (!isConform) { showToast(`⚠️ Alerta Regulatoria: ${violationsText}`, 'warning'); }
         }
@@ -556,7 +563,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                  newProduct.coldChainStatus = 'INCUMPLE';
             }
         }
-
+        
         const expVal = validateExpiration(newProduct as ProductFinding);
         if (!expVal.isValid) {
             if (isConform) throw new Error(`⛔ ${expVal.message}`);
@@ -571,7 +578,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
 
         // --- VALIDACIONES SECTORIALES (SPRINT 5) ---
         const sectorialResult = sectorialValidators.analyze(newProduct as ProductFinding, products);
-
+        
         // Procesar Alertas
         sectorialResult.alerts.forEach(alert => {
             showToast(alert.message, alert.severity === 'ERROR' ? 'error' : 'warning');
@@ -587,7 +594,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                 effectiveRisks.push(risk);
             }
         });
-
+        
         // Si se agregaron riesgos críticos nuevos, verificar consistencia
         if (isConform && effectiveRisks.length > 0) {
              throw new Error("Inconsistencia: Detectados riesgos sectoriales. No puede ser Conforme.");
@@ -597,17 +604,17 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
         // --- FIN VALIDACIONES ESPECIALIZADAS ---
 
         // Lógica de Modal de Evidencia (Fix Deadlock anterior)
-        if (!isConform && effectiveRisks.length > 0 && !evidenceTemp) {
-            setShowEvidenceModal(true);
+        if (!isConform && effectiveRisks.length > 0 && !evidenceTemp) { 
+            setShowEvidenceModal(true); 
             releaseLock(); // ✅ LIBERAR ANTES DE SALIR
-            return;
+            return; 
         }
-
+        
         // 5. Commit Final
         if (!validation.isValid && validation.violations.length > 0) { newProduct.regRuleRef = validation.violations[0].id; }
 
         commitProduct(evidenceTemp || isConform);
-
+        
     } catch (error: any) {
         console.error(error);
         setFormError(error.message);
@@ -647,24 +654,24 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
       let seizureRecord: CustodyChain | undefined = undefined;
       if (products.some(p => p.seizureType !== 'NINGUNO')) {
         seizureRecord = { 
-            id: crypto.randomUUID(), visitId: 0, items: products.filter(p => p.seizureType !== 'NINGUNO'), status: 'EN_CUSTODIA',
-            seizedBy: contextData?.actId || 'INSPECTOR', seizedAt: new Date().toISOString(), depositLocation: custodyData.depositLocation || '',
-            transportCompany: custodyData.transportCompany, transportPlate: custodyData.transportPlate, driverName: custodyData.driverName
+            id: crypto.randomUUID(), visitId: 0, items: products.filter(p => p.seizureType !== 'NINGUNO'), status: 'EN_CUSTODIA', 
+            seizedBy: contextData?.actId || 'INSPECTOR', seizedAt: new Date().toISOString(), depositLocation: custodyData.depositLocation || '', 
+            transportCompany: custodyData.transportCompany, transportPlate: custodyData.transportPlate, driverName: custodyData.driverName 
         };
       }
       const reportDraft: Partial<Report> = {
-        date: new Date().toISOString(), establishment_id: establishmentId, est: establishment.name, category: establishment.category,
-        nit: establishment.nit, address: establishment.address, concept: concept, riskScore: score, riskLevel: score < 60 ? 'CRITICO' : 'BAJO',
-        func: "INSPECTOR VIGISALUD", data: { actId: contextData?.actId || '', motive: contextData?.motive || '', status: 'ATENDIDA',
-            attendedBy: contextData?.attendedBy || '', attendedId: contextData?.attendedId, attendedRole: contextData?.attendedRole, gpsBypass: false,
-            attendees: attendees, inspectionNarrative, legalBasis, city: establishment.city }, findings: checklistResponses, products: products,
+        date: new Date().toISOString(), establishment_id: establishmentId, est: establishment.name, category: establishment.category, 
+        nit: establishment.nit, address: establishment.address, concept: concept, riskScore: score, riskLevel: score < 60 ? 'CRITICO' : 'BAJO', 
+        func: "INSPECTOR VIGISALUD", data: { actId: contextData?.actId || '', motive: contextData?.motive || '', status: 'ATENDIDA', 
+            attendedBy: contextData?.attendedBy || '', attendedId: contextData?.attendedId, attendedRole: contextData?.attendedRole, gpsBypass: false, 
+            attendees: attendees, inspectionNarrative, legalBasis, city: establishment.city }, findings: checklistResponses, products: products, 
         seizure: seizureRecord, signature: null, citizenFeedback: { text: citizenObservation, signature: '', agreed: true }
       };
       setPendingReportData(reportDraft); 
       const blob = await generateInspectionPDF(reportDraft as Report, true); 
       setPdfBlobUrl(URL.createObjectURL(blob));
       setShowDraftModal(true);
-    } catch (e) { console.error(e); showToast("Error generando el PDF del acta.", 'error'); }
+    } catch (e) { console.error(e); showToast("Error generando el PDF del acta.", 'error'); } 
     finally { setLoading(false); }
   };
 
@@ -677,7 +684,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
           await db.inspections.add(pendingReportData as Report);
           showToast(`✅ Acta N° ${pendingReportData.data?.actId} cerrada correctamente.`, 'success');
           navigate('/dashboard/inspections');
-      } catch (e) { console.error(e); showToast("Error guardando en base de datos local.", 'error'); }
+      } catch (e) { console.error(e); showToast("Error guardando en base de datos local.", 'error'); } 
       finally { setLoading(false); setShowDraftModal(false); }
   };
 
@@ -699,20 +706,17 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
   const renderProductForm = () => {
       const isTypeSelected = !!newProduct.type && !!newProduct.subtype;
       const isIdentityFilled = !!newProduct.name;
-      const isTraceabilityFilled = !!newProduct.lot;
+      // Trazabilidad llena si tiene Lote Y Vencimiento (o si es Dispositivo/Reactivo que a veces no tiene vencimiento explícito pero asumamos que sí para simplificar, o ajustamos la lógica)
+      // Para MVP Focus Flow: Lote es clave.
+      const isTraceabilityFilled = !!newProduct.lot; 
       
-      const currentSchema = PRODUCT_SCHEMAS[newProduct.type as string] || PRODUCT_SCHEMAS['OTRO'];
-      const technicalFieldsKeys = ['atcCode', 'viaAdministration', 'activePrinciple', 'pharmaceuticalForm'];
-      const technicalFields = currentSchema.fields.filter(f => technicalFieldsKeys.includes(f.key));
-      const hasField = (key: string) => currentSchema.fields.some(f => f.key === key);
-
       return (
         <div className="space-y-8">
             {/* BLOCK 0: SEARCH & CLASSIFICATION */}
-            <FocusSection
-                title="1. Clasificación y Búsqueda"
-                icon="search"
-                isActive={true}
+            <FocusSection 
+                title="1. Clasificación y Búsqueda" 
+                icon="search" 
+                isActive={true} 
                 isDone={isTypeSelected && isIdentityFilled}
             >
                 <div className="space-y-6">
@@ -736,19 +740,19 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                              </div>
                         </div>
                     </div>
-
+                    
                     <div className="relative group">
                          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                             <Icon name="search" className="text-slate-400 group-focus-within:text-blue-500 transition-colors" size={24}/>
                          </div>
-                         <input
+                         <input 
                             className="w-full h-16 pl-14 pr-24 rounded-2xl border-2 border-slate-200 text-lg font-bold text-slate-700 shadow-sm focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all outline-none"
                             placeholder="Escanee CUM o Digite Nombre/Expediente..."
                             value={newProduct.cum || ''}
                             onChange={(e) => setNewProduct(prev => ({...prev, cum: e.target.value}))}
                             onKeyDown={(e) => { if(e.key === 'Enter') { setCumQuery(newProduct.cum || ''); setShowCumModal(true); } }}
                          />
-                         <button
+                         <button 
                             onClick={() => { setCumQuery(newProduct.cum || ''); setShowCumModal(true); }}
                             className="absolute right-3 top-3 h-10 px-6 bg-slate-900 text-white rounded-xl font-bold text-xs hover:bg-slate-800 transition-colors shadow-lg"
                          >
@@ -759,17 +763,17 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
             </FocusSection>
 
             {/* BLOCK 1: IDENTITY */}
-            <FocusSection
-                title="2. Identificación del Producto"
-                icon="tag"
-                isActive={isTypeSelected && (!!newProduct.cum || isIdentityFilled || newProduct.name !== '')}
+            <FocusSection 
+                title="2. Identificación del Producto" 
+                icon="tag" 
+                isActive={isTypeSelected && (!!newProduct.cum || isIdentityFilled || newProduct.name !== '')} 
                 isDone={isIdentityFilled && !!newProduct.invimaReg}
             >
                 <div className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <SmartField
-                            label="Nombre del Producto"
-                            value={newProduct.name || ''}
+                        <SmartField 
+                            label="Nombre del Producto" 
+                            value={newProduct.name || ''} 
                             onChange={e => setNewProduct({...newProduct, name: e.target.value})}
                             isAutoFilled={!!newProduct.originalCumData}
                             isLocked={!isEditingMasterData && !!newProduct.originalCumData}
@@ -777,23 +781,23 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                             placeholder="Ej: DOLEX 500MG..."
                             className="md:col-span-2"
                         />
-                        <SmartField
-                            label="Registro Sanitario / INVIMA"
-                            value={newProduct.invimaReg || ''}
+                        <SmartField 
+                            label="Registro Sanitario / INVIMA" 
+                            value={newProduct.invimaReg || ''} 
                             onChange={e => setNewProduct({...newProduct, invimaReg: e.target.value})}
                             isAutoFilled={!!newProduct.originalCumData}
                             isLocked={!isEditingMasterData && !!newProduct.originalCumData}
                         />
-                         <SmartField
-                            label="Laboratorio Titular"
-                            value={newProduct.manufacturer || ''}
+                         <SmartField 
+                            label="Laboratorio Titular" 
+                            value={newProduct.manufacturer || ''} 
                             onChange={e => setNewProduct({...newProduct, manufacturer: e.target.value})}
                             isAutoFilled={!!newProduct.originalCumData}
                             isLocked={!isEditingMasterData && !!newProduct.originalCumData}
                         />
-                         <SmartField
-                            label="Presentación Comercial"
-                            value={newProduct.presentation || ''}
+                         <SmartField 
+                            label="Presentación Comercial" 
+                            value={newProduct.presentation || ''} 
                             onChange={e => setNewProduct({...newProduct, presentation: e.target.value})}
                             isAutoFilled={!!newProduct.originalCumData}
                             isLocked={!isEditingMasterData && !!newProduct.originalCumData}
@@ -807,17 +811,17 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                             </label>
                             <div className="flex shadow-sm rounded-xl overflow-hidden border border-slate-300 focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-50 transition-all">
                                 {/* INPUT VALOR (70%) */}
-                                <input
-                                    type="text"
+                                <input 
+                                    type="text" 
                                     value={newProduct.concentration || ''}
                                     onChange={e => setNewProduct({...newProduct, concentration: e.target.value})}
                                     placeholder="Valor (Ej: 500)"
-                                    disabled={!isEditingMasterData && !!newProduct.originalCumData}
+                                    disabled={!isEditingMasterData && !!newProduct.originalCumData} 
                                     className={`flex-1 h-11 pl-4 pr-2 font-bold text-lg outline-none border-r border-slate-200 ${
                                         (!isEditingMasterData && !!newProduct.originalCumData) ? 'bg-blue-50/30 text-slate-700' : 'bg-white'
                                     }`}
                                 />
-
+                                
                                 {/* DROPDOWN UNIDAD (30%) - SIEMPRE FUNCIONAL SI SE DESBLOQUEA */}
                                 <div className="relative w-32 bg-slate-50">
                                     <select
@@ -853,7 +857,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                             </summary>
                             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-slate-200">
                                 {technicalFields.map(field => (
-                                     <SmartField
+                                     <SmartField 
                                         key={field.key}
                                         label={field.label}
                                         value={newProduct[field.key as keyof ProductFinding] as string || ''}
@@ -869,26 +873,26 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
             </FocusSection>
 
             {/* BLOCK 2: TRACEABILITY */}
-             <FocusSection
-                title="3. Trazabilidad y Estado"
-                icon="clipboard"
-                isActive={isIdentityFilled}
+             <FocusSection 
+                title="3. Trazabilidad y Estado" 
+                icon="clipboard" 
+                isActive={isIdentityFilled} 
                 isDone={isTraceabilityFilled}
             >
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                     <SmartField
-                        label="Lote de Producción"
-                        value={newProduct.lot || ''}
+                     <SmartField 
+                        label="Lote de Producción" 
+                        value={newProduct.lot || ''} 
                         onChange={e => setNewProduct({...newProduct, lot: e.target.value})}
                         placeholder="Alfanumérico..."
                     />
-                     <SmartField
-                        label="Fecha de Vencimiento"
+                     <SmartField 
+                        label="Fecha de Vencimiento" 
                         type="date"
-                        value={newProduct.expirationDate || ''}
+                        value={newProduct.expirationDate || ''} 
                         onChange={e => setNewProduct({...newProduct, expirationDate: e.target.value})}
                     />
-
+                    
                     {needsColdChain && (
                         <div className="md:col-span-2 mt-2">
                              <div className={`p-5 rounded-xl border-2 transition-all ${newProduct.coldChainStatus === 'INCUMPLE' ? 'bg-red-50 border-red-200' : 'bg-sky-50 border-sky-100'}`}>
@@ -922,10 +926,10 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
             </FocusSection>
 
             {/* BLOCK 3: LOGISTICS */}
-             <FocusSection
-                title="4. Logística y Conteo"
-                icon="box"
-                isActive={isTraceabilityFilled}
+             <FocusSection 
+                title="4. Logística y Conteo" 
+                icon="box" 
+                isActive={isTraceabilityFilled} 
                 isDone={false}
             >
                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 shadow-inner">
@@ -949,7 +953,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                           </div>
                       )}
                   </div>
-
+                  
                    {/* ACTION BUTTONS */}
                    <div className="flex flex-col md:flex-row gap-4 justify-end mt-8 pt-6 border-t border-slate-100">
                         {!isReportingIssue ? (
@@ -970,8 +974,8 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                                             {['VENCIDO', 'SIN_REGISTRO', 'ALTERADO', 'USO_INSTITUCIONAL', 'MUESTRA_MEDICA', 'MAL_ALMACENAMIENTO', 'FRAUDULENTO'].map((risk) => {
                                                 const isSelected = (newProduct.riskFactors || []).includes(risk as RiskFactor);
                                                 return (
-                                                    <button
-                                                        key={risk}
+                                                    <button 
+                                                        key={risk} 
                                                         type="button"
                                                         onClick={() => {
                                                             setNewProduct(prev => {
@@ -1005,7 +1009,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                                             </select>
                                             <div className="absolute right-4 top-3.5 text-red-400 pointer-events-none"><Icon name="chevron-down" size={16}/></div>
                                         </div>
-
+                                        
                                         {newProduct.seizureType !== 'NINGUNO' && (
                                             <div className="mt-4 animate-in fade-in slide-in-from-top-2">
                                                 <SeizureCalculator onCalculate={handleCalculatorUpdate} cum={newProduct.cum} presentation={newProduct.presentation} pharmaceuticalForm={newProduct.pharmaceuticalForm} isVerified={cumSearchStatus === 'FOUND'} />
@@ -1013,7 +1017,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                                         )}
                                     </div>
                                 </div>
-
+                                
                                 <div className="flex justify-end gap-4 border-t border-red-200 pt-6">
                                     <button onClick={() => setIsReportingIssue(false)} className="px-6 py-3 text-slate-500 font-bold hover:text-slate-800 transition-colors">Cancelar</button>
                                     <button onClick={() => handleAddProduct(false)} className="px-8 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold shadow-lg shadow-red-200 flex items-center gap-2 transform hover:scale-[1.02] transition-all"><Icon name="alert-octagon" size={18}/> CONFIRMAR HALLAZGO</button>
@@ -1022,7 +1026,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                         )}
                    </div>
             </FocusSection>
-
+            
             {formError && (
                  <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3 text-red-700 animate-shake">
                      <Icon name="alert-circle" size={24}/>
@@ -1034,6 +1038,19 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
   };
 
   if (!establishment) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="text-center"><Icon name="loader" className="animate-spin text-blue-600 mx-auto mb-4" size={40}/><h2 className="text-slate-600 font-bold">Cargando Expediente...</h2></div></div>;
+  const currentSchema = PRODUCT_SCHEMAS[newProduct.type as string] || PRODUCT_SCHEMAS['OTRO'];
+
+  // [NEW] FILTER FIELDS FOR GROUPING
+  // Identity: Name, Manufacturer, Reg, Presentation (Handled by Card if CUM)
+  // Technical: ATC, Via, ActivePrinciple, Unit (Accordion)
+  // Operational: Lot, Expiration, Quantity (Always Visible)
+  
+  // Modificado: Eliminamos 'concentration' y 'unit' porque ahora tienen UI dedicada en el bloque de identidad
+  const technicalFieldsKeys = ['atcCode', 'viaAdministration', 'activePrinciple', 'pharmaceuticalForm'];
+  
+  // Operational are the rest (minus Technical and Identity)
+  // Technical fields definition
+  const technicalFields = currentSchema.fields.filter(f => technicalFieldsKeys.includes(f.key));
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-24 animate-in fade-in relative">
@@ -1043,7 +1060,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                 <div className="flex items-center gap-2 mb-2">
                     <Badge label={establishment.category} variant="neutral"/>
                     <Badge label={establishment.type} variant="neutral"/>
-                    {hasSeizures && <Badge label="MEDIDA SANITARIA" className="bg-red-600 text-white"/>}
+                    {hasSeizures && <Badge label="MEDIDA SANITARIA" className="bg-red-600 text-white animate-pulse"/>}
                 </div>
                 <h1 className="text-2xl font-black text-slate-800 tracking-tight uppercase">{establishment.name}</h1>
                 <p className="text-xs font-bold text-slate-500 flex items-center gap-2 mt-1"><Icon name="map-pin" size={12}/> {establishment.address} • NIT: {establishment.nit}</p>
@@ -1212,52 +1229,60 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
 
                     {/* ALERTA DE MEDIDA SANITARIA */}
                     {concept === 'DESFAVORABLE' && (
-                        <div className="bg-red-50 border-2 border-red-500 p-4 rounded-xl flex items-center gap-4 animate-pulse shadow-lg shadow-red-100">
-                            <div className="bg-red-100 p-3 rounded-full text-red-600"><Icon name="alert-triangle" size={32}/></div>
-                            <div>
-                                <h4 className="font-black text-red-800 uppercase text-lg">ATENCIÓN: MEDIDA SANITARIA OBLIGATORIA</h4>
-                                <p className="text-sm font-bold text-red-700">El puntaje y los hallazgos obligan a aplicar una Medida Sanitaria. Asegúrese de documentar el número de precinto si aplica clausura.</p>
+                        <div className="bg-red-50 border-l-8 border-red-600 p-6 rounded-r-xl shadow-xl flex items-center gap-6 relative overflow-hidden">
+                             <div className="absolute -right-10 -top-10 text-red-100 opacity-50"><Icon name="alert-octagon" size={150}/></div>
+                            <div className="bg-white p-4 rounded-full text-red-600 shadow-sm z-10"><Icon name="alert-triangle" size={32}/></div>
+                            <div className="z-10">
+                                <h4 className="font-black text-red-900 uppercase text-xl tracking-tight">ATENCIÓN: MEDIDA SANITARIA OBLIGATORIA</h4>
+                                <p className="text-sm font-medium text-red-800 mt-1 max-w-2xl">
+                                    El puntaje obtenido ({score}%) y la criticidad de los hallazgos obligan legalmente a la aplicación de una Medida Sanitaria de Seguridad. 
+                                    <span className="block mt-1 font-bold">Acción Requerida: Documente los precintos de seguridad y proceda con la clausura o decomiso según corresponda.</span>
+                                </p>
                             </div>
                         </div>
                     )}
 
                     {/* PANEL ASISTENTE LEGAL */}
-                    <div className="bg-indigo-50 border-l-4 border-indigo-500 p-6 rounded-r-2xl shadow-sm flex flex-col md:flex-row gap-6 items-center justify-between animate-in slide-in-from-left-4">
-                        <div className="flex items-center gap-4">
-                            <div className="bg-indigo-100 p-3 rounded-xl text-indigo-600"><Icon name="cpu" size={32}/></div>
-                            <div>
-                                <h3 className="font-black text-indigo-900 text-lg uppercase tracking-tight">Asistente de Redacción IVC</h3>
-                                <div className="text-xs text-indigo-600 mt-2">
-                                    Normas Incumplidas Detectadas:
-                                    <div className="mt-1 max-h-32 overflow-y-auto bg-white/50 p-2 rounded border border-indigo-100">
-                                        {(() => {
-                                            if (!establishment) return <strong>0</strong>;
-                                            const res = inspectionEngine.generateLegalContext(checklistResponses, products, establishment);
+                    <div className="bg-indigo-50 border-l-4 border-indigo-500 p-6 rounded-r-2xl shadow-sm flex flex-col gap-6 animate-in slide-in-from-left-4">
+                        <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+                            <div className="flex items-center gap-4">
+                                <div className="bg-indigo-100 p-3 rounded-xl text-indigo-600"><Icon name="cpu" size={32}/></div>
+                                <div>
+                                    <h3 className="font-black text-indigo-900 text-lg uppercase tracking-tight">Asistente de Redacción IVC</h3>
+                                    <div className="text-xs text-indigo-600 mt-2">
+                                        Normas Incumplidas Detectadas: 
+                                        <div className="mt-1 max-h-32 overflow-y-auto bg-white/50 p-2 rounded border border-indigo-100">
+                                            {(() => {
+                                                if (!establishment) return <strong>0</strong>;
+                                                const res = inspectionEngine.generateLegalContext(checklistResponses, products, establishment);
+                                                
+                                                // Safety Check: Incoherencia (Concepto Malo pero Lista Vacía)
+                                                if (res.violatedNorms.length === 0 && (concept === 'DESFAVORABLE' || score < 60)) {
+                                                    return <strong className="text-red-600">⚠️ ERROR DE COHERENCIA: Se detectaron fallos críticos pero no se identificó la norma exacta. Revise Inventario y Matriz.</strong>;
+                                                }
 
-                                            // Safety Check: Incoherencia (Concepto Malo pero Lista Vacía)
-                                            if (res.violatedNorms.length === 0 && (concept === 'DESFAVORABLE' || score < 60)) {
-                                                return <strong className="text-red-600">⚠️ ERROR DE COHERENCIA: Se detectaron fallos críticos pero no se identificó la norma exacta. Revise Inventario y Matriz.</strong>;
-                                            }
-
-                                            return res.violatedNorms.length > 0 ? (
-                                                <ul className="list-none space-y-1">
-                                                    {res.violatedNorms.map((n, idx) => (
-                                                        <li key={idx} className="font-bold border-b border-indigo-50 pb-1 last:border-0">{n}</li>
-                                                    ))}
-                                                </ul>
-                                            ) : <strong>Ninguna (Cumplimiento Normativo)</strong>;
-                                        })()}
+                                                return res.violatedNorms.length > 0 ? (
+                                                    <ul className="list-none space-y-1">
+                                                        {res.violatedNorms.map((n, idx) => (
+                                                            <li key={idx} className="font-bold border-b border-indigo-50 pb-1 last:border-0">{n}</li>
+                                                        ))}
+                                                    </ul>
+                                                ) : <strong>Ninguna (Cumplimiento Normativo)</strong>;
+                                            })()}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
+                            <Button onClick={handleAutoGenerate} disabled={loading} className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-200 h-12 px-6 transform transition-all hover:scale-105 flex items-center gap-3 whitespace-nowrap">
+                                <Icon name={navigator.onLine ? "cloud-lightning" : "cpu"} size={18}/> 
+                                {loading ? "Redactando..." : "GENERAR NARRATIVA Y FUNDAMENTOS"}
+                            </Button>
                         </div>
-                        <Button onClick={handleAutoGenerate} disabled={loading} className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-200 h-12 px-6 transform transition-all hover:scale-105 flex items-center gap-3">
-                            <Icon name={navigator.onLine ? "cloud-lightning" : "cpu"} size={18}/>
-                            {loading ? "Redactando..." : "GENERAR NARRATIVA Y FUNDAMENTOS"}
-                        </Button>
-                        <p className="text-[10px] text-slate-400 text-center mt-2 max-w-md mx-auto">
-                            * La generación automática es una herramienta de apoyo. El inspector debe verificar y ajustar el contenido final.
-                        </p>
+                        
+                        <div className="text-[10px] text-indigo-400 font-medium border-t border-indigo-100 pt-3 text-center">
+                            AVISO LEGAL: La narrativa y los fundamentos jurídicos son generados por un asistente de Inteligencia Artificial como herramienta de apoyo. 
+                            El Inspector es el único responsable de verificar la veracidad de los hechos, la exactitud de la normativa citada y la coherencia técnica antes de suscribir el acta.
+                        </div>
                     </div>
 
                     <Card title="Relato de los Hechos" icon="book-open">
@@ -1317,7 +1342,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ contextData }) =
                                     {attendees.map((attendee) => (
                                         <div key={attendee.id} className="relative border-2 border-slate-200 rounded-xl p-4 flex flex-col gap-3 animate-in fade-in zoom-in-95">
                                             <button onClick={() => removeAttendee(attendee.id)} className="absolute top-2 right-2 text-slate-300 hover:text-red-500"><Icon name="x" size={16}/></button>
-
+                                            
                                             <div className="flex items-center gap-2 mb-1">
                                                 <Badge label={attendee.role.replace('_', ' ')} variant={attendee.role === 'TESTIGO' ? 'warning' : 'neutral'} className="text-[9px]"/>
                                             </div>
@@ -1518,17 +1543,17 @@ const SmartField: React.FC<{
                 {isAutoFilled && <span className="text-[9px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100 flex items-center gap-1"><Icon name="database" size={8}/> AUTO</span>}
             </label>
             <div className="relative group">
-                <Input
+                <Input 
                     type={type}
-                    value={value}
-                    onChange={onChange}
+                    value={value} 
+                    onChange={onChange} 
                     disabled={isLocked || readOnly}
                     placeholder={placeholder}
                     className={`h-11 font-bold text-sm transition-all ${
-                        isLocked ? 'bg-slate-50 text-slate-500 border-slate-200 cursor-not-allowed pl-10' :
-                        isAutoFilled ? 'bg-blue-50/30 border-blue-200 text-blue-900 focus:border-blue-500' :
+                        isLocked ? 'bg-slate-50 text-slate-500 border-slate-200 cursor-not-allowed pl-10' : 
+                        isAutoFilled ? 'bg-blue-50/30 border-blue-200 text-blue-900 focus:border-blue-500' : 
                         'bg-white border-slate-300 focus:border-indigo-500'
-                    }`}
+                    }`} 
                 />
                 {isLocked && (
                     <div className="absolute left-3 top-3 text-slate-400">
@@ -1536,7 +1561,7 @@ const SmartField: React.FC<{
                     </div>
                 )}
                 {isLocked && onUnlock && (
-                    <button
+                    <button 
                         onClick={onUnlock}
                         className="absolute right-2 top-2 p-1.5 text-slate-300 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
                         title="Desbloquear para edición manual"
