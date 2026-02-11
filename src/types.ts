@@ -30,6 +30,32 @@ export type SeizureType = 'NINGUNO' | 'DECOMISO' | 'CONGELAMIENTO' | 'DESNATURAL
 export type PhysicalState = 'BUENO' | 'DETERIORADO' | 'ALTERADO';
 export type ComplaintType = 'CALIDAD_PRODUCTO' | 'USO_RACIONAL' | 'LEGALIDAD_CONTRABANDO' | 'SERVICIO_TECNICO' | 'FARMACOVIGILANCIA' | 'OTRO';
 
+export type InspectionBlock = 
+  | 'TALENTO_HUMANO' 
+  | 'LEGAL' 
+  | 'INFRAESTRUCTURA' 
+  | 'DOTACION' 
+  | 'PROCESOS' 
+  | 'SANEAMIENTO' 
+  | 'SANITARIO' 
+  | 'LOCATIVO' 
+  | 'PERSONAL' 
+  | 'DOCUMENTAL' 
+  | 'PRODUCTOS' 
+  | 'SEGURIDAD';
+
+export interface RuleViolation {
+  id: string;
+  description: string;
+  riskLevel: 'CRITICO' | 'ALTO' | 'MEDIO' | 'BAJO';
+  action?: string;
+}
+
+export interface ValidationResult {
+  isValid: boolean;
+  violations: RuleViolation[];
+}
+
 // --- NUEVO: Estructuras para Motor Polimórfico (Manual Técnico Secc 6.1) ---
 export type PresentationMode = 'DISCRETE' | 'VOLUMETRIC' | 'MASS_BASED';
 
@@ -41,6 +67,7 @@ export interface CommercialPresentation {
   contentNet: number;     // Contenido físico (mL, g)
   contentUnit: string;    // Unidad (mL, L, g, kg)
   detectedString: string; // Resumen legible
+  isConcentrationIrrelevant?: boolean; // Flag para Biológicos/Vacunas
 }
 
 export interface SeizureLogistics {
@@ -99,7 +126,8 @@ export interface ProductFinding {
   atcCode?: string;            // Clasificación
   cumIndexRef?: string;        // ALCOA+: Trazabilidad al registro maestro original
   isLocked?: boolean;          // Data Integrity: Evita edición manual si viene de CUM
-  
+  regRuleRef?: string;         // Referencia a la regla infringida (Motor de Reglas)
+
   lot?: string; 
   serial?: string; 
   model?: string; 
@@ -110,12 +138,13 @@ export interface ProductFinding {
   
   // Datos técnicos
   riskClassDM?: RiskClassDM; 
+  calibrationStatus?: string; // REG-T012
   storageTemp?: string; 
   coldChainStatus?: string; 
   state?: PhysicalState;
 
   // Riesgo y Medida
-  riskFactor: RiskFactor;
+  riskFactors: RiskFactor[]; // Multiples causales permitidas
   seizureType: SeizureType;
   
   // Cantidades (Sincronizadas con Calculadora)
@@ -164,7 +193,7 @@ export interface Establishment {
 export interface InspectionItem {
   id: string;
   text: string; 
-  block: string;
+  block: InspectionBlock;
   isKiller: boolean; 
   triggerCondition?: 'FAIL' | 'PASS'; 
   childItems?: InspectionItem[]; 
@@ -200,6 +229,14 @@ export interface CustodyChain {
   disposalEvidence?: string; 
 }
 
+export interface InspectionAttendee {
+  id: string;
+  name: string;
+  idNumber: string;
+  role: 'REPRESENTANTE_LEGAL' | 'DIRECTOR_TECNICO' | 'AUXILIAR' | 'TESTIGO' | 'OTRO';
+  signature: string | null; // Base64
+}
+
 export interface Report {
   id?: number;
   date: string; 
@@ -222,6 +259,7 @@ export interface Report {
     attendedBy: string;
     attendedId?: string;
     attendedRole?: string;
+    attendees?: InspectionAttendee[];
     gpsBypass?: boolean;
     [key: string]: any;
   };

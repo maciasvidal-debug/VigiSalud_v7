@@ -1,4 +1,4 @@
-import type { Establishment, InspectionItem, CategoryType, InspectionBlock } from '../types';
+import type { Establishment, InspectionItem, CategoryType, InspectionBlock, ProductFinding, ValidationResult, RuleViolation, ConceptType } from '../types';
 
 // =============================================================================
 // 1. CONFIGURACIÓN TÁCTICA DE GOBERNANZA (PRIORIDAD DE BLOQUES)
@@ -226,7 +226,161 @@ const MASTER_CATALOG: MasterItem[] = [
 ];
 
 // =============================================================================
-// 3. EL MOTOR LÓGICO
+// 3. CATALOGO DE REGLAS DE PRODUCTO (Manual Técnico Sec 3 y 4)
+// =============================================================================
+
+interface InternalRule {
+  id: string;
+  description: string;
+  riskLevel: 'CRITICO' | 'ALTO' | 'MEDIO' | 'BAJO';
+  condition: (product: ProductFinding) => boolean;
+  action?: string;
+}
+
+const PRODUCT_RULES: InternalRule[] = [
+  // --- SECCION 3.1 VALIDACIONES LEGALES ---
+  {
+    id: 'REG-L001',
+    description: 'El producto debe contar con Registro Sanitario vigente o Notificación Sanitaria.',
+    riskLevel: 'CRITICO',
+    condition: (p) => !p.invimaReg || p.invimaReg.trim().length < 5
+  },
+  {
+    id: 'REG-L006',
+    description: 'Prohibición de comercialización sin RS o con RS vencido (Riesgo Crítico).',
+    riskLevel: 'CRITICO',
+    condition: (p) => (p.riskFactors || []).includes('SIN_REGISTRO')
+  },
+  {
+    id: 'REG-L020',
+    description: 'Decomiso inmediato por evidencia de falsificación o fraude.',
+    riskLevel: 'CRITICO',
+    condition: (p) => (p.riskFactors || []).includes('FRAUDULENTO') || (p.riskFactors || []).includes('ALTERADO')
+  },
+  
+  // --- SECCION 3.3 VALIDACIONES CUANTITATIVAS ---
+  {
+    id: 'REG-Q001',
+    description: 'La cantidad inventariada debe ser mayor a cero.',
+    riskLevel: 'BAJO',
+    condition: (p) => p.quantity <= 0
+  },
+  
+  // --- SECCION 3.4 VALIDACIONES TÉCNICAS ---
+  {
+    id: 'REG-T015',
+    description: 'Producto vencido. Se prohíbe su venta o dispensación.',
+    riskLevel: 'ALTO',
+    condition: (p) => {
+      // Si ya está marcado como vencido explícitamente
+      if ((p.riskFactors || []).includes('VENCIDO')) return true;
+      // Validación dinámica de fecha
+      if (p.expirationDate) {
+        const expDate = new Date(p.expirationDate);
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        return expDate < today;
+      }
+      return false;
+    }
+  },
+  {
+    id: 'REG-T001',
+    description: 'Condiciones de almacenamiento inadecuadas / Ruptura de cadena de frío.',
+    riskLevel: 'ALTO',
+    condition: (p) => (p.riskFactors || []).includes('MAL_ALMACENAMIENTO') || (!!p.coldChainStatus && p.coldChainStatus.includes('INCUMPLE'))
+  },
+  
+  // --- SECCION 3.2 VALIDACIONES DOCUMENTALES ---
+  {
+    id: 'REG-D006',
+    description: 'Los dispositivos médicos deben contar con manual de uso visible.',
+    riskLevel: 'MEDIO',
+    condition: (p) => p.type === 'DISPOSITIVO_MEDICO' && p.observations === 'NO'
+  },
+  {
+    id: 'REG-T012',
+    description: 'Equipos biomédicos deben tener calibración vigente (Decreto 4725).',
+    riskLevel: 'ALTO',
+    condition: (p) => p.type === 'DISPOSITIVO_MEDICO' && p.subtype === 'EQUIPO_BIOMEDICO' && p.calibrationStatus === 'VENCIDA'
+  },
+  {
+    id: 'REG-D008',
+    description: 'Suplementos dietarios requieren tabla nutricional obligatoria.',
+    riskLevel: 'MEDIO',
+    condition: (p) => p.type === 'SUPLEMENTO' && p.observations === 'NO'
+  }
+];
+
+// =============================================================================
+// REEMPLAZO DE LA CLASE NarrativeBuilder (LÓGICA JURÍDICA)
+// =============================================================================
+class NarrativeBuilder {
+  static build(failedItems: InspectionItem[], products: ProductFinding[]): string {
+    const seized = products.filter(p => p.seizureType !== 'NINGUNO');
+    
+    // CASO PERFECTO
+    if (failedItems.length === 0 && seized.length === 0) {
+      return "Realizada la visita de inspección, vigilancia y control, se evidencia que el establecimiento CUMPLE con las condiciones sanitario-locativas, de almacenamiento y documentación evaluadas al momento de la diligencia, conforme a la normatividad sanitaria vigente.";
+    }
+
+    let narrative = "Durante el recorrido de inspección se evidencian los siguientes hallazgos que configuran incumplimiento normativo:\n\n";
+
+    // 1. HALLAZGOS DE LISTA DE CHEQUEO (Agrupados por Bloque para coherencia)
+    const groups: Record<string, string[]> = {};
+    failedItems.forEach(item => {
+      if (!groups[item.block]) groups[item.block] = [];
+      // Limpieza: quitar punto final si existe y poner minúscula inicial (salvo nombres propios)
+      let text = item.text.trim();
+      if (text.endsWith('.')) text = text.slice(0, -1);
+      groups[item.block].push(text);
+    });
+
+    Object.keys(groups).forEach((block) => {
+      const findings = groups[block];
+      const blockName = block.replace(/_/g, ' ');
+      
+      narrative += `EN CUANTO A ${blockName}: `;
+      
+      // Lógica de enumeración natural
+      if (findings.length === 1) {
+          narrative += `Se observa que ${findings[0].toLowerCase()}. `;
+      } else {
+          narrative += "Se evidencian falencias en: ";
+          narrative += findings.map((f, i) => {
+             // Formato lista dentro del párrafo
+             return `(${i + 1}) ${f}`; 
+          }).join("; ") + ". ";
+      }
+      narrative += "\n";
+    });
+
+    // 2. HALLAZGOS DE PRODUCTO (Inventario)
+    if (seized.length > 0) {
+        narrative += "\nEN RELACIÓN A LOS PRODUCTOS E INSUMOS:\n";
+        // Agrupar por causal para no repetir
+        const causes = new Set<string>();
+        let totalQty = 0;
+        
+        seized.forEach(p => {
+            totalQty += p.quantity;
+            (p.riskFactors || []).forEach(r => causes.add(r.replace(/_/g, ' ')));
+        });
+        
+        narrative += `Se aplicó Medida Sanitaria de Seguridad a ${totalQty} unidades de productos por presentar: ${Array.from(causes).join(', ')}. `;
+        narrative += "Dichos productos fueron objeto de inventario y separación inmediata (ver detalle en sección de medidas).";
+    }
+
+    // 3. CIERRE TÉCNICO
+    narrative += "\n\nCONCEPTO TÉCNICO:\n";
+    narrative += "Teniendo en cuenta los hallazgos descritos, los cuales afectan la inocuidad y seguridad sanitaria, se emite concepto DESFAVORABLE / CON REQUERIMIENTOS, otorgándose los plazos de ley para su subsanación.";
+
+    return narrative;
+  }
+}
+
+// =============================================================================
+// 4. EL MOTOR LÓGICO (API PÚBLICA)
 // =============================================================================
 
 export const inspectionEngine = {
@@ -270,8 +424,8 @@ export const inspectionEngine = {
     // Prioridad 1: Orden de Bloque (Flujo de visita lógica)
     // Prioridad 2: Criticidad (Killer primero dentro del bloque para alerta temprana)
     return checklist.sort((a, b) => {
-      const priorityA = BLOCK_PRIORITY[a.block] || 99;
-      const priorityB = BLOCK_PRIORITY[b.block] || 99;
+      const priorityA = BLOCK_PRIORITY[a.block as InspectionBlock] || 99;
+      const priorityB = BLOCK_PRIORITY[b.block as InspectionBlock] || 99;
 
       // Ordenar por Bloque
       if (priorityA !== priorityB) {
@@ -314,5 +468,123 @@ export const inspectionEngine = {
 
     // Evitar división por cero
     return totalWeight === 0 ? 100 : Math.round((earnedWeight / totalWeight) * 100);
+  },
+
+  /**
+   * Valida un producto contra el Motor de Reglas (Manual Técnico Sec 4).
+   * @param product Producto a validar
+   * @returns Resultado de validación con lista de violaciones
+   */
+  validateProduct: (product: ProductFinding): ValidationResult => {
+    const violations: RuleViolation[] = [];
+
+    for (const rule of PRODUCT_RULES) {
+      // Si la regla se cumple (condition returns true), es una violación
+      if (rule.condition(product)) {
+        violations.push({
+          id: rule.id,
+          description: rule.description,
+          riskLevel: rule.riskLevel,
+          action: rule.action
+        });
+      }
+    }
+
+    return {
+      isValid: violations.length === 0,
+      violations
+    };
+  },
+
+  /**
+   * Determina el concepto técnico basado en el puntaje y hallazgos críticos.
+   */
+  getConcept: (score: number, hasCriticalFindings: boolean): ConceptType => {
+    if (hasCriticalFindings || score < 60) {
+      return 'DESFAVORABLE';
+    }
+    if (score < 100) {
+      return 'FAVORABLE_CON_REQUERIMIENTOS';
+    }
+    return 'FAVORABLE';
+  },
+
+  // --- FUNCIÓN UNIFICADA Y CORREGIDA ---
+  generateHybridNarrative: async (
+    checklistResponses: Record<string, { status: string }>,
+    products: ProductFinding[],
+    establishment: Establishment
+  ): Promise<{ narrativeSuggestion: string; legalBasisSuggestion: string; violatedNorms: string[] }> => {
+    
+    // 1. Recalcular Items Fallidos (Fuente de la Verdad)
+    const allItems = inspectionEngine.generate(establishment);
+    const failedItems = allItems.filter(item => {
+      const resp = checklistResponses[item.id];
+      return resp && resp.status === 'NO_CUMPLE';
+    });
+    
+    // 2. Generar Narrativa Determinista (Adiós IA Mock)
+    const narrative = NarrativeBuilder.build(failedItems, products);
+
+    // 3. Generar Fundamentos Legales y Lista de Normas
+    const violatedNorms: string[] = [];
+    const legalBasisParts: Set<string> = new Set();
+
+    failedItems.forEach(item => {
+        // Formato para la lista de UI: "Norma: Descripción del hallazgo"
+        const citation = item.legalCitation || 'Norma Sanitaria General';
+        violatedNorms.push(`${citation}: ${item.text}`);
+        
+        if (item.legalCitation) legalBasisParts.add(item.legalCitation);
+    });
+
+    // Productos
+    const seizedProducts = products.filter(p => p.seizureType !== 'NINGUNO');
+    if (seizedProducts.length > 0) {
+        legalBasisParts.add("Ley 9 de 1979 (Código Sanitario Nacional)");
+        seizedProducts.forEach(p => {
+             // Agregar a la lista visual también
+             const risks = (p.riskFactors || []).join(', ');
+             violatedNorms.push(`PRODUCTO (${p.name}): ${risks}`);
+        });
+    }
+
+    // Encabezado Legal
+    const date = new Intl.DateTimeFormat('es-CO', { dateStyle: 'full', timeStyle: 'short' }).format(new Date());
+    const header = `En la ciudad de ${establishment.city || 'Barranquilla'}, siendo las ${date}, en las instalaciones de ${establishment.name}...`;
+    const footer = "Se firma la presente acta por quienes en ella intervinieron.";
+
+    return {
+      narrativeSuggestion: `${header}\n\n${narrative}\n\n${footer}`,
+      legalBasisSuggestion: Array.from(legalBasisParts).join('.\n'),
+      violatedNorms: violatedNorms // <--- AHORA SÍ DEVUELVE LA LISTA REAL
+    };
+  },
+
+  // Wrapper de compatibilidad para UI síncrona (Deprecated pero necesario para que no rompa el render)
+  generateLegalContext: (
+    checklistResponses: Record<string, { status: string }>,
+    products: ProductFinding[],
+    establishment: Establishment
+  ): { narrativeSuggestion: string; legalBasisSuggestion: string; violatedNorms: string[] } => {
+      
+      const allItems = inspectionEngine.generate(establishment);
+      const failedItems = allItems.filter(item => checklistResponses[item.id]?.status === 'NO_CUMPLE');
+      
+      // Reutilizamos la lógica de extracción para la cajita azul
+      const violatedNorms: string[] = [];
+      failedItems.forEach(item => {
+         violatedNorms.push(`${item.legalCitation || 'Norma'}: ${item.text}`);
+      });
+      products.filter(p => p.seizureType !== 'NINGUNO').forEach(p => {
+          violatedNorms.push(`PRODUCTO: ${p.name} (${(p.riskFactors||[]).join(',')})`);
+      });
+
+      // No llamamos a NarrativeBuilder.build aquí porque es sync y no necesitamos la narrativa completa
+      return {
+          narrativeSuggestion: "Ver detalle en acta final.",
+          legalBasisSuggestion: "Normatividad vigente.",
+          violatedNorms: violatedNorms 
+      };
   }
 };
